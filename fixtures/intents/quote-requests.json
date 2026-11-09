@@ -1,0 +1,89 @@
+{
+  "note": "Simulated quote requests a market maker sees for NEAR Intents 1Click swaps. `request` follows the 1Click POST /v0/quote body (https://1click.chaindefuser.com/v0/quote); `depositAddress` is the one the quote would assign. Values fictional.",
+  "requests": [
+    {
+      "quoteId": "q-7f3a01",
+      "receivedAt": "2026-11-12T10:00:01Z",
+      "depositAddress": "3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d",
+      "request": {
+        "dry": false,
+        "swapType": "EXACT_INPUT",
+        "slippageTolerance": 100,
+        "originAsset": "nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near",
+        "depositType": "ORIGIN_CHAIN",
+        "destinationAsset": "nep141:wrap.near",
+        "amount": "250000000",
+        "refundTo": "0xc0201ae558f95ce634542937004092e5fa3a7ea9",
+        "refundType": "ORIGIN_CHAIN",
+        "recipient": "alice-merchant.near",
+        "recipientType": "DESTINATION_CHAIN",
+        "deadline": "2026-11-12T10:10:00Z",
+        "referral": "demo-wallet",
+        "quoteWaitingTimeMs": 3000
+      }
+    },
+    {
+      "quoteId": "q-7f3a02",
+      "receivedAt": "2026-11-12T10:00:04Z",
+      "depositAddress": "9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f",
+      "request": {
+        "dry": false,
+        "swapType": "EXACT_INPUT",
+        "slippageTolerance": 100,
+        "originAsset": "nep141:wrap.near",
+        "depositType": "ORIGIN_CHAIN",
+        "destinationAsset": "nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near",
+        "amount": "1500000000000000000000000000",
+        "refundTo": "victim-wallet-88.near",
+        "refundType": "ORIGIN_CHAIN",
+        "recipient": "TKsNetrAEYeSLkDFRbk26CNU2Rd6gMDxxB",
+        "recipientType": "DESTINATION_CHAIN",
+        "deadline": "2026-11-12T10:10:00Z",
+        "referral": "demo-wallet",
+        "quoteWaitingTimeMs": 3000
+      }
+    },
+    {
+      "quoteId": "q-7f3a03",
+      "receivedAt": "2026-11-12T10:00:09Z",
+      "depositAddress": "5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e",
+      "request": {
+        "dry": false,
+        "swapType": "EXACT_INPUT",
+        "slippageTolerance": 50,
+        "originAsset": "nep141:wrap.near",
+        "depositType": "ORIGIN_CHAIN",
+        "destinationAsset": "nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near",
+        "amount": "800000000000000000000000000",
+        "refundTo": "goldbridge-desk.near",
+        "refundType": "ORIGIN_CHAIN",
+        "recipient": "0x7d72774a3c9680e6d2921350f889b48ba2f3b24d",
+        "recipientType": "DESTINATION_CHAIN",
+        "deadline": "2026-11-12T10:10:00Z",
+        "referral": "",
+        "quoteWaitingTimeMs": 3000
+      }
+    },
+    {
+      "quoteId": "q-7f3a04",
+      "receivedAt": "2026-11-12T10:00:15Z",
+      "depositAddress": "1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b",
+      "request": {
+        "dry": false,
+        "swapType": "EXACT_INPUT",
+        "slippageTolerance": 100,
+        "originAsset": "nep141:wrap.near",
+        "depositType": "ORIGIN_CHAIN",
+        "destinationAsset": "nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near",
+        "amount": "200000000000000000000000000",
+        "refundTo": "bob-trader.near",
+        "refundType": "ORIGIN_CHAIN",
+        "recipient": "0x252a0c2b43e446365178b08c444d369ec80d03c9",
+        "recipientType": "DESTINATION_CHAIN",
+        "deadline": "2026-11-12T10:10:00Z",
+        "referral": "demo-wallet",
+        "quoteWaitingTimeMs": 3000
+      }
+    }
+  ]
+}

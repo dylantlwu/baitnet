@@ -1,0 +1,27 @@
+{
+  "name": "@baitnet/arena",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "eval": "tsx src/eval-cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@baitnet/agent": "workspace:*",
+    "@baitnet/guard": "workspace:*",
+    "@baitnet/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "4.21.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "baitnet-registry"
+description = "BaitNet AlertRegistry: shared on-chain scam-address alerts with evidence hashes"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }

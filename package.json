@@ -1,0 +1,42 @@
+{
+  "name": "baitnet",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BaitNet: AI decoys extract scam payment addresses; agents and NEAR Intents solvers check a NEAR alert registry before money moves.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "demo": "tsx scripts/demo.ts",
+    "demo:ci": "tsx scripts/demo.ts --ci",
+    "demo:testnet": "tsx scripts/demo.ts testnet",
+    "demo:live": "tsx scripts/demo.ts live",
+    "demo:export": "tsx scripts/demo.ts --export",
+    "demo:fresh": "tsx scripts/demo.ts --fresh",
+    "sandbox:fetch": "tsx scripts/fetch-sandbox.ts",
+    "contracts:build": "bash scripts/build-contracts.sh",
+    "contracts:test": "cd contracts && DYLD_FALLBACK_LIBRARY_PATH=${DYLD_FALLBACK_LIBRARY_PATH:-/usr/lib} cargo test",
+    "check-secrets": "bash scripts/check-secrets.sh --all",
+    "hooks:install": "bash scripts/install-hooks.sh",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck && tsc --noEmit -p scripts",
+    "check-ignored": "bash scripts/check-ignored-sources.sh",
+    "eval": "pnpm --filter @baitnet/arena run eval",
+    "eval:live": "pnpm --filter @baitnet/arena run eval --live",
+    "training:export": "pnpm --filter @baitnet/training run export",
+    "invite": "tsx scripts/invite.ts",
+    "deploy:push": "bash deploy/push.sh",
+    "deploy:pull-backups": "bash deploy/pull-backups.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "near-api-js": "7.4.0",
+    "near-sandbox": "0.3.4",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}

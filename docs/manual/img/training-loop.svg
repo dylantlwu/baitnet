@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 500" width="980" height="500" role="img" aria-labelledby="t d">
+  <title id="t">训练闭环</title>
+  <desc id="d">专家发现诱饵说得不好，评分并改写；审核者通过后进入话术库；诱饵每次回答前检索话术库，表现变好；通过的改写同时变成回归用例，pnpm eval 跑完后改进曲线更新，专家再去找新的弱点。</desc>
+  <style>
+    .bg{fill:#fbfaf7;stroke:#d9d4ca}
+    .t{font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#1f2328}
+    .s{font-size:13px;fill:#57606a}
+    .h{font-size:16px;font-weight:600}
+    .n{font-size:13px;font-weight:700;fill:#fff}
+    .b{fill:#ffffff;stroke:#8c959f;stroke-width:1.5}
+    .k{fill:#fff4dc;stroke:#c98a0b;stroke-width:1.5}
+    .g{fill:#e7f6ec;stroke:#1f8a4c;stroke-width:1.5}
+    .p{fill:#e8f1fd;stroke:#2f6fd0;stroke-width:1.5}
+    .ln{stroke:#57606a;stroke-width:2;fill:none}
+    .lr{stroke:#c9372c;stroke-width:2;fill:none;stroke-dasharray:5 4}
+    .ah{fill:#57606a}.ar{fill:#c9372c}
+    .dot{fill:#d4522a}
+    .curve{stroke:#1f8a4c;stroke-width:3;fill:none}
+    .axis{stroke:#8c959f;stroke-width:1.2}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#1c1f24;stroke:#3b424c}
+      .t{fill:#e6edf3}.s{fill:#a8b3bd}
+      .b{fill:#262b32;stroke:#8b949e}
+      .k{fill:#3a2e14;stroke:#e0a73a}
+      .g{fill:#16301f;stroke:#57c785}
+      .p{fill:#18273d;stroke:#6aa5f5}
+      .ln{stroke:#a8b3bd}.ah{fill:#a8b3bd}
+      .lr{stroke:#f47067}.ar{fill:#f47067}
+      .curve{stroke:#57c785}.axis{stroke:#8b949e}
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="ar" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+  <rect class="bg" x="1" y="1" width="978" height="498" rx="14"/>
+  <text class="t h" x="24" y="34">训练闭环：专家的每一次改写，最终都会体现在诱饵的回复和改进曲线上</text>
+
+  <!-- 1 -->
+  <rect class="b" x="40" y="70" width="200" height="84" rx="10"/>
+  <text class="t h" x="140" y="102" text-anchor="middle">发现问题</text>
+  <text class="t s" x="140" y="126" text-anchor="middle">竞技场里扮骗子试探，</text>
+  <text class="t s" x="140" y="144" text-anchor="middle">看到诱饵说得不好</text>
+  <!-- 2 -->
+  <rect class="k" x="390" y="70" width="200" height="84" rx="10"/>
+  <text class="t h" x="490" y="102" text-anchor="middle">评分 + 改写</text>
+  <text class="t s" x="490" y="126" text-anchor="middle">打"差"、选标签、写理由，</text>
+  <text class="t s" x="490" y="144" text-anchor="middle">写出"更好的说法"</text>
+  <!-- 3 -->
+  <rect class="k" x="740" y="70" width="200" height="84" rx="10"/>
+  <text class="t h" x="840" y="102" text-anchor="middle">审核</text>
+  <text class="t s" x="840" y="126" text-anchor="middle">训练台「待审核」：</text>
+  <text class="t s" x="840" y="144" text-anchor="middle">通过 或 驳回</text>
+  <!-- 4 -->
+  <rect class="g" x="740" y="230" width="200" height="84" rx="10"/>
+  <text class="t h" x="840" y="262" text-anchor="middle">进入话术库</text>
+  <text class="t s" x="840" y="286" text-anchor="middle">版本号 +1（v1 → v2）</text>
+  <text class="t s" x="840" y="304" text-anchor="middle">同时生成一条回归用例</text>
+  <!-- 5 -->
+  <rect class="p" x="390" y="230" width="200" height="84" rx="10"/>
+  <text class="t h" x="490" y="262" text-anchor="middle">诱饵变好</text>
+  <text class="t s" x="490" y="286" text-anchor="middle">每次回复前先查话术库，</text>
+  <text class="t s" x="490" y="304" text-anchor="middle">按类似情境套用好回复</text>
+  <!-- 6 -->
+  <rect class="b" x="40" y="230" width="200" height="84" rx="10"/>
+  <text class="t h" x="140" y="262" text-anchor="middle">回归评测</text>
+  <text class="t s" x="140" y="286" text-anchor="middle">运行 pnpm eval</text>
+  <text class="t s" x="140" y="304" text-anchor="middle">（大模型用 eval:live）</text>
+
+  <path class="ln" d="M242 112 H388" marker-end="url(#a)"/>
+  <path class="ln" d="M592 112 H738" marker-end="url(#a)"/>
+  <path class="ln" d="M840 156 V228" marker-end="url(#a)"/>
+  <text class="t s" x="850" y="198">通过</text>
+  <path class="ln" d="M738 272 H592" marker-end="url(#a)"/>
+  <path class="ln" d="M388 272 H242" marker-end="url(#a)"/>
+  <path class="lr" d="M940 120 Q965 112 960 80 Q955 52 900 52 L620 52 Q596 52 592 70" marker-end="url(#r)"/>
+  <text class="t s" x="700" y="47">驳回：退回，可重新改写</text>
+
+  <!-- curve -->
+  <rect class="g" x="40" y="356" width="900" height="120" rx="10"/>
+  <text class="t h" x="64" y="388">改进曲线</text>
+  <text class="t s" x="64" y="412">训练台「改进曲线」页</text>
+  <text class="t s" x="64" y="432">每个话术库版本一个点，</text>
+  <text class="t s" x="64" y="452">回归通过率越高越好</text>
+  <line class="axis" x1="300" y1="456" x2="900" y2="456"/>
+  <line class="axis" x1="300" y1="372" x2="300" y2="456"/>
+  <polyline class="curve" points="320,444 450,430 580,408 710,392 860,380"/>
+  <text class="t s" x="320" y="474" text-anchor="middle">v1</text>
+  <text class="t s" x="450" y="474" text-anchor="middle">v2</text>
+  <text class="t s" x="580" y="474" text-anchor="middle">v3</text>
+  <text class="t s" x="710" y="474" text-anchor="middle">v4</text>
+  <text class="t s" x="860" y="474" text-anchor="middle">v5</text>
+  <path class="ln" d="M140 316 V354" marker-end="url(#a)"/>
+  <path class="lr" d="M28 416 Q12 416 12 300 Q12 112 38 112" marker-end="url(#r)"/>
+  <text class="t s" x="28" y="210" transform="rotate(-90 28 210)" text-anchor="middle">再去找新的弱点</text>
+
+  <circle class="dot" cx="40" cy="70" r="13"/><text class="t n" x="40" y="75" text-anchor="middle">1</text>
+  <circle class="dot" cx="390" cy="70" r="13"/><text class="t n" x="390" y="75" text-anchor="middle">2</text>
+  <circle class="dot" cx="740" cy="70" r="13"/><text class="t n" x="740" y="75" text-anchor="middle">3</text>
+  <circle class="dot" cx="940" cy="230" r="13"/><text class="t n" x="940" y="235" text-anchor="middle">4</text>
+  <circle class="dot" cx="590" cy="230" r="13"/><text class="t n" x="590" y="235" text-anchor="middle">5</text>
+  <circle class="dot" cx="240" cy="230" r="13"/><text class="t n" x="240" y="235" text-anchor="middle">6</text>
+</svg>

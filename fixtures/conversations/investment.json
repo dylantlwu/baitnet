@@ -1,0 +1,22 @@
+{
+  "id": "conv-investment-001",
+  "script": "investment",
+  "provider": "replay",
+  "language": "en",
+  "note": "Recorded replay. All names, numbers and addresses are fictional (format-valid). Scammer persona: 'Amy from GoldBridge Capital'.",
+  "turns": [
+    { "role": "scammer", "ts": "2026-11-08T09:02:11Z", "text": "Hi there! Sorry to bother you, I got your number from the NEAR builders group. I'm Amy, senior account manager at GoldBridge Capital. We run a quant arbitrage desk for USDT, our members are averaging 2.8% daily this month. Are you open to hearing more?" },
+    { "role": "bait", "ts": "2026-11-08T09:04:40Z", "text": "Oh hi Amy. 2.8% a day sounds a bit too good honestly... I have some savings sitting in stablecoins though. How does it work?" },
+    { "role": "scammer", "ts": "2026-11-08T09:05:58Z", "text": "I totally understand, everyone is careful at first! Our AI bot does cross-exchange arbitrage between Binance, OKX and on-chain DEXes. You just deposit USDT into your member account and profits settle every 24h. You can withdraw anytime. Minimum is 500 USDT for the Silver tier." },
+    { "role": "bait", "ts": "2026-11-08T09:09:12Z", "text": "Hmm ok. I don't really trust links, my nephew told me to always check. Is there a website where I can see my balance?" },
+    { "role": "scammer", "ts": "2026-11-08T09:10:03Z", "text": "Of course! Register here: https://goldbridge-vip.com/register?ref=AMY8812 — use my code AMY8812 so you get the 10% new member bonus. After registration your dashboard shows live profits." },
+    { "role": "bait", "ts": "2026-11-08T09:16:45Z", "text": "Ok I signed up I think. It says deposit pending. Where do I actually send the money? Which address and which chain? I have USDT on NEAR and a bit on Ethereum." },
+    { "role": "scammer", "ts": "2026-11-08T09:17:30Z", "text": "Perfect! NEAR is the cheapest. Send USDT (the official contract usdt.tether-token.near) to our settlement account goldbridge-desk.near. Please put your member ID in the memo. Fees are almost zero on NEAR." },
+    { "role": "bait", "ts": "2026-11-08T09:21:02Z", "text": "goldbridge-desk.near, ok writing it down. And if I want to send from Ethereum instead? My bigger balance is on MetaMask." },
+    { "role": "scammer", "ts": "2026-11-08T09:22:19Z", "text": "For ERC-20 USDT use our cold vault 0x220954f527d61a281b50846419d12a1154c7da46. Only ERC-20 please, don't send from BSC or you will lose it. Once it arrives your Silver tier activates automatically." },
+    { "role": "bait", "ts": "2026-11-08T09:30:51Z", "text": "Sorry, my bank app is being slow. Can I start with 500 and add more later? Also what happens if the transfer gets stuck, who do I contact?" },
+    { "role": "scammer", "ts": "2026-11-08T09:31:40Z", "text": "Yes 500 is fine to start but honestly Gold tier (5,000) gets 3.5% daily, most members upgrade within a week. If anything is stuck message me on Telegram @GoldBridge_Amy or WhatsApp +44 7700 900461. I'm online until midnight." },
+    { "role": "bait", "ts": "2026-11-08T09:38:27Z", "text": "Ok. Let me just double-check: NEAR account goldbridge-desk.near for USDT on NEAR, or 0x2209...a46 for Ethereum. I'll try tonight after my daughter goes to bed." },
+    { "role": "scammer", "ts": "2026-11-08T09:39:05Z", "text": "Correct dear! Please send before 23:00 UTC, the bonus window closes today. Screenshot the transaction and send it to me so I can credit you fast." }
+  ]
+}

@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secret scan (gitleaks, full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        # Run the CLI directly (gitleaks-action needs a license for org repos).
+        run: |
+          set -euo pipefail
+          V=8.28.0
+          for i in 1 2 3; do
+            curl -fsSL --retry 3 -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz" && break
+            sleep 5
+          done
+          tar -xzf gitleaks.tgz gitleaks
+          ./gitleaks git --config .gitleaks.toml --redact --verbose .
+      - name: repo secret check (same as pre-commit hook)
+        run: bash scripts/check-secrets.sh --all
+      - name: no source file is git-ignored
+        run: bash scripts/check-ignored-sources.sh
+
+  node:
+    name: Typecheck · test · pnpm demo --ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22"
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Cache NEAR sandbox binary
+        uses: actions/cache@v4
+        with:
+          path: .cache/near-sandbox
+          key: near-sandbox-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: near-sandbox-${{ runner.os }}-${{ runner.arch }}-
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
+      - name: One-command demo (offline, no keys) — P0 smoke flow
+        run: pnpm demo --ci
+        env:
+          NO_COLOR: "1"
+          BAITNET_REQUIRE_CHAIN: "1" # no silent fallback to the in-memory registry in CI
+      - name: Full storyline ①–⑥
+        run: pnpm demo --ci --full
+        env:
+          NO_COLOR: "1"
+          BAITNET_REQUIRE_CHAIN: "1"
+
+  contracts:
+    name: Contracts · cargo test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts
+      - name: cargo test
+        working-directory: contracts
+        run: cargo test --locked

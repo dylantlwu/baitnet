@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": [
+    "./**/*.ts"
+  ]
+}

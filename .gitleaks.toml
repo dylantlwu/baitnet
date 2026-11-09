@@ -1,0 +1,26 @@
+# gitleaks config (CI runs it over the full git history).
+# Extends the default ruleset and adds NEAR-specific rules.
+title = "baitnet"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "near-private-key"
+description = "NEAR ed25519/secp256k1 secret key"
+regex = '''(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]{80,}'''
+tags = ["key", "near"]
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[A-Za-z0-9_-]{20,}'''
+tags = ["key"]
+
+[allowlist]
+description = "generated / binary files"
+paths = [
+  '''pnpm-lock\.yaml''',
+  '''Cargo\.lock''',
+  '''\.wasm$''',
+]

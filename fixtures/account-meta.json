@@ -1,0 +1,14 @@
+[
+  { "chain": "near", "address": "goldbridge-desk.near", "ageDays": 12, "note": "sample: scam settlement account" },
+  { "chain": "evm", "address": "0x220954f527d61a281b50846419d12a1154c7da46", "ageDays": 9 },
+  { "chain": "tron", "address": "TKsNetrAEYeSLkDFRbk26CNU2Rd6gMDxxB", "ageDays": 21 },
+  { "chain": "near", "address": "near-support-escrow.near", "ageDays": 30 },
+  { "chain": "btc", "address": "bc1q6dscnz3avmlmnj27ykfpl4wdf3dh2wmrjmz26h", "ageDays": 40 },
+  { "chain": "evm", "address": "0x252a0c2b43e446365178b08c444d369ec80d03c9", "ageDays": 2, "note": "sample: freshly created recipient → young-account warn" },
+  { "chain": "near", "address": "swap-router-v2.near", "ageDays": 400, "codeChangedHoursAgo": 3, "note": "sample: contract redeployed 3h ago → contract-code-changed warn" },
+  { "chain": "tron", "address": "TcKnVzJ3kL71k66wWcuyxtuGdUsLY9V1BD", "ageDays": 1, "note": "sample: brand new account (account-age filter in M2)" },
+  { "chain": "near", "address": "alice-merchant.near", "ageDays": 820 },
+  { "chain": "evm", "address": "0xc0201ae558f95ce634542937004092e5fa3a7ea9", "ageDays": 560 },
+  { "chain": "tron", "address": "TWBUfSVjgRGQSENodtV6N1yattFFEHG31X", "ageDays": 6 },
+  { "chain": "evm", "address": "0x602bb2c8cea0504ecf00523cf11f17886664ec82", "ageDays": 5 }
+]

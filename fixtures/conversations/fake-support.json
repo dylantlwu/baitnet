@@ -1,0 +1,20 @@
+{
+  "id": "conv-fake-support-001",
+  "script": "fake-support",
+  "provider": "replay",
+  "language": "en",
+  "note": "Recorded replay. Fictional 'NEAR Wallet Support' impersonator reached via a reply on X. All identifiers fictional (format-valid).",
+  "turns": [
+    { "role": "bait", "ts": "2026-11-06T18:40:02Z", "text": "Hi, I posted that my wallet shows a pending transaction for two days. Someone told me to DM support?" },
+    { "role": "scammer", "ts": "2026-11-06T18:41:15Z", "text": "Hello, this is Kevin from NEAR Wallet Official Support (Ticket #NW-48213). We detected a desynchronization between your wallet and the validator nodes. This happens after the protocol upgrade. Don't worry, we can resolve it today." },
+    { "role": "bait", "ts": "2026-11-06T18:44:50Z", "text": "Oh good. What do I need to do? I'm not very technical." },
+    { "role": "scammer", "ts": "2026-11-06T18:46:03Z", "text": "First please validate your wallet at our secure portal https://nearwallet-support-desk.com/verify?ticket=NW-48213 . It will ask you to import your wallet for re-synchronization. This is required by the foundation." },
+    { "role": "bait", "ts": "2026-11-06T18:52:31Z", "text": "It asks for my 12 words... I'm a bit scared to type them. Is there another way? Can I just send something to fix it?" },
+    { "role": "scammer", "ts": "2026-11-06T18:54:10Z", "text": "Yes, alternative method: send a small verification deposit to the support escrow account near-support-escrow.near — 25 NEAR. The system will see the deposit, re-sync your node state and refund it within 30 minutes together with your stuck funds." },
+    { "role": "bait", "ts": "2026-11-06T19:01:44Z", "text": "I don't have 25 NEAR right now. I have some Bitcoin on another app, could I use that?" },
+    { "role": "scammer", "ts": "2026-11-06T19:02:58Z", "text": "Yes of course, our multi-chain escrow accepts BTC. Send 0.004 BTC to bc1q6dscnz3avmlmnj27ykfpl4wdf3dh2wmrjmz26h. Please only native SegWit (bc1). After sending reply with the TXID." },
+    { "role": "bait", "ts": "2026-11-06T19:10:21Z", "text": "Ok so either near-support-escrow.near with NEAR, or that bc1q6dsc... address for BTC. Who do I call if it doesn't come back?" },
+    { "role": "scammer", "ts": "2026-11-06T19:11:09Z", "text": "You can reach the escalation team on Telegram @NEARHelpDesk_Official or call our hotline +1 202 555 0147. Please complete within 1 hour, otherwise the ticket expires and your funds stay locked for 90 days." },
+    { "role": "bait", "ts": "2026-11-06T19:20:37Z", "text": "Give me a bit, I need to find how to send from the bitcoin app." }
+  ]
+}

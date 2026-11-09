@@ -1,0 +1,31 @@
+{
+  "name": "@baitnet/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "export-snapshot": "tsx src/export-snapshot.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p .",
+    "record-attestation": "tsx src/record-attestation.ts",
+    "invite": "tsx src/invite-cli.ts"
+  },
+  "dependencies": {
+    "@baitnet/agent": "workspace:*",
+    "@baitnet/arena": "workspace:*",
+    "@baitnet/guard": "workspace:*",
+    "@baitnet/im": "workspace:*",
+    "@baitnet/scriptlab": "workspace:*",
+    "@baitnet/shared": "workspace:*",
+    "@baitnet/training": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "4.21.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

@@ -1,0 +1,31 @@
+# deps / build output
+node_modules/
+dist/
+target/
+*.tsbuildinfo
+coverage/
+.vite/
+.vercel/
+
+# local runtime state (runtime.json holds sandbox/testnet private keys, evidence is encrypted chat logs)
+/data/
+/.cache/
+
+# secrets — only .env.example is committed
+.env
+.env.*
+!.env.example
+.near-credentials/
+*.pem
+*.key
+**/neardev/
+
+# misc
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# backups pulled from the server (deploy/pull-backups.sh) — contain user data
+/backups/

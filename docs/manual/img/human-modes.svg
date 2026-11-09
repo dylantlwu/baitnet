@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 430" width="980" height="430" role="img" aria-labelledby="t d">
+  <title id="t">人介入对话的三种模式</title>
+  <desc id="d">AI 模式由 AI 自己说；接管模式由真人打字、AI 停下；AI 加耳语模式由 AI 说，但会参考真人私下的提示，对方看不到提示。</desc>
+  <style>
+    .bg{fill:#fbfaf7;stroke:#d9d4ca}
+    .t{font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#1f2328}
+    .s{font-size:13px;fill:#57606a}
+    .h{font-size:16px;font-weight:600}
+    .tag{font-size:13px;font-weight:700}
+    .col{fill:#ffffff;stroke:#d0d7de;stroke-width:1.2}
+    .ai{fill:#e8f1fd;stroke:#2f6fd0;stroke-width:1.5}
+    .hu{fill:#fff4dc;stroke:#c98a0b;stroke-width:1.5}
+    .wh{fill:#f6ecfb;stroke:#8250df;stroke-width:1.5;stroke-dasharray:5 3}
+    .opp{fill:#fdecea;stroke:#c9372c;stroke-width:1.5}
+    .off{fill:#f2f2f2;stroke:#8c959f;stroke-width:1.2}
+    .ln{stroke:#57606a;stroke-width:2;fill:none}
+    .lw{stroke:#8250df;stroke-width:2;fill:none;stroke-dasharray:5 4}
+    .ah{fill:#57606a}
+    .aw{fill:#8250df}
+    .x{stroke:#c9372c;stroke-width:2.5}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#1c1f24;stroke:#3b424c}
+      .t{fill:#e6edf3}
+      .s{fill:#a8b3bd}
+      .col{fill:#22262c;stroke:#3b424c}
+      .ai{fill:#18273d;stroke:#6aa5f5}
+      .hu{fill:#3a2e14;stroke:#e0a73a}
+      .wh{fill:#2b1f3d;stroke:#b48cf2}
+      .opp{fill:#3a1f1d;stroke:#f47067}
+      .off{fill:#2a2e34;stroke:#8b949e}
+      .ln{stroke:#a8b3bd}.ah{fill:#a8b3bd}
+      .lw{stroke:#b48cf2}.aw{fill:#b48cf2}
+      .x{stroke:#f47067}
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="aw" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+  <rect class="bg" x="1" y="1" width="978" height="428" rx="14"/>
+  <text class="t h" x="24" y="34">人怎么介入：每一方（骗子或诱饵）都可以单独切换这三种模式</text>
+
+  <!-- column 1: AI -->
+  <rect class="col" x="24" y="56" width="300" height="350" rx="12"/>
+  <text class="t h" x="174" y="86" text-anchor="middle">① AI</text>
+  <text class="t s" x="174" y="108" text-anchor="middle">默认。AI 自己想、自己说</text>
+  <rect class="off" x="104" y="130" width="140" height="48" rx="8"/>
+  <text class="t s" x="174" y="159" text-anchor="middle">真人：旁观</text>
+  <rect class="ai" x="104" y="214" width="140" height="56" rx="8"/>
+  <text class="t h" x="174" y="248" text-anchor="middle">AI 生成这句</text>
+  <path class="ln" d="M174 272 V318" marker-end="url(#a)"/>
+  <rect class="opp" x="104" y="320" width="140" height="56" rx="8"/>
+  <text class="t h" x="174" y="354" text-anchor="middle">对方收到</text>
+
+  <!-- column 2: human -->
+  <rect class="col" x="340" y="56" width="300" height="350" rx="12"/>
+  <text class="t h" x="490" y="86" text-anchor="middle">② 接管</text>
+  <text class="t s" x="490" y="108" text-anchor="middle">AI 停下，由你亲自打字</text>
+  <rect class="hu" x="420" y="130" width="140" height="48" rx="8"/>
+  <text class="t h" x="490" y="160" text-anchor="middle">你写这句</text>
+  <path class="ln" d="M490 180 V318" marker-end="url(#a)"/>
+  <rect class="off" x="560" y="214" width="70" height="56" rx="8"/>
+  <text class="t s" x="595" y="246" text-anchor="middle">AI 暂停</text>
+  <line class="x" x1="566" y1="220" x2="624" y2="264"/>
+  <rect class="opp" x="420" y="320" width="140" height="56" rx="8"/>
+  <text class="t h" x="490" y="354" text-anchor="middle">对方收到</text>
+  <text class="t s" x="352" y="250">原样发出，</text>
+  <text class="t s" x="352" y="270">不过安全过滤</text>
+
+  <!-- column 3: whisper -->
+  <rect class="col" x="656" y="56" width="300" height="350" rx="12"/>
+  <text class="t h" x="806" y="86" text-anchor="middle">③ AI + 耳语</text>
+  <text class="t s" x="806" y="108" text-anchor="middle">AI 照常说，但会参考你的悄悄话</text>
+  <rect class="wh" x="736" y="130" width="140" height="48" rx="8"/>
+  <text class="t h" x="806" y="160" text-anchor="middle">你的耳语</text>
+  <path class="lw" d="M806 180 V212" marker-end="url(#w)"/>
+  <rect class="ai" x="736" y="214" width="140" height="56" rx="8"/>
+  <text class="t h" x="806" y="240" text-anchor="middle">AI 生成这句</text>
+  <text class="t s" x="806" y="260" text-anchor="middle">（诱饵还要过安全过滤）</text>
+  <path class="ln" d="M806 272 V318" marker-end="url(#a)"/>
+  <rect class="opp" x="736" y="320" width="140" height="56" rx="8"/>
+  <text class="t h" x="806" y="354" text-anchor="middle">对方收到</text>
+  <text class="t s" x="664" y="150">对方看不到</text>
+  <text class="t s" x="664" y="168">只用一次</text>
+</svg>

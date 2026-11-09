@@ -1,0 +1,8 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# esbuild (used by tsx/vite) ships its binary as an optional dependency; allowing
+# its postinstall just verifies it. Nothing else may run install scripts.
+onlyBuiltDependencies:
+  - esbuild
