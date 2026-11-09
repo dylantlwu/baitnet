@@ -1,5 +1,5 @@
 import type { AnalysisEngine, Lang, ScamScriptDef, ScriptAnalysis } from "@baitnet/shared";
-import { DEFAULT_CLAUDE_MODEL, allowLiveLLM, selectProvider, type LLMProvider } from "@baitnet/agent";
+import { DEFAULT_CLAUDE_MODEL, DEFAULT_NEARAI_CLAUDE_MODEL, NEARAI_BASE_URL, allowLiveLLM, selectProvider, type LLMProvider } from "@baitnet/agent";
 import { SCAM_TYPES } from "@baitnet/training";
 import { checkSize, imageOfflineError, joinTranscripts, multiName, prepareText, renderMessages, rulesAnalysis, uploadFiles, type Prepared, type ScriptUploadInput } from "./analyze.js";
 import { parseUpload, ScriptLabError, type ParsedUpload } from "./parse.js";
@@ -147,6 +147,55 @@ export async function claudeTranscribe(img: { mediaType: string; base64: string 
   return text.replace(/^```\w*\n?|```$/g, "").trim();
 }
 
+/**
+ * Claude vision via NEAR AI Cloud (OpenAI-compatible image_url content). Used when there is no
+ * ANTHROPIC_API_KEY but there is a NEARAI_API_KEY. Incognito tier: NOT a TEE, no attestation —
+ * never used by zero-retention mode.
+ */
+export async function nearaiClaudeTranscribe(
+  img: { mediaType: string; base64: string },
+  apiKey: string,
+  model = DEFAULT_NEARAI_CLAUDE_MODEL,
+  baseUrl = NEARAI_BASE_URL,
+): Promise<string> {
+  const once = async (maxTokens: number) => {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${img.mediaType};base64,${img.base64}` } },
+              { type: "text", text: VISION_PROMPT },
+            ],
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) throw new Error(`Claude vision via NEAR AI ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const body = (await res.json()) as { choices?: { message?: { content?: string | { type: string; text?: string }[] }; finish_reason?: string }[] };
+    const c = body.choices?.[0]?.message?.content;
+    return { text: (typeof c === "string" ? c : Array.isArray(c) ? c.map((x) => x.text ?? "").join("") : "").trim(), finishReason: body.choices?.[0]?.finish_reason };
+  };
+  // adaptive thinking counts towards max_tokens but is not in content → retry once with a bigger budget
+  let r = await once(VISION_MAX_TOKENS);
+  if (!r.text && r.finishReason === "length") r = await once(VISION_RETRY_MAX_TOKENS);
+  if (!r.text) throw new Error(`Claude vision via NEAR AI: empty transcript${r.finishReason ? ` (finish_reason=${r.finishReason})` : ""}`);
+  return r.text.replace(/^```\w*\n?|```$/g, "").trim();
+}
+const VISION_MAX_TOKENS = 4000;
+const VISION_RETRY_MAX_TOKENS = 8000;
+
+/** Vision channel for screenshots: ANTHROPIC_API_KEY → direct, else NEARAI_API_KEY → Claude via NEAR AI; undefined if neither. */
+export function visionChannel(env: NodeJS.ProcessEnv): "anthropic" | "nearai" | undefined {
+  return env.ANTHROPIC_API_KEY ? "anthropic" : env.NEARAI_API_KEY ? "nearai" : undefined;
+}
+
 async function mapLimit<T, R>(xs: T[], limit: number, fn: (x: T, i: number) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(xs.length);
   let next = 0;
@@ -164,7 +213,8 @@ async function mapLimit<T, R>(xs: T[], limit: number, fn: (x: T, i: number) => P
 /**
  * Full Script Lab entry point used by the routes:
  *   text formats → rules (offline / no key) or LLM (live + key, validated, falls back to rules)
- *   image(s)     → Claude vision transcription (live + ANTHROPIC_API_KEY only), else a clear 422 error.
+ *   image(s)     → Claude vision transcription (live + ANTHROPIC_API_KEY direct, or NEARAI_API_KEY → Claude via
+ *                  NEAR AI, Incognito / not TEE), else a clear 422 error.
  *   files[]      → each file transcribed/parsed, kept in upload order, overlaps between consecutive
  *                  screenshots removed, then analyzed as ONE chat log.
  */
@@ -178,11 +228,17 @@ export async function analyzeUpload(upload: ScriptUploadInput, opts: AnalyzeOpti
   let original: string | undefined;
   if (images) {
     if (!allowLiveLLM(env)) throw imageOfflineError("offline");
-    if (!env.ANTHROPIC_API_KEY) throw imageOfflineError("no-key");
+    if (!visionChannel(env)) throw imageOfflineError("no-key");
   }
+  const via = visionChannel(env);
   if (parsedFiles.length === 1 && !images) parsed = parsedFiles[0]!;
   else {
-    const vision = opts.vision ?? ((i: { mediaType: string; base64: string }) => claudeTranscribe(i, env.ANTHROPIC_API_KEY!, env.CLAUDE_MODEL ?? DEFAULT_CLAUDE_MODEL));
+    const vision =
+      opts.vision ??
+      ((i: { mediaType: string; base64: string }) =>
+        via === "nearai"
+          ? nearaiClaudeTranscribe(i, env.NEARAI_API_KEY!, env.NEARAI_CLAUDE_MODEL || DEFAULT_NEARAI_CLAUDE_MODEL, env.NEARAI_BASE_URL || NEARAI_BASE_URL)
+          : claudeTranscribe(i, env.ANTHROPIC_API_KEY!, env.CLAUDE_MODEL || DEFAULT_CLAUDE_MODEL));
     const parts = await mapLimit(parsedFiles, 3, async (p, i) => {
       if (p.format !== "image") return renderMessages(p);
       try {
@@ -204,7 +260,9 @@ export async function analyzeUpload(upload: ScriptUploadInput, opts: AnalyzeOpti
       engine: analysis.engine === "rules" ? "claude" : analysis.engine,
       warnings: [
         ...analysis.warnings,
-        p.outLang === "zh" ? `${images} 张截图由 Claude 视觉识别转写，地址和金额请对照原图核对` : `${images} screenshot(s) transcribed by Claude vision; double-check addresses and amounts`,
+        p.outLang === "zh"
+          ? `${images} 张截图由 Claude 视觉识别转写${via === "nearai" ? "（经 NEAR AI，Incognito，非 TEE）" : ""}，地址和金额请对照原图核对`
+          : `${images} screenshot(s) transcribed by Claude vision${via === "nearai" ? " (via NEAR AI, Incognito, not TEE)" : ""}; double-check addresses and amounts`,
         ...(/（不确定）|\(uncertain\)/.test(p.redactedText) ? [p.outLang === "zh" ? "有字符识别不确定（标了“不确定”的行），请人工核对" : "Some characters were uncertain; please verify"] : []),
       ],
     };

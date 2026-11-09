@@ -141,7 +141,7 @@ const zh = {
   uploadExpired: "这次上传已过期，请重新发送。",
   analyzing: (n: number) => (n > 1 ? `收到 ${n} 张截图，合成一份分析中…` : "收到，分析中…"),
   unsupportedFile: "只支持截图、txt、md、json 聊天记录文件。",
-  imageOffline: "截图识别需要线上模式和 Claude key，现在不可用。可以先发 txt/json 聊天记录，或者到网页上传。",
+  imageOffline: "截图识别需要线上模式，并配置 NEAR AI key（NEARAI_API_KEY）或 Claude key，现在不可用。可以先发 txt/json 聊天记录，或者到网页上传。",
   uploadFailed: (m: string) => `分析失败：${m}`,
   quotaUpload: "今日大模型额度已用完，截图识别要明天再试；txt/json 文件仍然可以分析。",
   analysis: (o: { type: string; conf: number; stages: string; addrs: string[]; pii: number; piiDetail: string; engine: string; warnings: string[] }) =>
@@ -278,7 +278,7 @@ const en: Dict = {
   uploadExpired: "That upload expired, please send it again.",
   analyzing: (n) => (n > 1 ? `Got ${n} screenshots, analyzing them as one…` : "Got it, analyzing…"),
   unsupportedFile: "Only screenshots and txt / md / json chat exports are supported.",
-  imageOffline: "Screenshot analysis needs live mode and a Claude key. Send a txt/json export or use the web upload.",
+  imageOffline: "Screenshot analysis needs live mode and a NEAR AI key (NEARAI_API_KEY) or a Claude key. Send a txt/json export or use the web upload.",
   uploadFailed: (m) => `Analysis failed: ${m}`,
   quotaUpload: "Today's LLM quota is used up; screenshots must wait until tomorrow. txt/json still works.",
   analysis: (o) =>

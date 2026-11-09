@@ -17,6 +17,7 @@ const USAGE = `BaitNet agent CLI
   responders                     register demo responders + ack alerts
   demo [--replay]                ①–⑥ full demo
 Env: BAITNET_REGISTRY=memory (no sandbox), BAITNET_LLM=replay|nearai|claude, NEARAI_API_KEY, ANTHROPIC_API_KEY,
+     NEARAI_CLAUDE_MODEL (Claude via NEAR AI when there is no ANTHROPIC_API_KEY; Incognito, not TEE),
      LIVE_INTENTS=1, INTENTS_EXPLORER_JWT, BAITNET_EVIDENCE_KEY, BAITNET_DATA_DIR`;
 
 function arg(name: string): string | undefined {

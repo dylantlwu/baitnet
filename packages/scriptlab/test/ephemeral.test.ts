@@ -11,10 +11,11 @@ import { keccak_256 } from "@noble/hashes/sha3.js";
 // the real M10 verifier (B1 passes this module as ctx.attestation)
 import * as m10 from "../../../apps/server/src/attestation.js";
 import { analyzeEphemeral, getAnalysis, isTeeModel, pickTeeModel, personalSignHash, recoverSigner, registerScriptLabRoutes, verifyResponseSignature, type EphemeralAnalysis } from "../src/index.js";
+import { parseSignedText } from "../src/ephemeral.js";
 
 const ZH = readFileSync(fixturePath("training", "samples", "zh-pig-butchering.txt"), "utf8");
 const EN = readFileSync(fixturePath("training", "samples", "en-telegram-export.json"), "utf8");
-const KEYS = ["BAITNET_MODE", "NEARAI_API_KEY", "ANTHROPIC_API_KEY", "BAITNET_LLM", "NEARAI_MODEL", "BAITNET_LIVE_ATTESTATION"] as const;
+const KEYS = ["BAITNET_MODE", "NEARAI_API_KEY", "ANTHROPIC_API_KEY", "BAITNET_LLM", "NEARAI_MODEL", "NEARAI_CLAUDE_MODEL", "BAITNET_ARENA_ENGINE", "BAITNET_LIVE_ATTESTATION"] as const;
 const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
 afterEach(() => {
   vi.restoreAllMocks();
@@ -82,7 +83,7 @@ function ethSign(text: string, secret = sk): string {
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const TEE_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash-1017";
 
-function fakeCloud(opts: { tamperResponseHash?: boolean } = {}) {
+function fakeCloud(opts: { tamperResponseHash?: boolean; models?: unknown[] } = {}) {
   const rec = JSON.parse(readFileSync(fixturePath("attestation", "sample-report.json"), "utf8"));
   rec.report.model_attestations[0].signing_address = signerAddress;
   const seen: { url: string; nonce?: string; body?: string }[] = [];
@@ -91,7 +92,7 @@ function fakeCloud(opts: { tamperResponseHash?: boolean } = {}) {
     const url = String(input);
     seen.push({ url, nonce: new URL(url).searchParams.get("nonce") ?? undefined, body: init?.body });
     if (url.includes("anthropic.com")) throw new Error("Claude must never be used in zero-retention mode");
-    if (url.endsWith("/models")) return Response.json({ data: [{ id: "plain-model" }, { id: TEE_MODEL, metadata: { tee: true } }] });
+    if (url.endsWith("/models")) return Response.json({ data: opts.models ?? [{ id: "plain-model", owned_by: "someone" }, { id: TEE_MODEL, owned_by: "nearai" }] });
     if (url.includes("/attestation/report")) return Response.json(rec.report);
     if (url.includes("phala.network")) return Response.json({ quote: { verified: true } });
     if (url.includes("nvidia.com")) return Response.json([["JWT", `x.${Buffer.from(JSON.stringify({ "x-nvidia-overall-att-result": true })).toString("base64url")}.y`], {}]);
@@ -107,8 +108,9 @@ function fakeCloud(opts: { tamperResponseHash?: boolean } = {}) {
       return new Response(resp, { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/signature/chatcmpl-zr-1")) {
-      const text = `${sha(chat!.req)}:${opts.tamperResponseHash ? sha("other") : sha(chat!.resp)}`;
-      return Response.json({ text, signature: ethSign(text), signing_address: signerAddress, signing_algo: "ecdsa" });
+      // real shape (checked 2026-11-09): provider_tee, "<model>:<sha256(request bytes)>:<sha256(response bytes)>"
+      const text = `${JSON.parse(chat!.req).model}:${sha(chat!.req)}:${opts.tamperResponseHash ? sha("other") : sha(chat!.resp)}`;
+      return Response.json({ text, signature: ethSign(text), signing_address: signerAddress, signing_algo: "ecdsa", signature_kind: "provider_tee" });
     }
     throw new Error(`unexpected fetch ${url}`);
   });
@@ -119,11 +121,41 @@ function fakeCloud(opts: { tamperResponseHash?: boolean } = {}) {
 
 describe("zero-retention: model pick + response signature", () => {
   it("picks the TEE-hosted model from /models", () => {
-    expect(isTeeModel({ id: "a", metadata: { tee: true } })).toBe(true);
+    expect(isTeeModel({ id: "a", owned_by: "nearai" })).toBe(true);
     expect(isTeeModel({ id: "b" })).toBe(false);
-    expect(pickTeeModel([{ id: "b" }, { id: "a", metadata: { tee: true } }], "b")).toBe("a");
-    expect(pickTeeModel([{ id: "a", tee: true }, { id: "c", tee: true }], "c")).toBe("c");
+    expect(isTeeModel({ id: "b", tee: true, metadata: { tee: true } })).toBe(false); // only owned_by counts
+    expect(pickTeeModel([{ id: "b" }, { id: "a", owned_by: "nearai" }], "b")).toBe("a");
+    expect(pickTeeModel([{ id: "a", owned_by: "nearai" }, { id: "c", owned_by: "nearai" }], "c")).toBe("c");
     expect(pickTeeModel([{ id: "b" }])).toBeUndefined();
+  });
+
+  // Shape of real GET /v1/models entries (fields as reported from a read-only call on 2026-11-09;
+  // ids of the non-chat models are illustrative).
+  const TEE_DESC = "Served privately from NEAR AI's attested TEE infrastructure.";
+  const REAL_MODELS = [
+    { id: "openai/whisper-large-v3", object: "model", owned_by: "nearai", description: TEE_DESC },
+    { id: "Qwen/Qwen3-Embedding-0.6B", object: "model", owned_by: "nearai", description: TEE_DESC },
+    { id: "Qwen/Qwen3-Reranker-0.6B", object: "model", owned_by: "nearai", description: TEE_DESC },
+    { id: "black-forest-labs/FLUX.2-klein-4B", object: "model", owned_by: "nearai", description: TEE_DESC },
+    { id: "anthropic/claude-sonnet-5-5", object: "model", owned_by: "anthropic", supported_sampling_parameters: ["max_tokens", "stop"] },
+    { id: "deepseek/deepseek-v4.1-flash-1017", object: "model", owned_by: "deepseek" },
+    { id: "some-org/third-party-tee-model", object: "model", owned_by: "attested 3p" },
+    { id: "deepseek-ai/DeepSeek-V4.1-Flash-1017", object: "model", owned_by: "nearai", description: TEE_DESC, supported_sampling_parameters: [] },
+    { id: "zai-org/GLM-5.3-Flash", object: "model", owned_by: "nearai", description: TEE_DESC },
+  ];
+  it("real /v1/models metadata: only owned_by nearai chat models are TEE; look-alike DeepSeek, attested 3p, Claude and non-chat models are not", () => {
+    const tee = REAL_MODELS.filter(isTeeModel).map((m) => m.id);
+    expect(tee).toEqual(["deepseek-ai/DeepSeek-V4.1-Flash-1017", "zai-org/GLM-5.3-Flash"]);
+    expect(isTeeModel(REAL_MODELS.find((m) => m.id === "deepseek/deepseek-v4.1-flash-1017")!)).toBe(false);
+    expect(isTeeModel({ id: "anthropic/claude-sonnet-5-5", owned_by: "nearai" })).toBe(false); // hard rule beats owned_by
+    expect(isTeeModel({ id: "openai/gpt-5", owned_by: "nearai" })).toBe(false);
+    expect(isTeeModel({ id: "google/gemini-3-pro", owned_by: "nearai" })).toBe(false);
+    // default pick (no NEARAI_MODEL): first TEE chat model, never whisper/embedding/reranker/FLUX listed before it
+    expect(pickTeeModel(REAL_MODELS)).toBe("deepseek-ai/DeepSeek-V4.1-Flash-1017");
+    // preferred look-alike (non-TEE) is ignored; preferred TEE model is honoured
+    expect(pickTeeModel(REAL_MODELS, "deepseek/deepseek-v4.1-flash-1017")).toBe("deepseek-ai/DeepSeek-V4.1-Flash-1017");
+    expect(pickTeeModel(REAL_MODELS, "zai-org/GLM-5.3-Flash")).toBe("zai-org/GLM-5.3-Flash");
+    expect(pickTeeModel(REAL_MODELS.filter((m) => m.owned_by !== "nearai" || /Embedding|Reranker|whisper|FLUX/.test(m.id)))).toBeUndefined();
   });
   it("ECDSA personal_sign recovery + binding to request/response/attested key", () => {
     const text = `${sha("req")}:${sha("resp")}`;
@@ -218,7 +250,7 @@ describe("zero-retention leaves no data behind (route, offline + live)", () => {
     expect(a.attestation.recorded).toBe(false);
     expect(a.attestation.model).toBe(TEE_MODEL);
     const sigChecks = a.attestation.checks.filter((c) => c.name.startsWith("response signature"));
-    expect(sigChecks).toHaveLength(4);
+    expect(sigChecks).toHaveLength(5);
     expect(sigChecks.every((c) => c.pass)).toBe(true);
     expect(sigChecks.some((c) => c.name.includes("chatcmpl-zr-1"))).toBe(true);
     // the recorded quote binds the recording's nonce, not ours → honestly not verified
@@ -232,6 +264,114 @@ describe("zero-retention leaves no data behind (route, offline + live)", () => {
     const a = await analyzeEphemeral({ filename: "zh.txt", content: ZH, encoding: "utf8", expertId: "e" }, { m10 });
     expect(a.attestation.checks.find((c) => c.name.startsWith("response signature: response hash"))!.pass).toBe(false);
     expect(a.attestation.verified).toBe(false);
+  });
+
+  it("never the Claude channel: even with BAITNET_LLM=claude, NEARAI_MODEL/NEARAI_CLAUDE_MODEL = Claude and Claude marked tee in /models", async () => {
+    const CLAUDE = "anthropic/claude-sonnet-5-5";
+    for (const models of [
+      [{ id: CLAUDE, owned_by: "nearai", tee: true }, { id: TEE_MODEL, owned_by: "nearai" }],
+      [{ id: CLAUDE, owned_by: "anthropic" }, { id: "deepseek/deepseek-v4.1-flash-1017", owned_by: "deepseek" }], // no genuine TEE model listed → hard-coded TEE fallback
+      undefined,
+    ]) {
+      Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk", ANTHROPIC_API_KEY: "ak", BAITNET_LLM: "claude", BAITNET_ARENA_ENGINE: "claude", NEARAI_MODEL: CLAUDE, NEARAI_CLAUDE_MODEL: CLAUDE });
+      const cloud = fakeCloud({ models });
+      vi.stubGlobal("fetch", cloud.fn);
+      const a = await analyzeEphemeral({ filename: "zh.txt", content: ZH, encoding: "utf8", expertId: "e" }, { m10 });
+      expect(cloud.seen.some((s) => s.url.includes("anthropic.com"))).toBe(false);
+      const bodies = cloud.seen.filter((s) => s.url.endsWith("/chat/completions")).map((s) => JSON.parse(s.body!));
+      expect(bodies.length).toBeGreaterThan(0);
+      for (const b of bodies) expect(b.model).toBe(TEE_MODEL);
+      expect(cloud.seen.filter((s) => /claude/i.test(s.url))).toEqual([]);
+      expect(a.attestation.model).toBe(TEE_MODEL);
+      expect(a.engine).not.toBe("claude");
+    }
+    expect(isTeeModel({ id: CLAUDE, owned_by: "nearai", tee: true })).toBe(false);
+    expect(pickTeeModel([{ id: CLAUDE, owned_by: "nearai" }, { id: TEE_MODEL, owned_by: "nearai" }], CLAUDE)).toBe(TEE_MODEL);
+    expect(pickTeeModel([{ id: CLAUDE, owned_by: "nearai" }])).toBeUndefined();
+  });
+
+  it("NEARAI_MODEL = the non-TEE DeepSeek look-alike and /models lists no TEE chat model → hard-coded TEE fallback, never the look-alike", async () => {
+    Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk", NEARAI_MODEL: "deepseek/deepseek-v4.1-flash-1017" });
+    const cloud = fakeCloud({ models: [{ id: "deepseek/deepseek-v4.1-flash-1017", owned_by: "deepseek" }, { id: "Qwen/Qwen3-Embedding-0.6B", owned_by: "nearai" }] });
+    vi.stubGlobal("fetch", cloud.fn);
+    const a = await analyzeEphemeral({ filename: "zh.txt", content: ZH, encoding: "utf8", expertId: "e" }, { m10 });
+    const chat = cloud.seen.filter((s) => s.url.endsWith("/chat/completions")).map((s) => JSON.parse(s.body!).model);
+    expect(chat).toEqual([TEE_MODEL]);
+    expect(a.warnings.join()).toMatch(/不是 NEAR AI 自有 TEE 模型/);
+  });
+
+  it("signed text follows signature_kind: provider_tee = model:req:resp (real format), gateway = req:resp", () => {
+    const call = { chatId: "c1", requestBody: "req", responseBody: "resp", model: TEE_MODEL };
+    const tee = `${TEE_MODEL}:${sha("req")}:${sha("resp")}`;
+    expect(parseSignedText({ text: tee, signature: "", signing_address: "", signature_kind: "provider_tee" })).toEqual({ kind: "provider_tee", model: TEE_MODEL, reqHash: sha("req"), respHash: sha("resp") });
+    const ok = verifyResponseSignature({ text: tee, signature: ethSign(tee), signing_address: signerAddress, signature_kind: "provider_tee" }, call, signerAddress);
+    expect(ok.map((c) => [c.name, c.pass])).toEqual([
+      ["response signature: signed by the model TEE for this model", true],
+      ["response signature: request hash matches this call", true],
+      ["response signature: response hash matches chat c1", true],
+      ["response signature: ECDSA recovers signing_address", true],
+      ["response signature: signer is the attested model key", true],
+    ]);
+    // old 2-part parsing of a 3-part text was the live bug: both hash checks false, ECDSA true
+    const other = `other/model:${sha("req")}:${sha("resp")}`;
+    expect(verifyResponseSignature({ text: other, signature: ethSign(other), signing_address: signerAddress, signature_kind: "provider_tee" }, call, signerAddress).filter((c) => !c.pass).map((c) => c.name)).toEqual([
+      "response signature: signed by the model TEE for this model",
+    ]);
+    // gateway signature: hashes can match, but it is not the model TEE signing → not verified
+    const gw = `${sha("req")}:${sha("resp")}`;
+    const g = verifyResponseSignature({ text: gw, signature: ethSign(gw), signing_address: signerAddress, signature_kind: "gateway" }, call, signerAddress);
+    expect(g.find((c) => c.name.includes("model TEE"))!.pass).toBe(false);
+    expect(g.find((c) => c.name.includes("request hash"))!.pass).toBe(true);
+    // response hash is over the raw bytes received
+    expect(verifyResponseSignature({ text: tee, signature: ethSign(tee), signing_address: signerAddress }, { ...call, responseBody: "decoded-differently", responseBytes: new TextEncoder().encode("resp") }, signerAddress).every((c) => c.pass)).toBe(true);
+  });
+
+  it("TEE chat request: thinking off, identity encoding, x-no-aliasing, max_tokens 6000", async () => {
+    Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk" });
+    const cloud = fakeCloud();
+    vi.stubGlobal("fetch", cloud.fn);
+    await analyzeEphemeral({ filename: "zh.txt", content: ZH, encoding: "utf8", expertId: "e" }, { m10 });
+    const i = cloud.fn.mock.calls.findIndex((c) => String(c[0]).endsWith("/chat/completions"));
+    const init = cloud.fn.mock.calls[i]![1] as unknown as { headers: Record<string, string>; body: string };
+    expect(init.headers["accept-encoding"]).toBe("identity");
+    expect(init.headers["x-no-aliasing"]).toBe("true");
+    const body = JSON.parse(init.body);
+    expect(body.max_tokens).toBe(6000);
+    expect(body.chat_template_kwargs).toEqual({ thinking: false, enable_thinking: false });
+  });
+
+  it("truncated JSON with finish_reason=length → one retry with max_tokens 10000; the signature covers the retry", async () => {
+    Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk" });
+    const cloud = fakeCloud();
+    const budgets: number[] = [];
+    let n = 0;
+    const fn = vi.fn(async (input: string | URL, init?: { body?: string }) => {
+      if (String(input).endsWith("/chat/completions")) {
+        budgets.push(JSON.parse(init!.body!).max_tokens);
+        if (n++ === 0) return Response.json({ id: "chatcmpl-cut", choices: [{ message: { content: '{"scamType":{"value":"pig-butchering","confidence":0.9},"stages":[{"name":"a"' }, finish_reason: "length" }] });
+      }
+      return cloud.fn(input, init);
+    });
+    vi.stubGlobal("fetch", fn);
+    const a = await analyzeEphemeral({ filename: "zh.txt", content: ZH, encoding: "utf8", expertId: "e" }, { m10 });
+    expect(budgets).toEqual([6000, 10000]);
+    expect(a.engine).toBe("nearai");
+    expect(a.draft.title).toBe("TEE 分析：杀猪盘");
+    expect(cloud.seen.some((s) => s.url.includes("/signature/chatcmpl-zr-1"))).toBe(true);
+    expect(a.attestation.checks.filter((c) => c.name.startsWith("response signature")).every((c) => c.pass)).toBe(true);
+  });
+
+  it("truncated twice → rules fallback with a truncation warning", async () => {
+    Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk" });
+    const cloud = fakeCloud();
+    const fn = vi.fn(async (input: string | URL, init?: { body?: string }) =>
+      String(input).endsWith("/chat/completions") ? Response.json({ id: "chatcmpl-cut", choices: [{ message: { content: '{"scamType":' }, finish_reason: "length" }] }) : cloud.fn(input, init),
+    );
+    vi.stubGlobal("fetch", fn);
+    const a = await analyzeEphemeral({ filename: "zh.txt", content: ZH, encoding: "utf8", expertId: "e" }, { m10 });
+    expect(fn.mock.calls.filter((c) => String(c[0]).endsWith("/chat/completions"))).toHaveLength(2);
+    expect(a.engine).toBe("rules");
+    expect(a.warnings.join()).toMatch(/输出被 max_tokens 截断/);
   });
 
   it("screenshots are refused in zero-retention mode (vision would need Claude)", async () => {

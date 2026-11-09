@@ -63,7 +63,7 @@ export function txLink(env: Env, txHash?: string): string {
 
 // ① bait ------------------------------------------------------------------------
 export async function stepBait(ctx: Ctx, script: ScamScript, llm: LLMProvider = selectProvider()): Promise<Conversation> {
-  header(ctx.log, `① Bait conversation (${script}, provider=${llm.name}${llm.model !== "replay" ? `:${llm.model}` : ""})`);
+  header(ctx.log, `① Bait conversation (${script}, provider=${llm.name}${llm.model !== "replay" ? `:${llm.model}` : ""}${llm.name === "claude" && llm.via === "nearai" ? " via NEAR AI (Incognito, not TEE)" : ""})`);
   const conv = await runBait(llm, script, { log: ctx.log });
   for (const t of redactConversation(conv).turns) ctx.log(`  ${t.role === "scammer" ? "🎣 scammer" : "🪤 bait   "}: ${t.text}`);
   saveConversation(redactConversation(conv)); // redacted copy only

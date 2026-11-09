@@ -32,7 +32,7 @@ async function wrap<T>(fn: () => T | Promise<T>): Promise<T> {
 /**
  *   (expertId / reviewer come from the logged-in user via ctx.currentUser / req.user — never from the body)
  *   POST /scripts/upload              ScriptUpload (or {filename, files[]} for several screenshots in order) → ScriptAnalysis
- *                                     (422 code "image-offline" for screenshots without live mode + Claude key; 413 > 5MB/image)
+ *                                     (422 code "image-offline" for screenshots without live mode + NEAR AI key or Claude key; 413 > 5MB/image)
  *   GET  /scripts/analyses/:id        → ScriptAnalysis
  *   POST /scripts/analyze-ephemeral   same body → ScriptAnalysis & {ephemeral: true, attestation} — NOTHING is stored (D27)
  *   POST /scripts/analyses/:id/save   {draft, analysis?} → saved ScamScriptDef

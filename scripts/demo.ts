@@ -219,6 +219,8 @@ function liveEnvReport(): Record<string, string> {
   const have = (k: string) => (process.env[k] ? c.green("有") : c.yellow("无"));
   log.info(`NEARAI_API_KEY: ${have("NEARAI_API_KEY")}   ANTHROPIC_API_KEY: ${have("ANTHROPIC_API_KEY")}   INTENTS_EXPLORER_JWT: ${have("INTENTS_EXPLORER_JWT")}   LIVE_INTENTS=${process.env.LIVE_INTENTS ?? "0"}`);
   if (!process.env.NEARAI_API_KEY && !process.env.ANTHROPIC_API_KEY) log.warn("没有任何 LLM key → 诱饵对话仍走回放（replay）");
+  else if (process.env.ANTHROPIC_API_KEY) log.info("Claude 通道：直连 Anthropic（ANTHROPIC_API_KEY）");
+  else log.info(`Claude 通道：经 NEAR AI（Incognito，非 TEE；模型 ${process.env.NEARAI_CLAUDE_MODEL || "anthropic/claude-sonnet-5-5"}）——诱饵/竞技场默认仍用 NEAR AI 的 TEE 开源模型`);
   return env;
 }
 

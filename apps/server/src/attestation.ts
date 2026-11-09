@@ -16,7 +16,7 @@ import { allowLiveAttestation, fixturePath } from "@baitnet/agent";
  */
 
 export const ATTESTATION_URL = "https://cloud-api.near.ai/v1/attestation/report";
-export const DEFAULT_ATTEST_MODEL = process.env.NEARAI_ATTEST_MODEL ?? process.env.NEARAI_MODEL ?? "deepseek-ai/DeepSeek-V4.1-Flash-1017";
+export const DEFAULT_ATTEST_MODEL = process.env.NEARAI_ATTEST_MODEL || process.env.NEARAI_MODEL || "deepseek-ai/DeepSeek-V4.1-Flash-1017";
 const PHALA_VERIFY = "https://cloud-api.phala.network/api/v1/attestations/verify";
 const NRAS_URL = "https://nras.attestation.nvidia.com/v3/attest/gpu";
 

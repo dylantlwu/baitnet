@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ArenaEngine, Correction, EvalRun, PlaybookEntry, PlaybookQuery, ScamScriptDef } from "@baitnet/shared";
-import { allowLiveLLM, ClaudeProvider, fixturePath, NearAIProvider, REPO_ROOT, DEFAULT_CLAUDE_MODEL, DEFAULT_NEARAI_MODEL, type LLMProvider } from "@baitnet/agent";
+import { allowLiveLLM, fixturePath, NearAIProvider, REPO_ROOT, DEFAULT_NEARAI_MODEL, selectClaudeProvider, type LLMProvider } from "@baitnet/agent";
 
 export interface PlaybookRetriever {
   search(q: PlaybookQuery): PlaybookEntry[] | Promise<PlaybookEntry[]>;
@@ -102,11 +102,18 @@ export async function loadScripts(): Promise<ScamScriptDef[]> {
 }
 
 // ------------------------------------------------------------------ LLM
-/** nearai → claude → rules; offline mode (BAITNET_MODE=offline/testnet) forces rules. */
+/**
+ * nearai (TEE) → claude → rules; offline mode (BAITNET_MODE=offline/testnet) forces rules.
+ * "claude" = direct with ANTHROPIC_API_KEY, else Claude via NEAR AI (Incognito, not TEE) with NEARAI_API_KEY;
+ * with only a NEAR AI key the default stays the TEE model (BAITNET_ARENA_ENGINE=claude switches).
+ */
 export function selectArenaEngine(env: NodeJS.ProcessEnv = process.env): { engine: ArenaEngine; llm?: LLMProvider } {
   const forced = env.BAITNET_ARENA_ENGINE as ArenaEngine | undefined;
   if (forced === "rules" || !allowLiveLLM(env)) return { engine: "rules" };
-  if ((forced === "nearai" || !forced) && env.NEARAI_API_KEY) return { engine: "nearai", llm: new NearAIProvider(env.NEARAI_API_KEY, env.NEARAI_MODEL ?? DEFAULT_NEARAI_MODEL) };
-  if ((forced === "claude" || !forced) && env.ANTHROPIC_API_KEY) return { engine: "claude", llm: new ClaudeProvider(env.ANTHROPIC_API_KEY, env.CLAUDE_MODEL ?? DEFAULT_CLAUDE_MODEL) };
+  if ((forced === "nearai" || !forced) && env.NEARAI_API_KEY) return { engine: "nearai", llm: new NearAIProvider(env.NEARAI_API_KEY, env.NEARAI_MODEL || DEFAULT_NEARAI_MODEL) };
+  if (forced === "claude" || !forced) {
+    const llm = selectClaudeProvider(env);
+    if (llm) return { engine: "claude", llm };
+  }
   return { engine: "rules" };
 }

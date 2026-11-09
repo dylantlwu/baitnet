@@ -439,11 +439,11 @@ export const en = {
 
   "upload.needExpert": "Enter your expert name first.",
   "upload.tooLarge": "File is larger than 2 MB.",
-  "upload.imageNeedsKey": "Screenshots need a Claude key (vision). Offline mode supports text and JSON only.",
+  "upload.imageNeedsKey": "Screenshots need Claude vision: configure a NEAR AI key (NEARAI_API_KEY) or a Claude key. Offline mode supports text and JSON only.",
   "upload.badJson": "This JSON is neither a script (ScamScriptDef) nor a Telegram export.",
   "upload.analyzing": "Analyzing… personal data is redacted first",
   "upload.drop": "Drop a file here, or click to choose",
-  "upload.formats": "txt / md, script JSON, Telegram JSON export, WhatsApp txt export; screenshots need a Claude key",
+  "upload.formats": "txt / md, script JSON, Telegram JSON export, WhatsApp txt export; screenshots need a NEAR AI key or a Claude key",
   "upload.privacy": "The original is encrypted on the server; only the redacted text is analyzed and shown.",
   "upload.hint": "Real chat logs: addresses found in them go through the same human review before going on-chain.",
   "upload.result": "Analysis · {file}",

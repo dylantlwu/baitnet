@@ -6,4 +6,5 @@ process.env.BAITNET_DATA_DIR = mkdtempSync(join(tmpdir(), "baitnet-test-"));
 delete process.env.BAITNET_EVIDENCE_KEY;
 delete process.env.NEARAI_API_KEY;
 delete process.env.ANTHROPIC_API_KEY;
+delete process.env.NEARAI_CLAUDE_MODEL;
 delete process.env.BAITNET_LLM;

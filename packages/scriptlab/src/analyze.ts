@@ -484,10 +484,10 @@ export const multiName = (files: UploadFile[]) => (files.length === 1 ? files[0]
 export function imageOfflineError(reason: "offline" | "no-key" = "offline"): ScriptLabError {
   const why =
     reason === "no-key"
-      ? "服务器没有配置 Claude key（ANTHROPIC_API_KEY），无法识别截图。"
+      ? "服务器没有配置 NEAR AI key（NEARAI_API_KEY）或 Claude key（ANTHROPIC_API_KEY），无法识别截图。"
       : "当前是离线模式，截图识别需要联网调用 Claude 视觉模型，离线时不支持。";
   return new ScriptLabError(
-    `${why}可以改为上传聊天记录导出文件（txt / Telegram JSON / WhatsApp txt），或请管理员以 live 模式启动并配置 ANTHROPIC_API_KEY。 / Screenshot analysis needs live mode and ANTHROPIC_API_KEY (Claude vision); upload a txt/JSON chat export instead.`,
+    `${why}可以改为上传聊天记录导出文件（txt / Telegram JSON / WhatsApp txt），或请管理员以 live 模式启动并配置 NEARAI_API_KEY（经 NEAR AI 调用 Claude）或 ANTHROPIC_API_KEY。 / Screenshot analysis needs live mode and a NEAR AI key (NEARAI_API_KEY, Claude via NEAR AI) or a Claude key (ANTHROPIC_API_KEY); upload a txt/JSON chat export instead.`,
     422,
     "image-offline",
   );

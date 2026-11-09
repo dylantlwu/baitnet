@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { AttestationCheck, AttestationResult, Lang, ScriptAnalysis } from "@baitnet/shared";
-import { DEFAULT_NEARAI_MODEL, NEARAI_BASE_URL, allowLiveLLM } from "@baitnet/agent";
+import { DEFAULT_NEARAI_MODEL, NEARAI_BASE_URL, NEARAI_TEE_FALLBACK_MODEL, allowLiveLLM, isNonTeeModelId } from "@baitnet/agent";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { checkSize, prepareText, rulesAnalysis, type Prepared, type ScriptUploadInput, uploadFiles, multiName, renderMessages } from "./analyze.js";
@@ -50,14 +50,26 @@ interface ModelInfo {
   [k: string]: unknown;
 }
 
-/** TEE-hosted? NEAR AI Cloud marks private models in their metadata; we accept any explicit TEE/attestation flag. */
+/** Non-chat models (embeddings, rerankers, speech, image generation) can never be the analysis model. */
+const NON_CHAT_ID = /embed|rerank|whisper|flux|stable-diffusion|\btts\b|speech|transcri/i;
+
+/**
+ * NEAR AI's own Private TEE chat model? Decided by the real /v1/models metadata (checked 2026-11-09):
+ *   owned_by "nearai"       → NEAR AI-hosted Private TEE (our M10 verifier checks exactly these reports) ✔
+ *   owned_by "attested 3p"  → third-party TEE; M10 cannot verify its attestation → not picked
+ *   owned_by "anthropic" / "deepseek" / "openai" / … → Incognito (proxied, NOT TEE) → never
+ * Beware look-alikes: "deepseek-ai/DeepSeek-V4.1-Flash-1017" (owned_by nearai, TEE) vs
+ * "deepseek/deepseek-v4.1-flash-1017" (owned_by deepseek, via OpenRouter, NOT TEE).
+ * Hard rules on top: Claude / GPT / Gemini ids and non-chat models are never picked, whatever owned_by says.
+ */
 export function isTeeModel(m: ModelInfo): boolean {
-  if (m.tee === true || m.attestation === true || m.confidential === true || m.private === true) return true;
-  const meta = JSON.stringify({ metadata: m.metadata, features: m.features, tags: m.tags, hosting: m.hosting, verifiable: m.verifiable }).toLowerCase();
-  return /\b(tee|tdx|confidential|attest(ed|ation)?|verifiable)\b|"verifiable":true/.test(meta);
+  const id = String(m.id ?? "");
+  if (!id || isNonTeeModelId(id) || NON_CHAT_ID.test(id)) return false;
+  return m.owned_by === "nearai";
 }
 
 /** Preferred (NEARAI_MODEL) if it is TEE-hosted, else the first TEE-hosted model; undefined if none is marked. */
+// (isTeeModel already excludes Claude/GPT/Gemini ids, so this can never return a Claude channel)
 export function pickTeeModel(models: ModelInfo[], preferred?: string): string | undefined {
   const tee = models.filter(isTeeModel);
   return tee.find((m) => m.id === preferred)?.id ?? tee[0]?.id;
@@ -88,24 +100,50 @@ export function recoverSigner(text: string, signatureHex: string): string | unde
   }
 }
 
+/**
+ * GET /v1/signature/<chat id> (docs.near.ai/cloud/verification/cloud-api/response-signatures):
+ *   signature_kind "provider_tee" → text = "<model id>:<sha256(request bytes)>:<sha256(response bytes)>", signed by the model TEE key
+ *   signature_kind "gateway"      → text = "<sha256(request bytes)>:<sha256(response bytes)>", signed by the gateway key
+ * Both hashes are over the exact bytes sent / received (uncompressed), never re-serialized JSON.
+ */
 export interface ResponseSignature {
-  text: string; // "<sha256(request body)>:<sha256(response body)>"
+  text: string;
   signature: string;
   signing_address: string;
   signing_algo?: string;
+  signature_kind?: string;
+}
+
+const sha256Bytes = (b: string | Uint8Array) => createHash("sha256").update(b).digest("hex");
+
+/** Split the signed text by signature_kind (inferred from the part count only when the field is absent, like the official example). */
+export function parseSignedText(sig: ResponseSignature): { kind?: "provider_tee" | "gateway"; model?: string; reqHash?: string; respHash?: string } {
+  const parts = String(sig.text ?? "").split(":");
+  const kind = sig.signature_kind ?? (parts.length === 3 ? "provider_tee" : parts.length === 2 ? "gateway" : undefined);
+  if (kind === "provider_tee" && parts.length === 3) return { kind, model: parts[0], reqHash: parts[1], respHash: parts[2] };
+  if (kind === "gateway" && parts.length === 2) return { kind, reqHash: parts[0], respHash: parts[1] };
+  return {};
 }
 
 /** Checks binding this exact request/response (chat id) to a key, and that key to the attested model key. */
 export function verifyResponseSignature(
   sig: ResponseSignature,
-  call: { chatId: string; requestBody: string; responseBody: string },
+  call: { chatId: string; requestBody: string; responseBody: string; responseBytes?: Uint8Array; model?: string },
   attestedAddress?: string,
 ): AttestationCheck[] {
   const checks: AttestationCheck[] = [];
   const push = (name: string, pass: boolean, detail: string) => checks.push({ name: `response signature: ${name}`, pass, detail });
-  const [reqHash, respHash] = String(sig.text ?? "").split(":");
-  push("request hash matches this call", reqHash === sha256(call.requestBody), `signed ${reqHash?.slice(0, 12)}… vs sha256(our request) ${sha256(call.requestBody).slice(0, 12)}…`);
-  push(`response hash matches chat ${call.chatId}`, respHash === sha256(call.responseBody), `signed ${respHash?.slice(0, 12)}… vs sha256(response body) ${sha256(call.responseBody).slice(0, 12)}…`);
+  const { kind, model, reqHash, respHash } = parseSignedText(sig);
+  const ourReq = sha256Bytes(call.requestBody);
+  const ourResp = sha256Bytes(call.responseBytes ?? call.responseBody);
+  if (call.model !== undefined || kind === "provider_tee")
+    push(
+      "signed by the model TEE for this model",
+      kind === "provider_tee" && (call.model === undefined || model === call.model),
+      `signature_kind ${sig.signature_kind ?? `(absent, inferred ${kind ?? "unknown"})`}, signed model ${model ?? "(none)"} vs requested ${call.model ?? "(not given)"}`,
+    );
+  push("request hash matches this call", !!reqHash && reqHash === ourReq, `signed ${reqHash?.slice(0, 12)}… vs sha256(our request bytes) ${ourReq.slice(0, 12)}…`);
+  push(`response hash matches chat ${call.chatId}`, !!respHash && respHash === ourResp, `signed ${respHash?.slice(0, 12)}… vs sha256(response bytes) ${ourResp.slice(0, 12)}…`);
   const signer = recoverSigner(sig.text, sig.signature);
   push("ECDSA recovers signing_address", !!signer && signer === sig.signing_address?.toLowerCase(), `recovered ${signer ?? "(invalid signature)"} vs ${sig.signing_address}`);
   push(
@@ -119,7 +157,7 @@ export function verifyResponseSignature(
 // ───────────────────────── NEAR AI Cloud calls ─────────────────────────
 
 function base(env: NodeJS.ProcessEnv) {
-  return env.NEARAI_BASE_URL ?? NEARAI_BASE_URL;
+  return env.NEARAI_BASE_URL || NEARAI_BASE_URL;
 }
 
 async function listModels(env: NodeJS.ProcessEnv, f: typeof fetch): Promise<ModelInfo[]> {
@@ -129,15 +167,22 @@ async function listModels(env: NodeJS.ProcessEnv, f: typeof fetch): Promise<Mode
   return Array.isArray(j) ? j : (j.data ?? []);
 }
 
-async function teeChat(env: NodeJS.ProcessEnv, f: typeof fetch, model: string, p: Prepared) {
+export const TEE_MAX_TOKENS = 6000;
+export const TEE_RETRY_MAX_TOKENS = 10000;
+
+async function teeChat(env: NodeJS.ProcessEnv, f: typeof fetch, model: string, p: Prepared, maxTokens = TEE_MAX_TOKENS) {
   const numbered = p.redactedText
     .split("\n")
     .map((l, i) => `${i + 1}. ${l}`)
     .join("\n");
   const requestBody = JSON.stringify({
     model,
-    max_tokens: 3000,
+    max_tokens: maxTokens,
     temperature: 0.2,
+    // Measured 2026-11-09 on DeepSeek-V4.1-Flash (TEE): with thinking on, ~2,200 of 3,000 tokens went to
+    // reasoning → finish_reason "length", truncated JSON, ~39 s. Thinking off → complete JSON, ~20 s.
+    // (thinking = DeepSeek template flag, enable_thinking = Qwen/GLM style; unused kwargs are ignored)
+    chat_template_kwargs: { thinking: false, enable_thinking: false },
     messages: [
       { role: "system", content: ANALYSIS_SYSTEM },
       { role: "user", content: `OUTPUT LANGUAGE: ${p.outLang === "zh" ? "Chinese (简体中文)" : "English"}\n\n${numbered.slice(0, 60_000)}` },
@@ -145,23 +190,37 @@ async function teeChat(env: NodeJS.ProcessEnv, f: typeof fetch, model: string, p
   });
   const res = await f(`${base(env)}/chat/completions`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${env.NEARAI_API_KEY}` },
+    // identity: the signature covers the uncompressed bytes; x-no-aliasing: the model id is part of the signed text
+    headers: { "content-type": "application/json", authorization: `Bearer ${env.NEARAI_API_KEY}`, "accept-encoding": "identity", "x-no-aliasing": "true" },
     body: requestBody,
     signal: AbortSignal.timeout(90_000),
   });
-  const responseBody = await res.text();
+  const responseBytes = new Uint8Array(await res.arrayBuffer());
+  const responseBody = new TextDecoder().decode(responseBytes);
   if (!res.ok) throw new Error(`NEAR AI chat HTTP ${res.status}`); // never echo the body: it may contain content
-  const j = JSON.parse(responseBody) as { id?: string; choices?: { message?: { content?: string } }[] };
-  return { chatId: j.id ?? "", content: j.choices?.[0]?.message?.content ?? "", requestBody, responseBody };
+  const j = JSON.parse(responseBody) as { id?: string; choices?: { message?: { content?: string }; finish_reason?: string }[] };
+  return { chatId: j.id ?? "", content: j.choices?.[0]?.message?.content ?? "", finishReason: j.choices?.[0]?.finish_reason, requestBody, responseBody, responseBytes, model };
 }
 
 async function fetchSignature(env: NodeJS.ProcessEnv, f: typeof fetch, chatId: string, model: string): Promise<ResponseSignature> {
   const url = new URL(`${base(env)}/signature/${encodeURIComponent(chatId)}`);
   url.searchParams.set("model", model);
   url.searchParams.set("signing_algo", "ecdsa");
-  const res = await f(url, { headers: { authorization: `Bearer ${env.NEARAI_API_KEY}` }, signal: AbortSignal.timeout(20_000) });
-  if (!res.ok) throw new Error(`signature HTTP ${res.status}`);
-  return (await res.json()) as ResponseSignature;
+  // the signature can lag the completion briefly: 404 or a 2xx {error_code} → bounded retry (docs: response-signatures)
+  let last = "";
+  for (let i = 0; i < 3; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 1000 * i));
+    const res = await f(url, { headers: { authorization: `Bearer ${env.NEARAI_API_KEY}`, accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
+    if (res.ok) {
+      const j = (await res.json()) as ResponseSignature & { error_code?: string };
+      if (!j.error_code && j.signature) return j;
+      last = `no signature (${j.error_code ?? "empty"})`;
+    } else {
+      last = `signature HTTP ${res.status}`;
+      if (res.status !== 404) break;
+    }
+  }
+  throw new Error(last);
 }
 
 async function recordedAttestation(m10: M10Verifier | undefined): Promise<AttestationResult> {
@@ -209,11 +268,21 @@ export async function analyzeEphemeral(upload: ScriptUploadInput, opts: Ephemera
   }
 
   // 1. TEE model from the models endpoint
-  let model = env.NEARAI_MODEL ?? DEFAULT_NEARAI_MODEL;
+  let model = env.NEARAI_MODEL || DEFAULT_NEARAI_MODEL;
+  if (isNonTeeModelId(model, env)) {
+    // NEARAI_MODEL points at a proxied model (e.g. Claude via NEAR AI, Incognito tier) — never in zero-retention
+    warnings.push(zh ? `NEARAI_MODEL=${model} 不是 TEE 模型（不会用 Claude），改用 ${NEARAI_TEE_FALLBACK_MODEL}` : `NEARAI_MODEL=${model} is not a TEE model (Claude is never used here); using ${NEARAI_TEE_FALLBACK_MODEL}`);
+    model = NEARAI_TEE_FALLBACK_MODEL;
+  }
   try {
-    const picked = pickTeeModel(await listModels(env, f), env.NEARAI_MODEL);
+    const models = await listModels(env, f);
+    const picked = pickTeeModel(models, env.NEARAI_MODEL);
     if (picked) model = picked;
-    else warnings.push(zh ? `models 端点没有标明 TEE 模型，使用 ${model}，以 attestation 校验结果为准` : `No model is marked TEE in /models; using ${model} — rely on the attestation result`);
+    else if (models.some((m) => m.id === model && !isTeeModel(m))) {
+      // the configured model is listed but is not NEAR AI's own TEE model (e.g. the OpenRouter look-alike) → never use it here
+      warnings.push(zh ? `models 端点显示 ${model} 不是 NEAR AI 自有 TEE 模型，改用 ${NEARAI_TEE_FALLBACK_MODEL}，以 attestation 校验结果为准` : `/models shows ${model} is not a NEAR AI-hosted TEE model; using ${NEARAI_TEE_FALLBACK_MODEL} — rely on the attestation result`);
+      model = NEARAI_TEE_FALLBACK_MODEL;
+    } else warnings.push(zh ? `models 端点没有标明 TEE 模型，使用 ${model}，以 attestation 校验结果为准` : `No model is marked TEE in /models; using ${model} — rely on the attestation result`);
   } catch (e) {
     warnings.push(zh ? `读取 models 端点失败（${(e as Error).message}），使用 ${model}` : `Could not read /models (${(e as Error).message}); using ${model}`);
   }
@@ -232,10 +301,30 @@ export async function analyzeEphemeral(upload: ScriptUploadInput, opts: Ephemera
   let call: Awaited<ReturnType<typeof teeChat>> | undefined;
   try {
     call = await teeChat(env, f, model, p);
+    const merge = (c: NonNullable<typeof call>) => mergeLlmOutput(base0, extractJson(c.content), "nearai", p.lines.length);
     try {
-      analysis = mergeLlmOutput(base0, extractJson(call.content), "nearai", p.lines.length);
+      analysis = merge(call);
     } catch (e) {
-      warnings.push(zh ? `TEE 模型输出无效，已退回本地规则引擎：${(e as Error).message.slice(0, 80)}` : `TEE model output invalid, fell back to rules: ${(e as Error).message.slice(0, 80)}`);
+      let err = e as Error;
+      let fixed = false;
+      if (call.finishReason === "length") {
+        // output cut off by max_tokens → one retry with a bigger budget (the signature below then covers the retry)
+        try {
+          call = await teeChat(env, f, model, p, TEE_RETRY_MAX_TOKENS);
+          analysis = merge(call);
+          fixed = true;
+        } catch (e2) {
+          err = e2 as Error;
+        }
+      }
+      if (!fixed) {
+        const cut = call.finishReason === "length";
+        warnings.push(
+          zh
+            ? `TEE 模型输出无效${cut ? "（输出被 max_tokens 截断）" : ""}，已退回本地规则引擎：${err.message.slice(0, 80)}`
+            : `TEE model output invalid${cut ? " (truncated by max_tokens)" : ""}, fell back to rules: ${err.message.slice(0, 80)}`,
+        );
+      }
     }
   } catch (e) {
     warnings.push(zh ? `NEAR AI Cloud 调用失败（${(e as Error).message}），本次结果来自本地规则引擎（仍然零留存）` : `NEAR AI Cloud call failed (${(e as Error).message}); result from the local rules engine (still zero-retention)`);

@@ -444,11 +444,11 @@ export const zh: Record<MsgKey, string> = {
 
   "upload.needExpert": "请先填写专家名。",
   "upload.tooLarge": "文件超过 2 MB。",
-  "upload.imageNeedsKey": "截图要用 Claude 的视觉识别，需要配置 Claude key。离线模式只支持文本和 JSON。",
+  "upload.imageNeedsKey": "截图要用 Claude 的视觉识别，需要配置 NEAR AI key（NEARAI_API_KEY）或 Claude key。离线模式只支持文本和 JSON。",
   "upload.badJson": "这个 JSON 既不是剧本格式（ScamScriptDef），也不是 Telegram 导出格式。",
   "upload.analyzing": "分析中…会先给个人资料打码",
   "upload.drop": "把文件拖到这里，或点击选择",
-  "upload.formats": "支持 txt / md、剧本 JSON、Telegram 导出的 JSON、WhatsApp 导出的 txt；截图需要 Claude key",
+  "upload.formats": "支持 txt / md、剧本 JSON、Telegram 导出的 JSON、WhatsApp 导出的 txt；截图需要 NEAR AI key 或 Claude key",
   "upload.privacy": "原文在服务端加密保存，分析和展示都只用打码后的版本。",
   "upload.hint": "上传真实聊天记录时，里面抽到的地址同样要经过人工复核才能上链。",
   "upload.result": "分析结果 · {file}",

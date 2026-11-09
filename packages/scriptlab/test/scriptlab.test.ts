@@ -504,11 +504,98 @@ describe("phone screenshots (D22): files[], order, overlap, 5MB, Chinese prompt"
     vi.stubGlobal("fetch", spy);
     Object.assign(process.env, { BAITNET_MODE: "live" });
     delete process.env.ANTHROPIC_API_KEY;
-    await expect(analyzeUpload({ ...up("x", ""), files: [shot(1), shot(2)] })).rejects.toMatchObject({ status: 422, message: expect.stringMatching(/^服务器没有配置 Claude key/) });
+    delete process.env.NEARAI_API_KEY;
+    await expect(analyzeUpload({ ...up("x", ""), files: [shot(1), shot(2)] })).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringMatching(/^服务器没有配置 NEAR AI key（NEARAI_API_KEY）或 Claude key（ANTHROPIC_API_KEY）[\s\S]* \/ Screenshot analysis needs live mode and a NEAR AI key \(NEARAI_API_KEY/),
+    });
     process.env.BAITNET_MODE = "offline";
     process.env.ANTHROPIC_API_KEY = "ak";
     await expect(analyzeUpload({ ...up("x", ""), files: [shot(1)] })).rejects.toMatchObject({ message: expect.stringMatching(/^当前是离线模式/) });
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("only NEARAI_API_KEY: screenshots go to Claude via NEAR AI (OpenAI image_url format), never api.anthropic.com", async () => {
+    Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk-test", BAITNET_LLM: "replay" });
+    delete process.env.ANTHROPIC_API_KEY;
+    const spy = vi.fn(async (url: string, init: { body: string; headers: Record<string, string>; method: string }) => {
+      expect(url).toBe("https://cloud-api.near.ai/v1/chat/completions");
+      expect(init.method).toBe("POST");
+      expect(init.headers.authorization).toBe("Bearer nk-test");
+      expect(init.headers["x-api-key"]).toBeUndefined();
+      const body = JSON.parse(init.body);
+      expect(body.model).toBe("anthropic/claude-sonnet-5-5");
+      expect(body.messages).toHaveLength(1);
+      const [img, txt] = body.messages[0].content;
+      expect(img.type).toBe("image_url");
+      expect(img.image_url.url).toMatch(/^data:image\/png;base64,/);
+      expect(txt).toEqual({ type: "text", text: VISION_PROMPT });
+      const tag = Buffer.from(img.image_url.url.split(",")[1], "base64")[8]!;
+      return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: TRANSCRIPTS[tag] } }] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", spy);
+    const a = await analyzeUpload({ ...up("截图", ""), files: [shot(1), shot(2), shot(3)] });
+    expect(spy).toHaveBeenCalledTimes(3);
+    expect(spy.mock.calls.every((c) => !String(c[0]).includes("anthropic.com"))).toBe(true);
+    expect(a.format).toBe("image");
+    expect(a.engine).toBe("claude");
+    expect(a.redactedText.split("\n")).toHaveLength(8);
+    expect(a.alertDrafts.map((d) => d.address)).toEqual(["TkakAdozH2PEEpqY4GboMCjpcYYjJgxJ1U"]);
+    expect(a.warnings.join()).toMatch(/3 张截图由 Claude 视觉识别转写（经 NEAR AI，Incognito，非 TEE）/);
+    expect(a.warnings.join()).not.toMatch(/TEE 模型|在 TEE 里|attest/i);
+  });
+
+  it("NEARAI_CLAUDE_MODEL overrides the vision model; ANTHROPIC_API_KEY (if also set) still goes direct", async () => {
+    Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk", NEARAI_CLAUDE_MODEL: "anthropic/claude-opus-5-5", BAITNET_LLM: "replay" });
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const nearSpy = vi.fn(async (_u: string, init: { body: string }) => {
+        expect(JSON.parse(init.body).model).toBe("anthropic/claude-opus-5-5");
+        return new Response(JSON.stringify({ choices: [{ message: { content: TRANSCRIPTS[1] } }] }), { status: 200 });
+      });
+      vi.stubGlobal("fetch", nearSpy);
+      await analyzeUpload({ ...up("x", ""), files: [shot(1)] });
+      expect(nearSpy).toHaveBeenCalledTimes(1);
+      process.env.ANTHROPIC_API_KEY = "ak";
+      const direct = stubClaude();
+      vi.stubGlobal("fetch", direct);
+      const a = await analyzeUpload({ ...up("x", ""), files: [shot(1)] });
+      expect(String(direct.mock.calls[0]![0])).toBe("https://api.anthropic.com/v1/messages");
+      expect(a.warnings.join()).not.toMatch(/经 NEAR AI/);
+    } finally {
+      delete process.env.NEARAI_CLAUDE_MODEL;
+    }
+  });
+
+  it("Claude via NEAR AI vision: empty content with finish_reason=length → one retry with max_tokens 8000", async () => {
+    Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk", BAITNET_LLM: "replay" });
+    delete process.env.ANTHROPIC_API_KEY;
+    const budgets: number[] = [];
+    const spy = vi.fn(async (_u: string, init: { body: string }) => {
+      budgets.push(JSON.parse(init.body).max_tokens);
+      return budgets.length === 1
+        ? new Response(JSON.stringify({ choices: [{ message: { content: "" }, finish_reason: "length" }] }), { status: 200 })
+        : new Response(JSON.stringify({ choices: [{ message: { content: TRANSCRIPTS[1] }, finish_reason: "stop" }] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", spy);
+    const a = await analyzeUpload({ ...up("x", ""), files: [shot(1)] });
+    expect(budgets).toEqual([4000, 8000]);
+    expect(a.format).toBe("image");
+    // still empty after the retry → 502
+    budgets.length = 0;
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, init: { body: string }) => (budgets.push(JSON.parse(init.body).max_tokens), new Response(JSON.stringify({ choices: [{ message: { content: "" }, finish_reason: "length" }] })))));
+    await expect(analyzeUpload({ ...up("x", ""), files: [shot(1)] })).rejects.toMatchObject({ status: 502, message: expect.stringMatching(/empty transcript \(finish_reason=length\)/) });
+    expect(budgets).toEqual([4000, 8000]);
+  });
+
+  it("Claude via NEAR AI vision: HTTP error → 502 vision-failed, key never echoed", async () => {
+    Object.assign(process.env, { BAITNET_MODE: "live", NEARAI_API_KEY: "nk-secret-value", BAITNET_LLM: "replay" });
+    delete process.env.ANTHROPIC_API_KEY;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("model not found", { status: 404 })));
+    const err = await analyzeUpload({ ...up("x", ""), files: [shot(1)] }).catch((e) => e);
+    expect(err).toMatchObject({ status: 502, code: "vision-failed" });
+    expect(err.message).toMatch(/Claude vision via NEAR AI 404/);
+    expect(err.message).not.toContain("nk-secret-value");
   });
 
   it("files[] of text exports works offline (rules) and keeps order", async () => {

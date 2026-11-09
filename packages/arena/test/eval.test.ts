@@ -19,6 +19,22 @@ describe("eval (offline rules engine)", () => {
     expect(selectArenaEngine({ BAITNET_MODE: "live" }).engine).toBe("rules");
   });
 
+  it("Claude engine: ANTHROPIC key → direct; only NEAR AI key → Claude via NEAR AI (forced), default stays TEE", () => {
+    const d = selectArenaEngine({ BAITNET_MODE: "live", NEARAI_API_KEY: "k" });
+    expect(d.engine).toBe("nearai");
+    expect(d.llm?.tee).toBe(true);
+    const c = selectArenaEngine({ BAITNET_MODE: "live", NEARAI_API_KEY: "k", BAITNET_ARENA_ENGINE: "claude" });
+    expect(c.engine).toBe("claude");
+    expect(c.llm?.via).toBe("nearai");
+    expect(c.llm?.tee).toBe(false);
+    expect(c.llm?.model).toBe("anthropic/claude-sonnet-5-5");
+    const a = selectArenaEngine({ BAITNET_MODE: "live", NEARAI_API_KEY: "k", ANTHROPIC_API_KEY: "a", BAITNET_ARENA_ENGINE: "claude" });
+    expect(a.llm?.via).toBe("anthropic");
+    expect(a.llm?.model).toBe("claude-sonnet-5-5");
+    expect(selectArenaEngine({ BAITNET_MODE: "live", BAITNET_ARENA_ENGINE: "claude" }).engine).toBe("rules");
+    expect(selectArenaEngine({ BAITNET_MODE: "offline", NEARAI_API_KEY: "k", BAITNET_ARENA_ENGINE: "claude" }).engine).toBe("rules");
+  });
+
   it("30 个剧本离线跑完：不联网、全部拿到地址、零泄露、零被带偏、投毒全过滤、中英分列", async () => {
     Object.assign(process.env, { BAITNET_MODE: "offline", NEARAI_API_KEY: "nk", ANTHROPIC_API_KEY: "ak" });
     const spy = vi.fn(async () => {
