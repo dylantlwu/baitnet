@@ -83,3 +83,12 @@ export interface RegressionCase {
 - 路由一律从 `ctx.currentUser(req)`（或 `req.user.id`）取当前用户，**请求体里的 `expertId` 一律忽略**。
 - 启用鉴权（`BAITNET_AUTH=on`）但取不到用户时返回 401；未启用鉴权时，用户记为 `local-expert`。
 - 将来接 IM 的适配层时，同样要先把 IM 账号映射成 user，再调用引擎，不能绕过这一层。
+
+## D30 模型选择（2026-11-10）
+
+- `GET /arena/models`（expert 级，开鉴权时要登录）→ `{ default: "deepseek", liveLLM: boolean, models: [{ id, model, label, tee, price:{input,output}, available, via? }] }`。清单来自 `packages/shared` 的 `ARENA_MODELS`，`model` 是本服务器实际会用的 id（含环境变量覆盖）。`available:false` = 选它也会落到规则模式（离线 / `BAITNET_ARENA_ENGINE=rules` / 没有对应 key）；`liveLLM:false` 时网页提示"将用规则模式"，Telegram 跳过选模型这一步。
+- `POST /arena/sessions` 多一个可选字段 `modelChoice`：`deepseek | glm | haiku | sonnet`，缺省 = `deepseek`，其他值 400。`GET /arena/sessions`、`GET /arena/sessions/:id` 返回 `modelChoice`、`model`（规则模式下没有 `model`，`engine:"rules"`；额度用完降级时 `model` 被清掉，`modelChoice` 保留）。
+- 引擎：`ArenaManager.create(scriptId, modes, channel, modelChoice = "deepseek")`。deepseek / glm → `NearAIProvider`（`engine:"nearai"`，TEE）；haiku / sonnet → Claude 通道（`engine:"claude"`，有 `ANTHROPIC_API_KEY` 直连，否则经 NEAR AI，非 TEE，max_tokens 下限 2000 + 空回复重试）。deepseek / glm 只认 `NEARAI_API_KEY`，没有就规则模式。
+- 环境变量覆盖模型 id（空串 = 默认）：`NEARAI_MODEL_DEEPSEEK`、`NEARAI_MODEL_GLM`、`NEARAI_CLAUDE_HAIKU_MODEL`、`NEARAI_CLAUDE_MODEL`（经 NEAR AI）；直连 Anthropic 时 `CLAUDE_HAIKU_MODEL`、`CLAUDE_MODEL`。
+- 关闭思考（实测 2026-11-10）：DeepSeek 带 `chat_template_kwargs:{thinking:false, enable_thinking:false}`，reasoning_tokens=0、约 1.4–2 s。GLM 5.3 Flash 关不掉：`enable_thinking:false` / `reasoning_effort:"none"` 只会把思考过程写进回复正文（reasoning_tokens=0 但 content 是英文推理），`thinking:{type:"disabled"}` 无效（仍 300–450 思考 token）；默认 400–1,240 思考 token、7–28 s。所以 GLM 不带任何关思考参数，改为 max_tokens 下限 2000、空回复（finish_reason=length）时用 4000 重试一次。
+- 2026-11-10 之前存下的会话没有 `modelChoice`，恢复时沿用原来的按环境变量选引擎（`selectArenaEngine`）；评测（eval）也不变。

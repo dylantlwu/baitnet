@@ -1,5 +1,5 @@
 import { API, type ArenaTurn, type ArenaEvent, type ArenaSession, type Correction, type EvalReport, type EvalRun, type PlaybookEntry, type ScamScriptDef, type ScriptAnalysis } from "@baitnet/shared";
-import type { Backend } from "./types";
+import type { ArenaModelsInfo, Backend } from "./types";
 import { normalizeScripts } from "./normalize";
 
 export class HttpError extends Error {
@@ -58,7 +58,10 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
       }
     },
     getSession: (id) => get<ArenaSession>(API.arenaSession(id)),
-    createSession: (scriptId, modes) => post<ArenaSession>(API.arenaSessions, { scriptId, scammer: modes.scammer, bait: modes.bait }),
+    createSession: (scriptId, modes, modelChoice) =>
+      post<ArenaSession>(API.arenaSessions, { scriptId, scammer: modes.scammer, bait: modes.bait, ...(modelChoice ? { modelChoice } : {}) }),
+    // not in the shared API table (packages/shared is frozen for this change): D30 route
+    listModels: () => get<ArenaModelsInfo>("/arena/models"),
     subscribe(id, onEvent) {
       const es = new EventSource(apiBase + API.arenaEvents(id), { withCredentials: true });
       const handler = (e: MessageEvent<string>) => {

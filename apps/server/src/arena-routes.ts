@@ -1,5 +1,5 @@
 import type { ArenaSession, ArenaSide, SideMode } from "@baitnet/shared";
-import { ArenaManager, langFromAcceptLanguage, readLatestReport } from "@baitnet/arena";
+import { ArenaManager, ARENA_MODEL_IDS, isArenaModelChoice, langFromAcceptLanguage, readLatestReport } from "@baitnet/arena";
 import { HANDLED, httpError, type Router } from "./router.js";
 import { SSE_HEADERS } from "./static.js";
 
@@ -29,6 +29,9 @@ export function registerArenaRoutes(router: Router, mgr: ArenaManager, o: { auth
 
   router.get("/arena/scripts", async ({ query }) => mgr.scripts(query.get("refresh") === "1"));
 
+  // D30: models an expert can pick when starting a session (available=false → that session runs on rules)
+  router.get("/arena/models", () => mgr.models());
+
   router.post("/arena/sessions/:id/rate", async ({ params, body, user }) => mgr.rate(params.id!, { ...(body ?? {}), ...(authOn() && user ? { expertId: user.expertId } : {}) }));
 
   // ?mine=1: the caller's live + finished sessions (no login yet → everyone's; newest first)
@@ -48,7 +51,9 @@ export function registerArenaRoutes(router: Router, mgr: ArenaManager, o: { auth
       if (!MODES.includes(body[s])) throw httpError(400, `${s} mode must be ${MODES.join("|")}`);
       modes[s] = body[s];
     }
-    const eng = await mgr.create(scriptId, modes, { kind: "web", ownerId: user?.expertId ?? "local-expert" });
+    const modelChoice = body?.modelChoice ?? undefined;
+    if (modelChoice !== undefined && !isArenaModelChoice(modelChoice)) throw httpError(400, `modelChoice must be one of ${ARENA_MODEL_IDS.join("|")}`);
+    const eng = await mgr.create(scriptId, modes, { kind: "web", ownerId: user?.expertId ?? "local-expert" }, modelChoice);
     return eng.session;
   });
 

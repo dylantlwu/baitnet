@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import type { ArenaSessionEngine } from "@baitnet/arena";
-import type { ArenaEvent, ArenaSide, ArenaTurn, Lang, ScamScriptDef, ScamType, ScriptUpload, User } from "@baitnet/shared";
+import { arenaModelTier, isArenaModelChoice, type ArenaSessionEngine } from "@baitnet/arena";
+import { ARENA_MODELS, type ArenaModelChoice, type ArenaEvent, type ArenaSide, type ArenaTurn, type Lang, type ScamScriptDef, type ScamType, type ScriptUpload, type User } from "@baitnet/shared";
 import { delayScale, maybeSplit, typingDelayMs } from "./humanize.js";
 import { COMMANDS, T, TYPE_LABEL, langOf, piiLabel, type Strings } from "./i18n.js";
 import { ImState, shanghai } from "./state.js";
@@ -320,21 +320,38 @@ export class SessionRouter {
       rows.push([{ text: t.random, payload: `n:${parts[1]}:${type}:*` }]);
       return this.adapter.editMessage(ctx.chatId, b.messageId, { text: t.pickScript(TYPE_LABEL[type]?.[ctx.lang] ?? type), buttons: rows });
     }
-    const pick = parts[3] === "*" ? list[Math.floor(this.rand() * list.length)] : list[Number(parts[3])];
+    // "*" is resolved here so the model step (and a re-press) keeps the same script
+    const idx = parts[3] === "*" ? Math.floor(this.rand() * list.length) : Number(parts[3]);
+    const pick = list[idx];
     if (!pick) return this.adapter.editMessage(ctx.chatId, b.messageId, { text: t.noScripts });
     const { eng: existing } = await this.active(ctx.chatId);
     if (existing) return this.adapter.editMessage(ctx.chatId, b.messageId, { text: t.hasActive });
-    await this.adapter.editMessage(ctx.chatId, b.messageId, { text: `${sideLabel} · ${pick.title}` });
-    await this.createSession(ctx, side, pick);
+    // D30: pick the model — skipped when this server has no live LLM (every choice would be rules)
+    const models = this.deps.arena.models();
+    if (parts.length === 4 && models.liveLLM) {
+      const base = `n:${parts[1]}:${type}:${idx}`;
+      const rows: Button[][] = models.models
+        .filter((m) => m.available)
+        .map((m) => [{ text: `${m.id === models.default ? "✅ " : ""}${t.modelBtn(m.label, m.tee, arenaModelTier(m.id, models.models))}${m.slow ? ` · ${t.modelSlow}` : ""}`, payload: `${base}:${m.id}` }]);
+      rows.push([{ text: t.modelSkip, payload: `${base}:-` }]);
+      return this.adapter.editMessage(ctx.chatId, b.messageId, { text: t.pickModel(pick.title), buttons: rows });
+    }
+    const modelChoice: ArenaModelChoice | undefined = isArenaModelChoice(parts[4]) ? parts[4] : undefined; // "-" / absent = default
+    const eng = await this.createSession(ctx, side, pick, modelChoice, async (label) => {
+      await this.adapter.editMessage(ctx.chatId, b.messageId, { text: `${sideLabel} · ${pick.title}${label ? ` · ${t.modelUsed(label)}` : ""}` });
+    });
+    return eng;
   }
 
-  private async createSession(ctx: Ctx, side: ArenaSide, script: ScamScriptDef) {
+  private async createSession(ctx: Ctx, side: ArenaSide, script: ScamScriptDef, modelChoice?: ArenaModelChoice, announce?: (modelLabel?: string) => Promise<unknown>) {
     const modes = side === "scammer" ? ({ scammer: "human", bait: "ai" } as const) : ({ scammer: "ai", bait: "human" } as const);
     // channel at creation: the manager's per-owner LLM quota gate (IdentityService.consumeLlmQuota) keys on ownerId
-    const eng = await this.deps.arena.create(script.id, modes, { kind: this.kind, chatId: ctx.chatId, ownerId: ctx.user.id, expertPlays: side });
+    const eng = await this.deps.arena.create(script.id, modes, { kind: this.kind, chatId: ctx.chatId, ownerId: ctx.user.id, expertPlays: side }, modelChoice);
+    const s = eng.session;
+    await announce?.(s.engine === "rules" ? undefined : (ARENA_MODELS.find((m) => m.model === s.model)?.label ?? s.model ?? ARENA_MODELS.find((m) => m.id === s.modelChoice)?.label));
     await this.deps.chats.set(this.kind, ctx.chatId, eng.session.id);
     this.subscribe(eng);
-    await this.audit(ctx.user, "im.session.create", eng.session.id, `${side} ${script.id}`);
+    await this.audit(ctx.user, "im.session.create", eng.session.id, `${side} ${script.id}${s.modelChoice ? ` ${s.modelChoice}` : ""}`);
     if (side === "scammer") {
       await this.send(ctx.chatId, ctx.t.startedScammer(script.title, script.hook));
     } else {

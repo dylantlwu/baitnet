@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useState, type ReactNode } from "react";
-import type { ArenaSession, ArenaSide, ArenaTurn, ScamScriptDef, ScamType, SideMode, TurnRating } from "@baitnet/shared";
+import { ARENA_MODELS, DEFAULT_ARENA_MODEL, type ArenaModelChoice, type ArenaSession, type ArenaSide, type ArenaTurn, type ScamScriptDef, type ScamType, type SideMode, type TurnRating } from "@baitnet/shared";
 import type { ViewSnapshot } from "../data/parse";
-import type { Backend } from "../backend/types";
+import type { ArenaModelsInfo, Backend } from "../backend/types";
 import { useBackend } from "../backend/context";
 import { arenaReducer, initialArena, nextSide } from "../arena/reducer";
 import { RichText } from "../components/RichText";
@@ -131,7 +131,25 @@ export function ScriptPicker({
   const [type, setType] = useState<ScamType | "all">("all");
   const [lang, setLang] = useState<"all" | "zh" | "en">("all");
   const [modes, setModes] = useState<Record<ArenaSide, SideMode>>({ scammer: "ai", bait: "ai" });
+  const [model, setModel] = useState<ArenaModelChoice>(DEFAULT_ARENA_MODEL);
+  const [modelInfo, setModelInfo] = useState<ArenaModelsInfo | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (backend.readOnly || !backend.listModels) return;
+    let alive = true;
+    backend
+      .listModels()
+      .then((m) => {
+        if (!alive || !m || !Array.isArray(m.models)) return;
+        setModelInfo(m);
+        setModel((cur) => (cur === DEFAULT_ARENA_MODEL && m.models.some((x) => x.id === m.default) ? m.default : cur));
+      })
+      .catch(() => undefined); // older server: the static list is shown, server picks its default
+    return () => {
+      alive = false;
+    };
+  }, [backend]);
   const [err, setErr] = useState<string | null>(null);
 
   const recBy = useMemo(() => {
@@ -154,7 +172,7 @@ export function ScriptPicker({
     }
     setBusy(true);
     try {
-      onStart(await backend.createSession(sel.id, modes), false);
+      onStart(await backend.createSession(sel.id, modes, model), false);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -233,12 +251,78 @@ export function ScriptPicker({
               ))}
             </div>
           )}
+          {!backend.readOnly && <ModelPicker value={model} onChange={setModel} info={modelInfo} />}
           {err && <p className="err small">{t("common.actionFailed", { msg: err })}</p>}
           <button type="button" className="btn primary wide" onClick={start} disabled={busy}>
             {backend.readOnly ? t("arena.replay") : busy ? t("common.working") : t("arena.start")}
           </button>
         </section>
       )}
+    </div>
+  );
+}
+
+/** D30 relative price: by output price against the cheapest option. */
+export function modelPriceTier(id: ArenaModelChoice, list: readonly { id: ArenaModelChoice; price: { output: number } }[] = ARENA_MODELS): "cheapest" | "cheap" | "pricey" {
+  const m = list.find((x) => x.id === id);
+  if (!m) return "cheap";
+  const min = Math.min(...list.map((x) => x.price.output));
+  return m.price.output >= 4 * min ? "pricey" : m.price.output === min ? "cheapest" : "cheap";
+}
+
+const TIER_KEY = { cheapest: "arena.modelCheapest", cheap: "arena.modelCheap", pricey: "arena.modelPricey" } as const;
+
+export function modelLabel(s: Pick<ArenaSession, "modelChoice" | "model">): string | undefined {
+  const byChoice = ARENA_MODELS.find((m) => m.id === s.modelChoice);
+  const byModel = ARENA_MODELS.find((m) => m.model === s.model);
+  // the concrete model wins when it matches a known one (env override may differ from the choice's default)
+  return byModel?.label ?? (s.model ? s.model : byChoice?.label);
+}
+
+function ModelPicker({ value, onChange, info }: { value: ArenaModelChoice; onChange: (m: ArenaModelChoice) => void; info: ArenaModelsInfo | null }) {
+  const { t } = useI18n();
+  const models = info?.models?.length ? info.models : ARENA_MODELS.map((m) => ({ ...m, available: true }));
+  const def = info?.default ?? DEFAULT_ARENA_MODEL;
+  return (
+    <div className="model-picker" role="radiogroup" aria-label={t("arena.model")}>
+      <div className="row gap">
+        <span className="side-label">{t("arena.model")}</span>
+        <span className="muted small">{t("arena.modelHint")}</span>
+      </div>
+      {info && !info.liveLLM && <p className="note warn-note small">{t("arena.modelUnavailable")}</p>}
+      <div className="model-options">
+        {models.map((m) => {
+          const tier = modelPriceTier(m.id, models);
+          return (
+            <button
+              key={m.id}
+              type="button"
+              role="radio"
+              aria-checked={m.id === value}
+              aria-label={`${m.label} · ${t(m.tee ? "arena.modelTee" : "arena.modelNoTee")} · ${t(TIER_KEY[tier])}${m.slow ? ` · ${t("arena.modelSlow")}` : ""}`}
+              className={m.id === value ? "model-option on" : "model-option"}
+              onClick={() => onChange(m.id)}
+            >
+              <span className="model-name">
+                {m.label}
+                {m.id === def && <span className="muted small"> · {t("arena.modelDefault")}</span>}
+              </span>
+              <span className="row gap-s">
+                <Badge tone={m.tee ? "ok" : "muted"} title={t(m.tee ? "arena.modelTeeTitle" : "arena.modelNoTeeTitle")}>
+                  {t(m.tee ? "arena.modelTee" : "arena.modelNoTee")}
+                </Badge>
+                <Badge tone={tier === "pricey" ? "warn" : "info"}>{t(TIER_KEY[tier])}</Badge>
+                {m.slow && (
+                  <Badge tone="warn" title={t("arena.modelSlowTitle")}>
+                    {t("arena.modelSlow")}
+                  </Badge>
+                )}
+              </span>
+              <span className="muted small">{t("arena.modelPrice", { in: m.price.input, out: m.price.output })}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -415,7 +499,7 @@ function SessionLayout(p: LayoutProps) {
         <div className="row gap">{p.controls}</div>
         <div className="row gap push-md">
           <Badge tone={s.status === "running" ? "ok" : s.status === "finished" ? "muted" : "info"}>{t(`status.${s.status}`)}</Badge>
-          <EngineBadge engine={s.engine} />
+          <EngineBadge session={s} />
           <label className={`switch${ro ? " disabled" : ""}`} title={ro ? t("arena.hostedHint") : undefined}>
             <input type="checkbox" checked={p.training} disabled={ro} onChange={(e) => p.setTraining?.(e.target.checked)} />
             <span className="switch-track" />
@@ -495,13 +579,18 @@ function SessionLayout(p: LayoutProps) {
   );
 }
 
-function EngineBadge({ engine }: { engine: ArenaSession["engine"] }) {
+/** Engine + model of this session (D30). Rules mode: the picked model (if any) is shown as not used. */
+export function EngineBadge({ session: s }: { session: Pick<ArenaSession, "engine" | "modelChoice" | "model"> }) {
   const { t } = useI18n();
-  return engine === "rules" ? (
-    <Badge tone="warn">{t("engine.rulesMode")}</Badge>
-  ) : (
-    <Badge tone="info">{t("arena.engine", { name: engine === "nearai" ? "NEAR AI" : "Claude" })}</Badge>
-  );
+  const picked = ARENA_MODELS.find((m) => m.id === s.modelChoice)?.label;
+  if (s.engine === "rules")
+    return (
+      <Badge tone="warn" title={picked ? t("arena.modelChosen", { name: picked }) : undefined}>
+        {t("engine.rulesMode")}
+      </Badge>
+    );
+  const name = modelLabel(s);
+  return <Badge tone="info">{name ? t("arena.modelBadge", { name }) : t("arena.engine", { name: s.engine === "nearai" ? "NEAR AI" : "Claude" })}</Badge>;
 }
 
 export function TurnRow({

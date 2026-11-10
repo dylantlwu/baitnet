@@ -13,6 +13,7 @@ import type {
   ScriptAnalysis,
   SideMode,
 } from "@baitnet/shared";
+import { ARENA_MODELS, DEFAULT_ARENA_MODEL } from "@baitnet/shared";
 import { tokenize } from "../lib/tokens";
 import { analyzeUpload } from "../scriptlab/analyze";
 import { normalizeScripts } from "./normalize";
@@ -220,17 +221,19 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
     kind: readOnly ? "replay" : "mock",
     readOnly,
     listScripts: async () => normalizeScripts(clone(scripts)),
+    listModels: async () => ({ default: DEFAULT_ARENA_MODEL, liveLLM: false, models: ARENA_MODELS.map((m) => ({ ...m, price: { ...m.price }, available: false })) }),
     // Recorded + created sessions; seeded ones are registered so they can be reviewed too.
     listRecordedSessions: async () => clone([...sessions.values()].map((l) => l.session)),
     async getSession(id) {
       return clone(live(id).session);
     },
-    async createSession(scriptId, modes) {
+    async createSession(scriptId, modes, modelChoice = DEFAULT_ARENA_MODEL) {
       guard();
       const script = scripts.find((s) => s.id === scriptId);
       if (!script) throw new Error(`unknown script ${scriptId}`);
+      // in-browser rules engine: the choice is recorded, no model runs (same as a server without a key)
       const session: ArenaSession = {
-        id: rid("as"), scriptId, engine: "rules", modes: { ...modes }, status: "paused", turns: [], drafts: [], createdAt: new Date().toISOString(),
+        id: rid("as"), scriptId, engine: "rules", modelChoice, modes: { ...modes }, status: "paused", turns: [], drafts: [], createdAt: new Date().toISOString(),
       };
       sessions.set(session.id, { session, script, listeners: new Set(), whispers: {}, scammerStep: 0, injected: false });
       return clone(session);

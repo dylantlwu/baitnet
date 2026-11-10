@@ -58,7 +58,15 @@ export function isNonTeeModelId(id: string, env: NodeJS.ProcessEnv = process.env
 }
 
 /** POST an OpenAI-compatible /chat/completions to NEAR AI Cloud; returns the first choice's text ("" if none) and finish_reason. */
-async function nearaiChat(baseUrl: string, apiKey: string, model: string, req: CompletionRequest, label: string, maxTokens = req.maxTokens ?? 400): Promise<{ text: string; finishReason?: string }> {
+async function nearaiChat(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  req: CompletionRequest,
+  label: string,
+  maxTokens = req.maxTokens ?? 400,
+  extraBody: Record<string, unknown> = {},
+): Promise<{ text: string; finishReason?: string }> {
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
@@ -67,6 +75,7 @@ async function nearaiChat(baseUrl: string, apiKey: string, model: string, req: C
       max_tokens: maxTokens,
       temperature: 0.7,
       messages: [{ role: "system", content: req.system }, ...req.messages],
+      ...extraBody,
     }),
     signal: AbortSignal.timeout(45_000),
   });
@@ -81,6 +90,25 @@ async function nearaiChat(baseUrl: string, apiKey: string, model: string, req: C
  * the desired reply length (enforced by the system prompt), not the cap. reasoning_effort is rejected (400).
  */
 export const NEARAI_CLAUDE_MIN_MAX_TOKENS = 2000;
+
+/**
+ * Turn off "thinking" on DeepSeek (D30: faster arena replies). Measured 2026-11-09/10 on DeepSeek V4.1
+ * Flash: reasoning_tokens 0, ~2 s per reply. NOT for GLM 5.3 Flash: there `enable_thinking:false` does not
+ * stop the thinking, it only moves the reasoning text into `content` (measured 2026-11-10) — so GLM gets
+ * no kwargs and a bigger token budget instead (see GLM_OPTIONS in @baitnet/arena deps.ts).
+ */
+export const NO_THINKING = { chat_template_kwargs: { thinking: false, enable_thinking: false } } as const;
+
+export interface NearAIOptions {
+  /** extra request-body fields, e.g. NO_THINKING */
+  extraBody?: Record<string, unknown>;
+  /**
+   * For models that always think (GLM): reasoning tokens count towards max_tokens, so a caller's small
+   * maxTokens would end in an empty reply. Raise the cap to at least this, and retry once with twice
+   * as much when the reply is empty with finish_reason "length".
+   */
+  minMaxTokens?: number;
+}
 export const NEARAI_CLAUDE_RETRY_MAX_TOKENS = 4000;
 
 /**
@@ -95,15 +123,19 @@ export class NearAIProvider implements LLMProvider {
     private apiKey: string,
     readonly model = DEFAULT_NEARAI_MODEL,
     private baseUrl = NEARAI_BASE_URL,
+    readonly options: NearAIOptions = {},
   ) {}
   /** TEE unless NEARAI_MODEL was pointed at a proxied (Incognito) model such as Claude */
   get tee(): boolean {
     return !isNonTeeModelId(this.model);
   }
   async complete(req: CompletionRequest): Promise<string> {
-    const { text } = await nearaiChat(this.baseUrl, this.apiKey, this.model, req, "NEAR AI");
-    if (!text) throw new Error("NEAR AI: empty completion");
-    return text;
+    const { extraBody, minMaxTokens } = this.options;
+    const first = minMaxTokens ? Math.max(req.maxTokens ?? 400, minMaxTokens) : undefined;
+    let r = await nearaiChat(this.baseUrl, this.apiKey, this.model, req, "NEAR AI", first, extraBody);
+    if (!r.text && first && r.finishReason === "length") r = await nearaiChat(this.baseUrl, this.apiKey, this.model, req, "NEAR AI", first * 2, extraBody);
+    if (!r.text) throw new Error(`NEAR AI: empty completion${first && r.finishReason ? ` (finish_reason=${r.finishReason})` : ""}`);
+    return r.text;
   }
 }
 
@@ -157,9 +189,10 @@ export class NearAIClaudeProvider implements LLMProvider {
 }
 
 /** The "claude" engine: ANTHROPIC_API_KEY → direct; else NEARAI_API_KEY → Claude via NEAR AI (Incognito); else undefined. */
-export function selectClaudeProvider(env: NodeJS.ProcessEnv = process.env): ClaudeProvider | NearAIClaudeProvider | undefined {
-  if (env.ANTHROPIC_API_KEY) return new ClaudeProvider(env.ANTHROPIC_API_KEY, env.CLAUDE_MODEL || DEFAULT_CLAUDE_MODEL);
-  if (env.NEARAI_API_KEY) return new NearAIClaudeProvider(env.NEARAI_API_KEY, env.NEARAI_CLAUDE_MODEL || DEFAULT_NEARAI_CLAUDE_MODEL, env.NEARAI_BASE_URL || NEARAI_BASE_URL);
+/** `models` picks another Claude (e.g. D30 Haiku): `direct` for api.anthropic.com, `nearai` for NEAR AI Cloud. */
+export function selectClaudeProvider(env: NodeJS.ProcessEnv = process.env, models: { direct?: string; nearai?: string } = {}): ClaudeProvider | NearAIClaudeProvider | undefined {
+  if (env.ANTHROPIC_API_KEY) return new ClaudeProvider(env.ANTHROPIC_API_KEY, models.direct || env.CLAUDE_MODEL || DEFAULT_CLAUDE_MODEL);
+  if (env.NEARAI_API_KEY) return new NearAIClaudeProvider(env.NEARAI_API_KEY, models.nearai || env.NEARAI_CLAUDE_MODEL || DEFAULT_NEARAI_CLAUDE_MODEL, env.NEARAI_BASE_URL || NEARAI_BASE_URL);
   return undefined;
 }
 

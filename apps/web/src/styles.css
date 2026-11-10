@@ -473,6 +473,13 @@ h3.first { margin-top: 0; }
 .script-title { font-weight: 650; overflow-wrap: anywhere; }
 .script-detail h2 { font-size: 17px; margin-bottom: 8px; overflow-wrap: anywhere; }
 .start-modes { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.model-picker { display: grid; gap: 8px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border); }
+.model-picker .note { margin: 0; }
+.model-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.model-option { display: grid; gap: 6px; text-align: left; padding: 10px 12px; min-height: 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); cursor: pointer; font: inherit; }
+.model-option:hover { border-color: var(--border-strong); }
+.model-option.on { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-soft); }
+.model-name { font-weight: 650; }
 .side-label { width: 56px; font-weight: 650; font-size: 13px; flex: none; }
 .session-bar { flex-wrap: wrap; }
 .control-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 10px; }

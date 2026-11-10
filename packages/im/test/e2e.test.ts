@@ -220,6 +220,47 @@ describe("IM 训练台 · Telegram 端到端（假 Bot API）", () => {
     expect(fake.sentTo(EXPERT.id).filter((m) => m.text.includes("额度已用完"))).toHaveLength(1);
   });
 
+  it("D30 /new 选模型：有大模型时多一步（四个按钮 + 跳过，默认 DeepSeek 打勾），选 GLM 记进会话；跳过 = 默认；无大模型时不出现这一步", async () => {
+    const llm = fakeLLM();
+    h = await harness({ llm });
+    const { fake } = h;
+    const from = fake.sentTo(EXPERT.id).length;
+    const sid = await newSession(h, EXPERT, "scammer", "AI 量化套利", "investment", "glm");
+    const card = fake.sentTo(EXPERT.id).slice(from).find((m) => m.text.includes("AI 量化套利") && m.text.includes("🤖"))!;
+    expect(card.text).toContain("🤖 fake"); // injected test LLM's model id is shown as-is
+    expect(h.arena.get(sid)!.session.modelChoice).toBe("glm");
+    expect(h.arena.get(sid)!.session.model).toBe("fake");
+    // second user: the wizard buttons, random + skip
+    const f2 = fake.sentTo(REVIEWER.id).length;
+    fake.say(REVIEWER, "/new");
+    const pick = await fake.waitFor(REVIEWER.id, (m) => m.text.includes("你想扮哪一方"), 8000, f2);
+    fake.press(REVIEWER, pick.message_id, "n:b");
+    await fake.waitFor(REVIEWER.id, (m) => m.message_id === pick.message_id && m.text.includes("骗局类型"));
+    fake.press(REVIEWER, pick.message_id, "n:b:investment");
+    await fake.waitFor(REVIEWER.id, (m) => m.message_id === pick.message_id && m.text.includes("选剧本"));
+    fake.press(REVIEWER, pick.message_id, "n:b:investment:*");
+    const mp = await fake.waitFor(REVIEWER.id, (m) => m.message_id === pick.message_id && m.text.includes("选 AI 用的模型"));
+    const bs = fake.buttons(mp);
+    expect(bs.map((b) => b.data.split(":").pop())).toEqual(["deepseek", "glm", "haiku", "sonnet", "-"]);
+    expect(bs[0]!.text).toMatch(/^✅ DeepSeek V4\.1 Flash · TEE · 便宜/);
+    expect(bs[3]!.text).toContain("非 TEE · 较贵");
+    expect(bs.every((b) => !b.data.includes("*"))).toBe(true); // random resolved before the model step
+    fake.press(REVIEWER, pick.message_id, bs[4]!.data); // skip → default
+    await fake.waitFor(REVIEWER.id, (m) => m.text.startsWith("开始！"), 8000, f2);
+    const sid2 = await h.chats.get("telegram", String(REVIEWER.id));
+    expect(h.arena.get(sid2!)!.session.modelChoice).toBe("deepseek");
+  });
+
+  it("D30 无大模型（规则模式）时 /new 没有选模型这一步", async () => {
+    h = await harness();
+    const { fake } = h;
+    const from = fake.sentTo(EXPERT.id).length;
+    const sid = await newSession(h, EXPERT, "scammer");
+    expect(fake.sentTo(EXPERT.id).slice(from).some((m) => m.text.includes("选 AI 用的模型"))).toBe(false);
+    expect(h.arena.get(sid)!.session).toMatchObject({ engine: "rules", modelChoice: "deepseek" });
+    expect(h.arena.get(sid)!.session.model).toBeUndefined();
+  });
+
   it("服务重启后会话恢复：同一个聊天继续同一场，待回复的 ✏️ 也还在", async () => {
     h = await harness();
     const { fake } = h;

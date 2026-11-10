@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type {
   AlertDraft,
   ArenaEngine,
+  ArenaModelChoice,
   ArenaEvent,
   ArenaSession,
   ArenaSide,
@@ -41,6 +42,8 @@ export type ArenaDraft = ArenaSession["drafts"][number];
 export interface SessionDeps {
   engine: ArenaEngine;
   llm?: LLMProvider;
+  /** D30: the model the expert picked (recorded on the session; `llm` is what it resolved to) */
+  modelChoice?: ArenaModelChoice;
   registry: RegistryClient;
   retriever: PlaybookRetriever;
   known: KnownEntityFilter;
@@ -86,7 +89,7 @@ export class ArenaSessionEngine extends EventEmitter {
   static restore(script: ScamScriptDef, deps: SessionDeps, saved: ArenaSession): ArenaSessionEngine {
     const eng = new ArenaSessionEngine(script, deps, { id: saved.id, modes: saved.modes });
     Object.assign(eng.session, JSON.parse(JSON.stringify(saved)) as ArenaSession);
-    eng.session.engine = deps.engine;
+    eng.applyModel();
     if (eng.session.status === "running") eng.session.status = "paused";
     const scammer = saved.turns.filter((t) => t.side === "scammer");
     eng.scammerRules.restoreFrom(scammer.map((t) => t.text));
@@ -113,6 +116,8 @@ export class ArenaSessionEngine extends EventEmitter {
       id,
       scriptId: script.id,
       engine: deps.engine,
+      ...(deps.modelChoice ? { modelChoice: deps.modelChoice } : {}),
+      ...(deps.engine !== "rules" && deps.llm?.model ? { model: deps.llm.model } : {}),
       modes: { scammer: init.modes?.scammer ?? "ai", bait: init.modes?.bait ?? "ai" },
       status: "paused",
       turns: [],
@@ -120,6 +125,14 @@ export class ArenaSessionEngine extends EventEmitter {
       ...(init.channel ? { channel: init.channel } : {}),
       createdAt: this.now().toISOString(),
     };
+  }
+
+  /** session.engine / model / modelChoice from deps (rules = no model). */
+  private applyModel() {
+    this.session.engine = this.deps.engine;
+    if (this.deps.modelChoice) this.session.modelChoice = this.deps.modelChoice;
+    if (this.deps.engine !== "rules" && this.deps.llm?.model) this.session.model = this.deps.llm.model;
+    else delete this.session.model;
   }
 
   private now() {
@@ -200,8 +213,9 @@ export class ArenaSessionEngine extends EventEmitter {
   setEngine(engine: "rules") {
     if (engine !== "rules") throw new Error("setEngine only supports downgrading to rules");
     this.deps.llm = undefined;
-    if (this.session.engine !== "rules") {
+    if (this.session.engine !== "rules" || this.session.model) {
       this.session.engine = "rules";
+      delete this.session.model;
       this.deps.persist?.(this.session);
     }
   }

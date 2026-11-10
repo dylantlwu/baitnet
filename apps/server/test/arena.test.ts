@@ -28,6 +28,27 @@ describe("Arena API", () => {
     expect(s.length).toBeGreaterThanOrEqual(30);
   });
 
+  it("D30: GET /arena/models (offline → all unavailable), modelChoice on create/list/detail, bad value → 400", async () => {
+    const m = await get("/arena/models");
+    expect(m.default).toBe("deepseek");
+    expect(m.liveLLM).toBe(false);
+    expect(m.models.map((x: { id: string }) => x.id)).toEqual(["deepseek", "glm", "haiku", "sonnet"]);
+    expect(m.models.every((x: { available: boolean }) => !x.available)).toBe(true);
+    expect(m.models.find((x: { id: string }) => x.id === "sonnet")).toMatchObject({ tee: false, price: { input: 2, output: 10 } });
+
+    const bad = await post("/arena/sessions", { scriptId: "fake-loan-02", modelChoice: "gpt-9" });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toMatch(/modelChoice/);
+
+    const dflt = (await post("/arena/sessions", { scriptId: "fake-loan-02" })).body as ArenaSession;
+    expect(dflt.modelChoice).toBe("deepseek");
+    const g = (await post("/arena/sessions", { scriptId: "fake-loan-02", modelChoice: "glm" })).body as ArenaSession;
+    expect(g).toMatchObject({ engine: "rules", modelChoice: "glm" });
+    expect(g.model).toBeUndefined(); // offline = rules mode, no model
+    expect((await get(`/arena/sessions/${g.id}`)).modelChoice).toBe("glm");
+    expect((await get("/arena/sessions")).find((x: ArenaSession) => x.id === g.id)?.modelChoice).toBe("glm");
+  });
+
   it("选剧本 → 单步 → 人接管骗子 → 抽地址 → 复核上链 → /check 拦截（含 SSE）", async () => {
     const created = await post("/arena/sessions", { scriptId: "fake-loan-02", scammer: "ai", bait: "ai" });
     expect(created.cors).toBe("http://localhost:5173");

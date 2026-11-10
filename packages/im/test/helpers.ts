@@ -121,7 +121,7 @@ export function btn(fake: FakeTelegram, m: SentMessage, match: string | RegExp) 
 }
 
 /** Run the /new wizard. side: "骗子" | "诱饵". */
-export async function newSession(h: Harness, user: FakeUser, side: "scammer" | "bait", scriptTitle = "AI 量化套利", type = "investment") {
+export async function newSession(h: Harness, user: FakeUser, side: "scammer" | "bait", scriptTitle = "AI 量化套利", type = "investment", model: string = "deepseek") {
   const { fake } = h;
   const from = fake.sentTo(user.id).length;
   fake.say(user, "/new");
@@ -131,6 +131,9 @@ export async function newSession(h: Harness, user: FakeUser, side: "scammer" | "
   fake.press(user, pick.message_id, `n:${side === "scammer" ? "s" : "b"}:${type}`);
   const list = await fake.waitFor(user.id, (m) => m.message_id === pick.message_id && m.text.includes("选剧本"));
   fake.press(user, pick.message_id, btn(fake, list, scriptTitle));
+  // D30 model step (only shown when the server has a live LLM); `model` = choice id or "-" (skip)
+  const next = await fake.waitFor(user.id, (m) => (m.message_id === pick.message_id && m.text.includes("选 AI 用的模型")) || m.text.startsWith("开始！"), 8000, from);
+  if (next.message_id === pick.message_id && next.text.includes("选 AI 用的模型")) fake.press(user, pick.message_id, btn(fake, next, new RegExp(`:${model === "-" ? "-" : model}$`)));
   await fake.waitFor(user.id, (m) => m.text.startsWith("开始！"), 8000, from);
   const sid = await h.chats.get("telegram", String(user.id));
   return sid!;

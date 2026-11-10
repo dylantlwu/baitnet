@@ -1,5 +1,7 @@
 import type {
   Annotation,
+  ArenaModelChoice,
+  ArenaModelInfo,
   ArenaEvent,
   ArenaSession,
   ArenaSide,
@@ -30,7 +32,10 @@ export interface Backend {
   listRecordedSessions(): Promise<ArenaSession[]>;
   /** Full session (all channels: web / Telegram / Lark). */
   getSession(sessionId: string): Promise<ArenaSession>;
-  createSession(scriptId: string, modes: Record<ArenaSide, SideMode>): Promise<ArenaSession>;
+  /** D30: `modelChoice` omitted = the server default (DeepSeek). */
+  createSession(scriptId: string, modes: Record<ArenaSide, SideMode>, modelChoice?: ArenaModelChoice): Promise<ArenaSession>;
+  /** D30: models offered when starting a session (GET /arena/models); optional for older backends. */
+  listModels?(): Promise<ArenaModelsInfo>;
   subscribe(sessionId: string, onEvent: (e: ArenaEvent) => void): () => void;
   control(sessionId: string, action: "run" | "pause" | "step"): Promise<void>;
   setMode(sessionId: string, side: ArenaSide, mode: SideMode): Promise<void>;
@@ -61,4 +66,11 @@ export class ReadOnlyError extends Error {
     super("read-only");
     this.name = "ReadOnlyError";
   }
+}
+
+/** GET /arena/models (D30). `available: false` = this server would run that choice on the rules engine. */
+export interface ArenaModelsInfo {
+  default: ArenaModelChoice;
+  liveLLM: boolean;
+  models: (ArenaModelInfo & { available: boolean; via?: "anthropic" | "nearai" })[];
 }

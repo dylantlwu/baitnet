@@ -201,6 +201,31 @@ export type ArenaSide = "scammer" | "bait";
 export type SideMode = "ai" | "human" | "ai+whisper";
 export type ArenaEngine = "nearai" | "claude" | "rules";
 
+/**
+ * D30: the model an expert picks for the AI sides of a session (web + IM). All go through
+ * NEAR AI Cloud with one key. Default = cheapest. `tee` = runs in NEAR AI's own TEE
+ * (owned_by "nearai"); Sonnet is the Incognito tier (not TEE, no attestation).
+ */
+export type ArenaModelChoice = "deepseek" | "glm" | "haiku" | "sonnet";
+export interface ArenaModelInfo {
+  id: ArenaModelChoice;
+  /** NEAR AI Cloud model id (overridable server-side by env). */
+  model: string;
+  label: string;
+  tee: boolean;
+  /** USD per 1M tokens, input / output (NEAR AI list price, checked 2026-11-09). */
+  price: { input: number; output: number };
+  /** Measured 2026-11-10: always reasons before answering (cannot be switched off) → 7–28 s per reply, extra billed tokens. */
+  slow?: true;
+}
+export const ARENA_MODELS: readonly ArenaModelInfo[] = [
+  { id: "deepseek", model: "deepseek-ai/DeepSeek-V4.1-Flash-1017", label: "DeepSeek V4.1 Flash", tee: true, price: { input: 0.3, output: 1.2 } },
+  { id: "glm", model: "z-ai/glm-5.3-flash", label: "GLM 5.3 Flash", tee: true, price: { input: 0.08, output: 0.5 }, slow: true },
+  { id: "haiku", model: "anthropic/claude-haiku-5-5", label: "Claude Haiku 5.5", tee: false, price: { input: 0.1, output: 0.5 } },
+  { id: "sonnet", model: "anthropic/claude-sonnet-5-5", label: "Claude Sonnet 5.5", tee: false, price: { input: 2, output: 10 } },
+] as const;
+export const DEFAULT_ARENA_MODEL: ArenaModelChoice = "deepseek";
+
 export interface ArenaTurn {
   index: number;
   side: ArenaSide;
@@ -217,6 +242,10 @@ export interface ArenaSession {
   id: string;
   scriptId: string;
   engine: ArenaEngine;
+  /** D30: which model the expert picked (absent on sessions created before D30 = default). */
+  modelChoice?: ArenaModelChoice;
+  /** Concrete model id used for the AI sides (absent in rules mode). */
+  model?: string;
   modes: Record<ArenaSide, SideMode>;
   status: "running" | "paused" | "finished";
   turns: ArenaTurn[];

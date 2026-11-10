@@ -11,7 +11,7 @@ import { useI18n } from "../i18n";
 import { fmtTime } from "../lib/format";
 import { href } from "../lib/router";
 import { normalizeScripts } from "../backend/normalize";
-import { DraftItem, TurnRow, useExpert } from "./ArenaPage";
+import { DraftItem, EngineBadge, TurnRow, useExpert } from "./ArenaPage";
 import { CorrectionCard } from "./TrainingPage";
 
 type ChannelFilter = "all" | ChannelKind;
@@ -129,6 +129,7 @@ function SessionList({ backend }: { backend: Backend }) {
                   <div className="row gap">
                     <ChannelIcon kind={channelOf(s)} withLabel />
                     <Badge tone={s.status === "running" ? "ok" : s.status === "paused" ? "info" : "muted"}>{t(`status.${s.status}`)}</Badge>
+                    <EngineBadge session={s} />
                     <span className="muted small push">{fmtTime(s.createdAt)}</span>
                   </div>
                   <strong className="session-title">{sc?.title ?? s.scriptId}</strong>
@@ -223,6 +224,7 @@ function SessionDetail({ id, backend, snap }: { id: string; backend: Backend; sn
         <div className="row gap">
           <ChannelIcon kind={channelOf(s)} withLabel />
           <Badge tone={s.status === "running" ? "ok" : "muted"}>{t(`status.${s.status}`)}</Badge>
+          <EngineBadge session={s} />
           <span className="muted small push">{fmtTime(s.createdAt)}</span>
         </div>
         <h2 className="session-title">{script?.title ?? s.scriptId}</h2>

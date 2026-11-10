@@ -1,8 +1,20 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { ARENA_MODELS, DEFAULT_ARENA_MODEL, type ArenaModelChoice, type ArenaModelInfo } from "@baitnet/shared";
 import type { ArenaEngine, Correction, EvalRun, PlaybookEntry, PlaybookQuery, ScamScriptDef } from "@baitnet/shared";
-import { allowLiveLLM, fixturePath, NearAIProvider, REPO_ROOT, DEFAULT_NEARAI_MODEL, selectClaudeProvider, type LLMProvider } from "@baitnet/agent";
+import {
+  allowLiveLLM,
+  fixturePath,
+  NearAIProvider,
+  NEARAI_BASE_URL,
+  NO_THINKING,
+  REPO_ROOT,
+  DEFAULT_NEARAI_MODEL,
+  selectClaudeProvider,
+  type LLMProvider,
+  type NearAIOptions,
+} from "@baitnet/agent";
 
 export interface PlaybookRetriever {
   search(q: PlaybookQuery): PlaybookEntry[] | Promise<PlaybookEntry[]>;
@@ -116,4 +128,79 @@ export function selectArenaEngine(env: NodeJS.ProcessEnv = process.env): { engin
     if (llm) return { engine: "claude", llm };
   }
   return { engine: "rules" };
+}
+
+// ------------------------------------------------------------------ D30: per-session model choice
+export const ARENA_MODEL_IDS = ARENA_MODELS.map((m) => m.id) as ArenaModelChoice[];
+export function isArenaModelChoice(v: unknown): v is ArenaModelChoice {
+  return typeof v === "string" && (ARENA_MODEL_IDS as string[]).includes(v);
+}
+
+/** Env var that overrides each choice's NEAR AI model id (empty = the ARENA_MODELS default). */
+export const ARENA_MODEL_ENV: Record<ArenaModelChoice, string> = {
+  deepseek: "NEARAI_MODEL_DEEPSEEK",
+  glm: "NEARAI_MODEL_GLM",
+  haiku: "NEARAI_CLAUDE_HAIKU_MODEL",
+  sonnet: "NEARAI_CLAUDE_MODEL",
+};
+/** Claude choices (Claude channel: ANTHROPIC_API_KEY direct, else via NEAR AI) and their direct-API model ids. */
+const CLAUDE_DIRECT: Partial<Record<ArenaModelChoice, { env: string; model: string }>> = {
+  haiku: { env: "CLAUDE_HAIKU_MODEL", model: "claude-haiku-5-5" },
+  sonnet: { env: "CLAUDE_MODEL", model: "claude-sonnet-5-5" },
+};
+export const isClaudeChoice = (c: ArenaModelChoice) => c in CLAUDE_DIRECT;
+
+/**
+ * Per-model request options. DeepSeek: thinking off (measured: 0 reasoning tokens, ~2 s).
+ * GLM 5.3 Flash always thinks (300–1,200 reasoning tokens, 7–28 s, measured 2026-11-10) and
+ * `enable_thinking:false` only leaks the reasoning into the reply — so no kwargs, a 2,000-token budget instead.
+ */
+const NEARAI_OPTIONS: Partial<Record<ArenaModelChoice, NearAIOptions>> = {
+  deepseek: { extraBody: NO_THINKING },
+  glm: { minMaxTokens: 2000 },
+};
+
+const infoOf = (c: ArenaModelChoice): ArenaModelInfo => ARENA_MODELS.find((m) => m.id === c)!;
+
+/** The concrete model id a choice resolves to on NEAR AI Cloud (env override, `||` so "" = default). */
+export function arenaModelId(choice: ArenaModelChoice, env: NodeJS.ProcessEnv = process.env): string {
+  return env[ARENA_MODEL_ENV[choice]] || infoOf(choice).model;
+}
+
+/** Engine + provider for an explicit model choice; rules when offline / forced rules / no usable key. */
+export function selectArenaModel(choice: ArenaModelChoice, env: NodeJS.ProcessEnv = process.env): { engine: ArenaEngine; llm?: LLMProvider } {
+  if (env.BAITNET_ARENA_ENGINE === "rules" || !allowLiveLLM(env)) return { engine: "rules" };
+  const direct = CLAUDE_DIRECT[choice];
+  if (direct) {
+    // ANTHROPIC_API_KEY → direct, else Claude via NEAR AI (max_tokens floor + empty-reply retry: NearAIClaudeProvider)
+    const llm = selectClaudeProvider(env, { direct: env[direct.env] || direct.model, nearai: arenaModelId(choice, env) });
+    return llm ? { engine: "claude", llm } : { engine: "rules" };
+  }
+  if (!env.NEARAI_API_KEY) return { engine: "rules" };
+  return { engine: "nearai", llm: new NearAIProvider(env.NEARAI_API_KEY, arenaModelId(choice, env), env.NEARAI_BASE_URL || NEARAI_BASE_URL, NEARAI_OPTIONS[choice]) };
+}
+
+export interface ArenaModelOption extends ArenaModelInfo {
+  /** true = this server can run it now; false = a session with it falls back to the rules engine */
+  available: boolean;
+  /** Claude choices only: "anthropic" (direct key) or "nearai" */
+  via?: "anthropic" | "nearai";
+}
+
+/** GET /arena/models: the D30 list with the resolved model ids and what this server can actually run. */
+export function arenaModelOptions(env: NodeJS.ProcessEnv = process.env): { default: ArenaModelChoice; liveLLM: boolean; models: ArenaModelOption[] } {
+  const models = ARENA_MODELS.map((m): ArenaModelOption => {
+    const sel = selectArenaModel(m.id, env);
+    const via = sel.llm?.via === "anthropic" || sel.llm?.via === "nearai" ? sel.llm.via : undefined;
+    return { ...m, price: { ...m.price }, model: sel.llm?.model ?? arenaModelId(m.id, env), available: sel.engine !== "rules", ...(isClaudeChoice(m.id) && via ? { via } : {}) };
+  });
+  return { default: DEFAULT_ARENA_MODEL, liveLLM: models.some((m) => m.available), models };
+}
+
+/** Relative price (by output price vs the cheapest option) for the pickers: cheapest / cheap / pricey (≥ 4×). */
+export function arenaModelTier(choice: ArenaModelChoice, list: readonly Pick<ArenaModelInfo, "id" | "price">[] = ARENA_MODELS): "cheapest" | "cheap" | "pricey" {
+  const m = list.find((x) => x.id === choice);
+  if (!m) return "cheap";
+  const min = Math.min(...list.map((x) => x.price.output));
+  return m.price.output >= 4 * min ? "pricey" : m.price.output === min ? "cheapest" : "cheap";
 }

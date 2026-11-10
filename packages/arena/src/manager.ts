@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ArenaEvent, ArenaSession, ArenaSide, ScamScriptDef, SideMode } from "@baitnet/shared";
+import { DEFAULT_ARENA_MODEL, type ArenaEvent, type ArenaModelChoice, type ArenaSession, type ArenaSide, type ScamScriptDef, type SideMode } from "@baitnet/shared";
 import { MemoryRegistryClient, SampleAccountInfo, type RegistryClient } from "@baitnet/guard";
 import { AccountAgeCheck, KnownEntityFilter, RuntimeMissingError, dataPath, fixturePath, loadEnv, loadKnownEntities } from "@baitnet/agent";
 import { ArenaSessionEngine, validateRating, type SessionDeps } from "./session.js";
 import type { SessionChannel, SessionRating } from "@baitnet/shared";
-import { defaultRetriever, loadScripts, selectArenaEngine, training, type PlaybookRetriever, type TrainingModule } from "./deps.js";
+import { arenaModelOptions, defaultRetriever, isArenaModelChoice, loadScripts, selectArenaEngine, selectArenaModel, training, type PlaybookRetriever, type TrainingModule } from "./deps.js";
 
 export const sessionsDir = () => dataPath("arena", "sessions");
 
@@ -45,6 +45,8 @@ export interface ManagerOptions extends Partial<Omit<SessionDeps, "persist" | "l
   scripts?: ScamScriptDef[];
   /** Per-owner daily LLM quota (IdentityService.consumeLlmQuota); omitted = unlimited. */
   llmQuota?: (ownerId: string) => boolean | Promise<boolean>;
+  /** env for the model selection (tests); default process.env */
+  env?: NodeJS.ProcessEnv;
 }
 
 /** Holds live sessions for the server (and eval). */
@@ -76,7 +78,7 @@ export class ArenaManager {
         this.opts.log?.(`[arena] cannot restore ${saved.id}: script ${saved.scriptId} missing`);
         continue;
       }
-      const eng = ArenaSessionEngine.restore(script, { ...(await this.deps()), llmGate: this.gateFor(saved.channel) }, saved);
+      const eng = ArenaSessionEngine.restore(script, { ...(await this.deps(saved.modelChoice)), llmGate: this.gateFor(saved.channel) }, saved);
       this.sessions.set(eng.session.id, eng);
       if (this.opts.persist !== false) saveSession(eng.session);
       n++;
@@ -100,13 +102,23 @@ export class ArenaManager {
     };
   }
 
-  async deps(): Promise<SessionDeps> {
+  /**
+   * `modelChoice` (D30) picks the provider; undefined = the legacy env-driven selection (sessions saved
+   * before D30). opts.engine/llm (tests/eval) override both.
+   */
+  async deps(modelChoice?: ArenaModelChoice): Promise<SessionDeps> {
     if (this.opts.persist !== false) this.trainingMod ??= await training();
-    const sel = this.opts.engine ? { engine: this.opts.engine, llm: this.opts.llm } : selectArenaEngine();
+    const env = this.opts.env ?? process.env;
+    const sel = this.opts.engine
+      ? { engine: this.opts.engine, llm: this.opts.llm }
+      : modelChoice
+        ? selectArenaModel(modelChoice, env)
+        : selectArenaEngine(env);
     this.retriever ??= this.opts.retriever ?? (await defaultRetriever());
     return {
       engine: sel.engine,
       llm: sel.llm,
+      ...(modelChoice ? { modelChoice } : {}),
       registry: this.opts.registry ?? defaultRegistry(),
       retriever: this.retriever,
       known: this.opts.known ?? new KnownEntityFilter(loadKnownEntities()),
@@ -125,11 +137,29 @@ export class ArenaManager {
     return q && channel?.ownerId ? () => q(channel.ownerId) : undefined;
   }
 
-  /** `channel` records where the session lives (web / telegram / lark) and who owns it. */
-  async create(scriptId: string, modes: Partial<Record<ArenaSide, SideMode>> = {}, channel?: SessionChannel): Promise<ArenaSessionEngine> {
+  /** D30 model list with what this server can run (no key / offline → all unavailable = rules). */
+  models() {
+    const o = arenaModelOptions(this.opts.env ?? process.env);
+    if (!this.opts.engine) return o;
+    // injected engine (tests/eval): every choice runs on it
+    const ok = this.opts.engine !== "rules";
+    return { ...o, liveLLM: ok, models: o.models.map((m) => ({ ...m, available: ok })) };
+  }
+
+  /**
+   * `channel` records where the session lives (web / telegram / lark) and who owns it.
+   * `modelChoice` (D30): deepseek | glm | sonnet, default DEFAULT_ARENA_MODEL; unknown → 400.
+   */
+  async create(
+    scriptId: string,
+    modes: Partial<Record<ArenaSide, SideMode>> = {},
+    channel?: SessionChannel,
+    modelChoice: ArenaModelChoice = DEFAULT_ARENA_MODEL,
+  ): Promise<ArenaSessionEngine> {
+    if (!isArenaModelChoice(modelChoice)) throw Object.assign(new Error(`unknown model ${String(modelChoice)}`), { status: 400 });
     const script = (await this.scripts()).find((s) => s.id === scriptId);
     if (!script) throw Object.assign(new Error(`unknown script ${scriptId}`), { status: 404 });
-    const eng = new ArenaSessionEngine(script, { ...(await this.deps()), llmGate: this.gateFor(channel) }, { modes, channel });
+    const eng = new ArenaSessionEngine(script, { ...(await this.deps(modelChoice)), llmGate: this.gateFor(channel) }, { modes, channel });
     this.sessions.set(eng.session.id, eng);
     if (this.opts.persist !== false) saveSession(eng.session);
     return eng;
