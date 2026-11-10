@@ -192,7 +192,7 @@ export function ScriptPicker({
 
   return (
     <div className="picker-grid">
-      <section className="card" aria-label={t("arena.scripts")}>
+      <section className="card" aria-label={t("arena.scripts")} data-tour="arena-scripts">
         <div className="toolbar">
           <select className="select" value={type} onChange={(e) => setType(e.target.value as ScamType | "all")} aria-label={t("arena.filterType")}>
             <option value="all">{t("arena.allTypes")}</option>
@@ -252,7 +252,7 @@ export function ScriptPicker({
             )}
           </dl>
           {!backend.readOnly && (
-            <div className="start-modes">
+            <div className="start-modes" data-tour="arena-modes">
               {SIDES.map((side) => (
                 <div key={side} className="row gap">
                   <span className="side-label">{t(`side.${side}`)}</span>
@@ -263,7 +263,7 @@ export function ScriptPicker({
           )}
           {!backend.readOnly && <ModelPicker value={model} onChange={setModel} info={modelInfo} />}
           {err && <p className="err small">{t("common.actionFailed", { msg: err })}</p>}
-          <button type="button" className="btn primary wide start-btn" onClick={start} disabled={busy}>
+          <button type="button" className="btn primary wide start-btn" onClick={start} disabled={busy} data-tour="arena-start">
             {backend.readOnly ? t("arena.replay") : busy ? t("common.working") : t("arena.start")}
           </button>
         </section>
@@ -294,7 +294,7 @@ function ModelPicker({ value, onChange, info }: { value: ArenaModelChoice; onCha
   const models = info?.models?.length ? info.models : ARENA_MODELS.map((m) => ({ ...m, available: true }));
   const def = info?.default ?? DEFAULT_ARENA_MODEL;
   return (
-    <div className="model-picker" role="radiogroup" aria-label={t("arena.model")}>
+    <div className="model-picker" role="radiogroup" aria-label={t("arena.model")} data-tour="arena-model">
       <div className="row gap">
         <span className="side-label">{t("arena.model")}</span>
         <span className="muted small">{t("arena.modelHint")}</span>
@@ -593,7 +593,7 @@ function SessionLayout(p: LayoutProps) {
               </div>
             )}
           </div>
-          <div className="chat2-foot">
+          <div className="chat2-foot" data-tour="arena-input">
             {SIDES.map((side) => (
               <SideInput
                 key={side}
@@ -965,7 +965,7 @@ export function AnnotateBar({ turn, expert, session, script, backend }: { turn: 
   if (noExpert) return <div className="annot muted small">{t("training.needExpert")}</div>;
   return (
     <div className={`annot${open ? " open" : " compact"}`}>
-      <div className="annot-row">
+      <div className="annot-row" data-tour="arena-rate">
         {(["good", "bad", "risky"] as TurnRating[]).map((r) => (
           <button
             key={r}

@@ -18,11 +18,13 @@ import { SessionsPage } from "./pages/SessionsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { TeamPage } from "./pages/TeamPage";
 import { AuthProvider, useAuth } from "./auth/context";
+import { GuidePage } from "./pages/GuidePage";
+import { TourProvider, useTour } from "./tour/Tour";
 import { useBackend } from "./backend/context";
 
 const TABS = ["arena", "replay", "alerts", "guard", "flows", "responders", "tee", "training", "eval"] as const;
 /** Back-office pages (not part of the numbered demo walk-through). */
-const ADMIN_TABS = ["sessions", "team", "login"] as const;
+const ADMIN_TABS = ["sessions", "guide", "team", "login"] as const;
 type TabId = (typeof TABS)[number] | (typeof ADMIN_TABS)[number];
 
 /** Phone width (same breakpoint as the stylesheet's phone layout). */
@@ -35,7 +37,7 @@ export const NARROW_MQ = "(max-width: 640px)";
 export function compactNav(role: Role | null, narrow: boolean): { primary: TabId[]; more: TabId[] } | null {
   if (!role || !narrow) return null;
   const primary: TabId[] = role === "reviewer" ? ["arena", "training", "sessions", "eval", "team", "alerts"] : ["arena", "training", "sessions", "eval"];
-  return { primary, more: TABS.filter((id) => !primary.includes(id)) };
+  return { primary, more: ["guide", ...TABS.filter((id) => !primary.includes(id))] };
 }
 
 function useMediaQuery(q: string): boolean {
@@ -77,6 +79,7 @@ function Shell() {
   return (
     <AuthProvider apiBase={apiBase} ready={!!data.mode}>
     <ReloadOnAuthChange retry={data.retry} />
+    <TourProvider live={data.mode === "live"}>
     <BackendProvider mode={data.mode} apiBase={apiBase} snapshot={data.snapshot}>
       <div className="app">
         <header className="topbar">
@@ -103,12 +106,13 @@ function Shell() {
         <NavTabs tab={tab} />
 
         <main className="main">
-          {data.status === "loading" && !data.snapshot && (
+          {data.status === "loading" && !data.snapshot && tab !== "guide" && (
             <div className="loading">
               <span className="spinner" /> {t("app.connecting")}
             </div>
           )}
-          {data.status === "error" && (
+          {tab === "guide" && <GuidePage />}
+          {data.status === "error" && tab !== "guide" && (
             <div className="card error-card">
               <h2>{t("app.noData")}</h2>
               <p className="muted">{data.error}</p>
@@ -118,7 +122,7 @@ function Shell() {
               </button>
             </div>
           )}
-          {data.snapshot && (
+          {data.snapshot && tab !== "guide" && (
             <>
               {tab === "arena" && <ArenaPage snap={data.snapshot} network={data.snapshot.network} />}
               {tab === "replay" && <ReplayPage snap={data.snapshot} convId={parts[1]} />}
@@ -151,6 +155,7 @@ function Shell() {
         <ModeBadge data={data} />
       </div>
     </BackendProvider>
+    </TourProvider>
     </AuthProvider>
   );
 }
@@ -172,7 +177,7 @@ function ReloadOnAuthChange({ retry }: { retry: () => void }) {
   return null;
 }
 
-function NavTabs({ tab }: { tab: TabId }) {
+export function NavTabs({ tab }: { tab: TabId }) {
   const { t } = useI18n();
   const { state } = useAuth();
   const narrow = useMediaQuery(NARROW_MQ);
@@ -213,7 +218,7 @@ function TabLink({ id, tab }: { id: TabId; tab: TabId }) {
   const admin = i < 0;
   return (
     <a href={href(id)} className={`tab${admin ? " admin" : ""}${id === tab ? " on" : ""}`} aria-current={id === tab ? "page" : undefined}>
-      <span className="tab-n">{admin ? (id === "team" ? "◆" : "≡") : i}</span>
+      <span className="tab-n">{admin ? (id === "team" ? "◆" : id === "guide" ? "?" : "≡") : i}</span>
       {t(`nav.${id}` as MsgKey)}
     </a>
   );
@@ -222,7 +227,7 @@ function TabLink({ id, tab }: { id: TabId; tab: TabId }) {
 function AdminTabs({ tab }: { tab: TabId }) {
   const { state } = useAuth();
   const showTeam = state?.kind === "user" && state.me.role === "reviewer";
-  const items: TabId[] = showTeam ? ["sessions", "team"] : ["sessions"];
+  const items: TabId[] = showTeam ? ["sessions", "guide", "team"] : ["sessions", "guide"];
   return (
     <>
       {items.map((id) => (
@@ -233,9 +238,12 @@ function AdminTabs({ tab }: { tab: TabId }) {
 }
 
 /** Login state: only rendered when the backend has auth enabled. */
-function UserChip() {
+export function UserChip() {
   const { t } = useI18n();
   const { state, logout } = useAuth();
+  const tour = useTour();
+  const ref = useRef<HTMLDetailsElement>(null);
+  const close = () => ref.current?.removeAttribute("open");
   if (!state || state.kind === "disabled") return null;
   if (state.kind === "anonymous")
     return (
@@ -245,8 +253,8 @@ function UserChip() {
     );
   const q = state.me.llmQuota;
   return (
-    <details className="user-chip">
-      <summary>
+    <details className="user-chip" ref={ref}>
+      <summary data-tour="user-chip">
         <span className="avatar sm">{state.me.name.slice(0, 1)}</span>
         <span className="user-name">{state.me.name}</span>
         {q && (
@@ -260,6 +268,21 @@ function UserChip() {
           <b>{state.me.name}</b> · {t(`role.${state.me.role}`)}
         </div>
         {q && <div className="small">{t("auth.quota", { used: q.usedToday, limit: q.limitPerDay })}</div>}
+        <div className="user-pop-links">
+          <a className="btn small" href={href("guide")} onClick={close}>
+            ? {t("guide.menu")}
+          </a>
+          <button
+            type="button"
+            className="btn small"
+            onClick={() => {
+              close();
+              tour.start();
+            }}
+          >
+            ▶ {t("guide.replay")}
+          </button>
+        </div>
         <button type="button" className="btn small" onClick={() => void logout()}>
           {t("auth.logout")}
         </button>

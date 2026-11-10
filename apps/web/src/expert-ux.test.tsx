@@ -115,7 +115,7 @@ describe("4. phone nav for logged-in users", () => {
   it("expert / reviewer on a phone: work pages first, demo pages under More", () => {
     const e = compactNav("expert", true)!;
     expect(e.primary).toEqual(["arena", "training", "sessions", "eval"]);
-    expect(e.more).toEqual(["replay", "alerts", "guard", "flows", "responders", "tee"]);
+    expect(e.more).toEqual(["guide", "replay", "alerts", "guard", "flows", "responders", "tee"]);
     const r = compactNav("reviewer", true)!;
     expect(r.primary).toEqual(["arena", "training", "sessions", "eval", "team", "alerts"]);
     expect(r.more).not.toContain("alerts");

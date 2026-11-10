@@ -32,7 +32,7 @@ export function TrainingPage({ sub, snap }: { sub?: string; snap: ViewSnapshot }
       <nav className="toolbar" aria-label={t("training.title")}>
         <div className="segmented">
           {SUBS.map((s) => (
-            <a key={s} href={href("training", s)} className={s === cur ? "on" : ""}>
+            <a key={s} href={href("training", s)} className={s === cur ? "on" : ""} data-tour={s === "review" ? "training-review" : undefined}>
               {t(`training.sub.${s}`)}
             </a>
           ))}
@@ -466,7 +466,7 @@ function Upload({ backend, network }: { backend: Backend; network: ViewSnapshot[
 
   return (
     <>
-      <div className="card upload-card">
+      <div className="card upload-card" data-tour="training-upload">
         {/* logged in: the server takes the identity from the session cookie, no name field */}
         {expertEditable && (
           <label className="row gap">

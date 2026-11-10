@@ -141,7 +141,7 @@ function CreateInvite({ onCreated }: { onCreated: () => void }) {
     }
   };
   return (
-    <section className="card invite-card" aria-label={t("team.newInvite")}>
+    <section className="card invite-card" aria-label={t("team.newInvite")} data-tour="team-invite">
       <h2>{t("team.newInvite")}</h2>
       <form
         className="invite-form"

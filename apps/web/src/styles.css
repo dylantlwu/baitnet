@@ -789,3 +789,91 @@ h3.first { margin-top: 0; }
   /* the start button stays in reach while the settings card is on screen */
   .script-detail .start-btn { position: sticky; bottom: 8px; z-index: 5; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
 }
+
+/* ---------- D31 guide page ---------- */
+.guide { display: grid; gap: 14px; }
+.guide .page-head { margin-bottom: 0; }
+.guide-replay { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.guide-replay-btn { font-size: 16px; padding: 12px 20px; }
+.guide-toc ol { margin: 6px 0 0; padding-left: 22px; display: grid; gap: 2px; columns: 2; }
+.link-btn { background: none; border: 0; padding: 4px 0; color: var(--accent); cursor: pointer; font: inherit; text-align: left; }
+.link-btn:hover { text-decoration: underline; }
+.guide-sec { padding: 0; scroll-margin-top: 12px; }
+.guide-sec > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 14px 18px; cursor: pointer; }
+.guide-sec > summary::-webkit-details-marker { display: none; }
+.guide-sec > summary h2 { margin: 0; font-size: 17px; flex: 1; min-width: 0; }
+.guide-sec > summary::after { content: "▾"; color: var(--muted); transition: transform 0.15s; }
+.guide-sec:not([open]) > summary::after { transform: rotate(-90deg); }
+.guide-n { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.guide-body { padding: 0 18px 16px; line-height: 1.65; }
+.guide-body p { margin: 0 0 10px; }
+.guide-body ul, .guide-body ol { margin: 0 0 10px; padding-left: 22px; display: grid; gap: 6px; }
+.guide-body h3 { font-size: 15px; margin: 14px 0 6px; }
+.guide-ways { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+.guide-way { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel-2); }
+.guide-way p { margin: 4px 0 0; font-size: 14px; }
+.guide-scene { background: var(--panel-2); border-left: 3px solid var(--border-strong); padding: 8px 12px; border-radius: 6px; }
+.guide-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.guide-bad, .guide-good { border-radius: 10px; padding: 10px 12px; border: 1px solid; }
+.guide-bad { background: var(--danger-bg); border-color: var(--danger-border); }
+.guide-good { background: var(--ok-bg); border-color: var(--ok-border); }
+.guide-bad > .small { color: var(--danger); font-weight: 700; }
+.guide-good > .small { color: var(--ok); font-weight: 700; }
+.guide-compare blockquote { margin: 6px 0; font-size: 15.5px; font-weight: 600; }
+.guide-compare p { margin: 0; }
+.guide-rules li::marker { color: var(--accent); }
+.guide-models td { vertical-align: top; }
+.guide-models .note { margin-top: 10px; }
+.guide-faq { margin: 0; display: grid; gap: 12px; }
+.guide-faq dt { font-weight: 650; }
+.guide-faq dd { margin: 2px 0 0; color: var(--text-2); }
+.guide-cheat { font-family: var(--mono); font-size: 13px; }
+.user-pop-links { display: grid; gap: 6px; }
+.user-pop-links .btn { text-align: left; text-decoration: none; }
+@media (max-width: 640px) {
+  .guide-toc ol { columns: 1; }
+  .guide-ways, .guide-compare { grid-template-columns: minmax(0, 1fr); }
+  .guide-sec > summary { padding: 12px 14px; min-height: 48px; }
+  .guide-body { padding: 0 14px 14px; }
+  .guide-replay-btn { width: 100%; min-height: 48px; }
+  .link-btn { min-height: 40px; }
+  .guide-models th:nth-child(2), .guide-models td:nth-child(2) { width: 1%; white-space: nowrap; }
+}
+
+/* ---------- D31 onboarding tour ---------- */
+.tour-root { position: fixed; inset: 0; z-index: 1000; pointer-events: none; }
+.tour-block { position: fixed; inset: 0; pointer-events: auto; }
+.tour-dim { position: fixed; inset: 0; background: rgba(8, 10, 16, 0.6); }
+.tour-spot { position: fixed; border-radius: 10px; box-shadow: 0 0 0 3px var(--accent), 0 0 0 9999px rgba(8, 10, 16, 0.6); transition: top 0.2s, left 0.2s, width 0.2s, height 0.2s; }
+.tour-bubble {
+  position: fixed; pointer-events: auto; z-index: 1; display: grid; gap: 8px;
+  width: min(380px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto;
+  background: var(--panel); color: var(--text); border: 1px solid var(--border-strong); border-radius: 14px;
+  padding: 14px 16px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3); outline: none;
+}
+.tour-bubble h2 { margin: 0; font-size: 17px; }
+.tour-bubble p { margin: 0; line-height: 1.55; color: var(--text-2); }
+.tour-bubble.center { top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 24px)); }
+.tour-bubble.dock-bottom, .tour-bubble.dock-top {
+  width: auto; left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); max-height: 46vh;
+}
+.tour-bubble.dock-bottom { bottom: max(12px, env(safe-area-inset-bottom)); }
+.tour-bubble.dock-top { top: max(12px, env(safe-area-inset-top)); }
+.tour-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.tour-dots { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.tour-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); }
+.tour-dots i.done { background: var(--muted); }
+.tour-dots i.on { background: var(--accent); width: 14px; border-radius: 3px; }
+.tour-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.tour-demo { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--panel-2); }
+.tour-demo-input { border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; background: var(--panel); font-size: 14px; }
+.tour-demo-bubble { justify-self: end; background: var(--bubble-b); color: var(--bubble-b-text); padding: 6px 10px; border-radius: 10px; font-size: 14px; }
+.tour-demo .rate { cursor: default; }
+@media (max-width: 640px) {
+  .tour-actions .btn { min-height: 44px; }
+  .tour-bubble.center { max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+}
+/* On a phone the chip sits at the left edge of the wrapped top bar: open the menu to the right, not off-screen. */
+@media (max-width: 640px) {
+  .user-pop { left: 0; right: auto; }
+}
