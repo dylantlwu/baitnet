@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useData } from "./data/useData";
 import { href, useHashRoute } from "./lib/router";
 import { fmtTime } from "./lib/format";
@@ -47,6 +47,7 @@ function Shell() {
 
   return (
     <AuthProvider apiBase={apiBase} ready={!!data.mode}>
+    <ReloadOnAuthChange retry={data.retry} />
     <BackendProvider mode={data.mode} apiBase={apiBase} snapshot={data.snapshot}>
       <div className="app">
         <header className="topbar">
@@ -111,7 +112,7 @@ function Shell() {
               {tab === "eval" && <EvalPage />}
               {tab === "sessions" && <SessionsPage id={parts[1]} snap={data.snapshot} />}
               {tab === "team" && <TeamPage />}
-              {tab === "login" && <LoginPage code={query.get("code")} />}
+              {tab === "login" && <LoginPage code={query.get("code")} backendDown={data.mode === "snapshot" && data.config.apiBase !== null} />}
               {next && idx >= 0 && (
                 <a className="next-step" href={href(next)}>
                   {t("app.next", { n: idx + 1, label: t(`nav.${next}` as MsgKey) })} →
@@ -131,6 +132,23 @@ function Shell() {
     </BackendProvider>
     </AuthProvider>
   );
+}
+
+/**
+ * Logged out, the live view only holds the public endpoints (GET /snapshot is reviewer/expert-only with
+ * BAITNET_AUTH=on); after login reload to get the full snapshot, after logout reload to drop it again.
+ * Only real transitions count (anonymous <-> user), not the first answer from /auth/me.
+ */
+function ReloadOnAuthChange({ retry }: { retry: () => void }) {
+  const { state } = useAuth();
+  const key = state?.kind === "user" ? `user:${state.me.expertId}` : state?.kind ?? null;
+  const prev = useRef<string | null>(null);
+  useEffect(() => {
+    if (key === null || key === "disabled") return;
+    if (prev.current !== null && prev.current !== key) retry();
+    prev.current = key;
+  }, [key, retry]);
+  return null;
 }
 
 function AdminTabs({ tab }: { tab: TabId }) {
@@ -233,9 +251,14 @@ function ModeBadge({ data }: { data: ReturnType<typeof useData> }) {
         {data.sampleSections && (
           <div className="muted small">{t("mode.sampleSections", { list: data.sampleSections.map((k) => tl("section", k)).join(lang === "zh" ? "、" : ", ") })}</div>
         )}
+        {live && data.authRequired && <div className="muted small">{t("mode.authRequired")}</div>}
         {reason && (
           <div className="muted small">
-            {reason.kind === "unreachable" ? t("mode.reason.unreachable", { msg: reason.detail ?? "" }) : t(`mode.reason.${reason.kind}`)}
+            {reason.kind === "unreachable"
+              ? t("mode.reason.unreachable", { msg: reason.detail ?? "" })
+              : reason.kind === "timeout"
+                ? t("mode.reason.timeout", { sec: Math.round(data.config.liveTimeoutMs / 1000) })
+                : t(`mode.reason.${reason.kind}`)}
           </div>
         )}
         {!live && data.config.apiBase !== null && (

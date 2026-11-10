@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { parseSnapshot, SnapshotParseError } from "./parse";
-import { loadInitial, mergeEvent, parseSseData, resolveConfig, type DataConfig } from "./source";
+import { LIVE_TIMEOUT_MS, loadInitial, loadLive, mergeEvent, parseSseData, resolveConfig, type DataConfig } from "./source";
+import { hasArenaApi } from "../backend/http";
 import { sha256Hex } from "../lib/sha256";
 import { tokenize } from "../lib/tokens";
 import { layoutFlow } from "../lib/graph";
@@ -30,7 +31,7 @@ const cfg = (over: Partial<DataConfig> = {}): DataConfig => ({
 
 describe("resolveConfig", () => {
   it("tries live on localhost", () => {
-    const c = resolveConfig({ hostname: "localhost", search: "" });
+    const c = resolveConfig({ hostname: "localhost", search: "", port: "5173" });
     expect(c.apiBase).toBe("http://localhost:8787");
     expect(c.snapshotUrls).toEqual(["/snapshot.json", "/snapshot.sample.json"]);
   });
@@ -41,6 +42,17 @@ describe("resolveConfig", () => {
     expect(resolveConfig({ hostname: "baitnet.vercel.app", search: "" }, { VITE_API_BASE: "https://api.example/" }).apiBase).toBe(
       "https://api.example",
     );
+  });
+  it("production build served by apps/server on a localhost port uses the same origin (not :8787)", () => {
+    expect(resolveConfig({ hostname: "localhost", search: "", port: "8099" }).apiBase).toBe("");
+    expect(resolveConfig({ hostname: "127.0.0.1", search: "", port: "8098" }, { DEV: false }).apiBase).toBe("");
+    // Vite dev server on another port still talks to the dev backend
+    expect(resolveConfig({ hostname: "localhost", search: "", port: "5174" }, { DEV: true }).apiBase).toBe("http://localhost:8787");
+    expect(resolveConfig({ hostname: "localhost", search: "?api=http://localhost:8099", port: "5173" }).apiBase).toBe("http://localhost:8099");
+  });
+  it("live probe waits long enough for a phone behind a VPN", () => {
+    expect(LIVE_TIMEOUT_MS).toBeGreaterThanOrEqual(8000);
+    expect(resolveConfig({ hostname: "baitnet.example.org", search: "" }).liveTimeoutMs).toBe(LIVE_TIMEOUT_MS);
   });
   it("honours ?mode=snapshot and ?api=", () => {
     expect(resolveConfig({ hostname: "localhost", search: "?mode=snapshot" }).apiBase).toBeNull();
@@ -108,6 +120,52 @@ describe("loadInitial (mode degradation)", () => {
     expect(r.snapshot.acks).toHaveLength(sample.acks.length);
   });
 
+  it("401 on /snapshot = backend online with login: live mode, public data, authRequired", async () => {
+    const f = fakeFetch({
+      "/snapshot": { status: 401, body: JSON.stringify({ error: "login required" }) },
+      "/alerts": { body: JSON.stringify(sample.alerts) },
+      "/responders": { body: JSON.stringify({ responders: sample.responders, acks: sample.acks }) },
+      "/snapshot.sample.json": { body: sampleText },
+    });
+    const r = await loadInitial(cfg({ apiBase: "" }), f);
+    expect(r.mode).toBe("live");
+    expect(r.authRequired).toBe(true);
+    expect(r.fallbackReason).toBeUndefined();
+    expect(r.snapshot.alerts).toHaveLength(sample.alerts.length);
+    // the static snapshot.json is never consulted
+    expect((f as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))).not.toContain("/snapshot.json");
+  });
+
+  it("401/403 everywhere still means live (empty until login), never snapshot", async () => {
+    const f = fakeFetch({
+      "/snapshot": { status: 403, body: "{}" },
+      "/alerts": { status: 401, body: "{}" },
+      "/snapshot.json": { body: sampleText },
+    });
+    const r = await loadInitial(cfg({ apiBase: "" }), f);
+    expect(r.mode).toBe("live");
+    expect(r.authRequired).toBe(true);
+    expect(r.snapshot.alerts).toEqual([]);
+  });
+
+  it("polling while logged out skips /snapshot (no 401 every 10 s)", async () => {
+    const f = fakeFetch({ "/alerts": { body: JSON.stringify(sample.alerts) } });
+    const s = await loadLive(f, "", 200, { skipSnapshot: true });
+    expect(s.alerts).toHaveLength(sample.alerts.length);
+    expect((f as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))).not.toContain("/snapshot");
+  });
+
+  it("logged in: /snapshot answers -> live without authRequired", async () => {
+    const r = await loadInitial(cfg({ apiBase: "" }), fakeFetch({ "/snapshot": { body: sampleText } }));
+    expect(r.mode).toBe("live");
+    expect(r.authRequired).toBeUndefined();
+  });
+
+  it("Arena API behind a login counts as present (http backend, not the in-browser mock)", async () => {
+    expect(await hasArenaApi("", fakeFetch({ "/arena/scripts": { status: 401, body: "{}" } }))).toBe(true);
+    expect(await hasArenaApi("", fakeFetch({ "/arena/scripts": { status: 404, body: "nope" } }))).toBe(false);
+  });
+
   it("falls back to snapshot.json when the backend is down", async () => {
     const f = fakeFetch({ "/snapshot.json": { body: sampleText } });
     const r = await loadInitial(cfg(), f);
@@ -135,6 +193,7 @@ describe("loadInitial (mode degradation)", () => {
     const r = await loadInitial(cfg({ liveTimeoutMs: 30 }), hang);
     expect(r.mode).toBe("snapshot");
     expect(r.fallbackReason?.detail).toMatch(/timeout/);
+    expect(r.fallbackReason?.kind).toBe("timeout");
   });
 
   it("same-origin deploy: relative probe, credentials included", async () => {

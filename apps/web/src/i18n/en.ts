@@ -160,6 +160,8 @@ export const en = {
   "auth.hint": "After signing in, your name is used for every review and rewrite; no need to type it again.",
   "auth.badCode": "This invite code is invalid or has been revoked.",
   "auth.disabled": "This BaitNet runs without sign-in (local mode). Everything is available directly.",
+  "auth.offline": "The backend cannot be reached right now, so signing in is not possible (you are looking at a static snapshot). On a slow network or VPN it may take a few seconds: use \"Retry live\" in the badge at the bottom right, or reload the page.",
+  "auth.needLogin": "Sign in to see this part. Use the invite link or code from your team lead.",
   "auth.goReview": "Go to the review queue",
   "auth.loggedInAs": "Signed in as {name} ({role}).",
   "auth.continue": "Continue",
@@ -305,6 +307,8 @@ export const en = {
   "mode.retryLive": "Retry live",
   "mode.sampleSections": "Filled from sample data: {list}",
   "mode.reason.unreachable": "Backend unreachable ({msg})",
+  "mode.reason.timeout": "The backend did not answer within {sec} s (slow network or blocked connection); showing the static snapshot instead. Use the button below to retry.",
+  "mode.authRequired": "Backend online, sign-in required: only public data is shown until you sign in.",
   "mode.reason.forced": "Snapshot mode forced via ?mode=snapshot",
   "mode.reason.static": "Static deployment: no backend configured",
 

@@ -17,7 +17,12 @@ import {
 export function registerAuthRoutes(router: Router, ids: IdentityStore, links: () => Links, log: (s: string) => void) {
   const limiter = new RateLimiter(10, 60_000);
 
-  router.get("/auth/me", ({ user }) => (authEnabled() ? ids.me(user!, true) : { ...ids.me(user ?? LOCAL_IDENTITY, false), authEnabled: false }));
+  // Auth on + no session -> 401 (the web client maps 401/403 to "anonymous"). Never report LOCAL_IDENTITY as logged in.
+  router.get("/auth/me", ({ user }) => {
+    if (!authEnabled()) return { ...ids.me(user ?? LOCAL_IDENTITY, false), authEnabled: false };
+    if (!user) throw httpError(401, "login required");
+    return ids.me(user, true);
+  });
 
   router.post("/auth/login", async ({ body, raw, res }) => {
     if (!limiter.allow(clientIp(raw))) throw httpError(429, "too many login attempts, try again in a minute");

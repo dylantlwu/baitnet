@@ -20,9 +20,35 @@ export interface LoadResult {
   source: string;
   /** Sections (arena/training/eval) borrowed from snapshot.sample.json because the real data lacked them. */
   sampleSections?: string[];
+  /**
+   * Live mode, but the backend asked for a login (BAITNET_AUTH=on, GET /snapshot -> 401/403).
+   * The snapshot then holds only the public endpoints; reload after login for the full view.
+   */
+  authRequired?: boolean;
   /** Why live mode was not used (only in snapshot mode). */
-  fallbackReason?: { kind: "unreachable" | "forced" | "static"; detail?: string };
+  fallbackReason?: { kind: "unreachable" | "timeout" | "forced" | "static"; detail?: string };
 }
+
+/** Live probe budget: phones in mainland China reach the Singapore host through a VPN, 1.5 s was far too short. */
+export const LIVE_TIMEOUT_MS = 8000;
+
+/** Vite dev / preview port; only there does the page live on a different origin from the API. */
+const VITE_PORT = "5173";
+
+/** Non-2xx answer from the backend (keeps the status so 401/403 can mean "online, log in first"). */
+export class HttpStatusError extends Error {
+  constructor(public status: number, msg: string) {
+    super(msg);
+    this.name = "HttpStatusError";
+  }
+}
+export class TimeoutError extends Error {
+  constructor(msg: string) {
+    super(msg);
+    this.name = "TimeoutError";
+  }
+}
+const isAuthStatus = (e: unknown) => e instanceof HttpStatusError && (e.status === 401 || e.status === 403);
 
 type FetchFn = typeof fetch;
 
@@ -31,7 +57,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 /** Decide data config from the page URL + build-time env. Pure, so it is unit-testable. */
 export function resolveConfig(
   loc: { hostname: string; search: string; protocol?: string; port?: string },
-  env: { VITE_API_BASE?: string; BASE_URL?: string } = {},
+  env: { VITE_API_BASE?: string; BASE_URL?: string; DEV?: boolean } = {},
 ): DataConfig {
   const q = new URLSearchParams(loc.search);
   const m = q.get("mode");
@@ -40,9 +66,10 @@ export function resolveConfig(
   let apiBase: string | null = null;
   const local = LOCAL_HOSTS.has(loc.hostname) || loc.hostname.endsWith(".localhost");
   if (explicit) apiBase = explicit.replace(/\/+$/, "");
-  // Local dev (Vite on 5173): backend on 8787. Deployed: frontend and API share one origin -> relative paths.
+  // Local dev (Vite dev server / preview on 5173): backend on 8787. Everything else — the deployed site and the
+  // production build served by apps/server itself on any localhost port — shares one origin -> relative paths.
   // On a static-only host the relative probe gets index.html back and we degrade to the snapshot.
-  else if (local && String(loc.port ?? "") !== String(SERVER_PORT))
+  else if (local && String(loc.port ?? "") !== String(SERVER_PORT) && (env.DEV === true || String(loc.port ?? "") === VITE_PORT))
     apiBase = `http://${LOCAL_HOSTS.has(loc.hostname) ? loc.hostname : "localhost"}:${SERVER_PORT}`;
   else apiBase = "";
   if (forceMode === "snapshot" || q.get("data") === "sample") apiBase = null;
@@ -52,7 +79,7 @@ export function resolveConfig(
     forceMode,
     // ?data=sample: demo / screenshots with the bundled sample only.
     snapshotUrls: q.get("data") === "sample" ? [`${base}snapshot.sample.json`] : [`${base}snapshot.json`, `${base}snapshot.sample.json`],
-    liveTimeoutMs: 1500,
+    liveTimeoutMs: LIVE_TIMEOUT_MS,
   };
 }
 
@@ -61,7 +88,7 @@ async function fetchJson(fetchFn: FetchFn, url: string, timeoutMs: number): Prom
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetchFn(url, { signal: ctrl.signal, cache: "no-store", credentials: "include", headers: { Accept: "application/json" } });
-    if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
+    if (!res.ok) throw new HttpStatusError(res.status, `${url} -> HTTP ${res.status}`);
     const text = await res.text();
     try {
       return JSON.parse(text);
@@ -70,7 +97,7 @@ async function fetchJson(fetchFn: FetchFn, url: string, timeoutMs: number): Prom
       throw new Error(`${url} -> not JSON`);
     }
   } catch (e) {
-    if ((e as Error).name === "AbortError") throw new Error(`${url} -> timeout after ${timeoutMs}ms`);
+    if ((e as Error).name === "AbortError") throw new TimeoutError(`${url} -> timeout after ${timeoutMs}ms`);
     throw e;
   } finally {
     clearTimeout(timer);
@@ -78,16 +105,36 @@ async function fetchJson(fetchFn: FetchFn, url: string, timeoutMs: number): Prom
 }
 
 /** Load full state from the backend. Prefers GET /snapshot; falls back to composing individual endpoints. */
-export async function loadLive(fetchFn: FetchFn, apiBase: string, timeoutMs: number): Promise<ViewSnapshot> {
+export async function loadLive(fetchFn: FetchFn, apiBase: string, timeoutMs: number, opts: { skipSnapshot?: boolean } = {}): Promise<ViewSnapshot> {
+  return (await probeLive(fetchFn, apiBase, timeoutMs, opts)).snapshot;
+}
+
+/**
+ * Like loadLive, but also says whether the backend wants a login.
+ * GET /snapshot -> 401/403 means the backend is up with BAITNET_AUTH=on: we compose the public endpoints
+ * (/alerts, /responders, ...) instead, and an anonymous visitor still gets live mode plus a login entry.
+ * `skipSnapshot` (polling while logged out) goes straight to the public endpoints, so no 401 every 10 s.
+ */
+export async function probeLive(
+  fetchFn: FetchFn,
+  apiBase: string,
+  timeoutMs: number,
+  opts: { skipSnapshot?: boolean } = {},
+): Promise<{ snapshot: ViewSnapshot; authRequired: boolean }> {
+  let authRequired = !!opts.skipSnapshot;
   try {
-    return parseSnapshot(await fetchJson(fetchFn, apiBase + API.snapshot, timeoutMs));
+    if (opts.skipSnapshot) throw new HttpStatusError(401, "skipped: login required");
+    return { snapshot: parseSnapshot(await fetchJson(fetchFn, apiBase + API.snapshot, timeoutMs)), authRequired: false };
   } catch (snapErr) {
+    if (isAuthStatus(snapErr)) authRequired = true;
     // /alerts is the minimum: if it fails, the backend is unreachable.
     let alertsRaw: unknown;
     try {
       alertsRaw = await fetchJson(fetchFn, apiBase + API.alerts, timeoutMs);
-    } catch {
-      throw snapErr;
+    } catch (alertsErr) {
+      // Both behind the login: the backend is clearly there, just show an empty live view until login.
+      if (authRequired && isAuthStatus(alertsErr)) alertsRaw = [];
+      else throw snapErr;
     }
     const alerts = normalizeAlerts(alertsRaw);
     const opt = (p: string) => fetchJson(fetchFn, apiBase + p, timeoutMs).catch(() => undefined);
@@ -102,7 +149,7 @@ export async function loadLive(fetchFn: FetchFn, apiBase: string, timeoutMs: num
       if (Array.isArray(f) && f.length) flows[a.id] = f as FlowEdge[];
     });
     const respObj = resp as { responders?: Responder[]; acks?: unknown[] } | Responder[] | undefined;
-    return parseSnapshot({
+    const snapshot = parseSnapshot({
       generatedAt: new Date().toISOString(),
       network: "sandbox",
       registryContract: "",
@@ -114,6 +161,7 @@ export async function loadLive(fetchFn: FetchFn, apiBase: string, timeoutMs: num
       acks: Array.isArray(respObj) ? [] : respObj?.acks ?? [],
       attestation: att as AttestationResult | undefined,
     });
+    return { snapshot, authRequired };
   }
 }
 
@@ -161,10 +209,11 @@ async function loadPrimary(cfg: DataConfig, fetchFn: FetchFn): Promise<LoadResul
   let fallbackReason: LoadResult["fallbackReason"];
   if (cfg.apiBase !== null && cfg.forceMode !== "snapshot") {
     try {
-      const snapshot = await loadLive(fetchFn, cfg.apiBase, cfg.liveTimeoutMs);
-      return { mode: "live", snapshot, source: cfg.apiBase || (typeof location !== "undefined" ? location.origin : "same-origin") };
+      const { snapshot, authRequired } = await probeLive(fetchFn, cfg.apiBase, cfg.liveTimeoutMs);
+      const source = cfg.apiBase || (typeof location !== "undefined" ? location.origin : "same-origin");
+      return authRequired ? { mode: "live", snapshot, source, authRequired } : { mode: "live", snapshot, source };
     } catch (e) {
-      fallbackReason = { kind: "unreachable", detail: (e as Error).message };
+      fallbackReason = { kind: e instanceof TimeoutError ? "timeout" : "unreachable", detail: (e as Error).message };
     }
   } else {
     fallbackReason = { kind: cfg.forceMode === "snapshot" ? "forced" : "static" };

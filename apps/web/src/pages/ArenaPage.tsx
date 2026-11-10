@@ -5,7 +5,7 @@ import type { Backend } from "../backend/types";
 import { useBackend } from "../backend/context";
 import { arenaReducer, initialArena, nextSide } from "../arena/reducer";
 import { RichText } from "../components/RichText";
-import { Badge, ChainTag, Empty, Mono, PageHead, Segmented } from "../components/ui";
+import { Badge, ChainTag, Empty, Mono, PageHead, Segmented, LoadFailed } from "../components/ui";
 import { useI18n } from "../i18n";
 import { fmtClock, nearTxUrl, short } from "../lib/format";
 import { href } from "../lib/router";
@@ -50,7 +50,7 @@ export function ArenaPage({ snap, network }: { snap: ViewSnapshot; network: View
     return (
       <>
         <PageHead step={t("arena.step")} title={t("arena.title")} lead={lead} />
-        {err ? <div className="card error-card">{t("common.loadFailed", { msg: err })}</div> : <div className="loading"><span className="spinner" /> {t("common.loading")}</div>}
+        {err ? <LoadFailed msg={err} /> : <div className="loading"><span className="spinner" /> {t("common.loading")}</div>}
       </>
     );
 

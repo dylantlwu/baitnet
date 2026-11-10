@@ -11,6 +11,8 @@ export interface DataState {
   snapshot?: ViewSnapshot;
   source?: string;
   fallbackReason?: LoadResult["fallbackReason"];
+  /** Live, but the backend wants a login: only public data is shown until then. */
+  authRequired?: boolean;
   sampleSections?: string[];
   error?: string;
   stream: StreamState;
@@ -23,7 +25,7 @@ const POLL_MS = 10_000;
 
 export function useData(): DataState & { retry: () => void } {
   const [config] = useState(() =>
-    resolveConfig(window.location, { VITE_API_BASE: import.meta.env.VITE_API_BASE, BASE_URL: import.meta.env.BASE_URL }),
+    resolveConfig(window.location, { VITE_API_BASE: import.meta.env.VITE_API_BASE, BASE_URL: import.meta.env.BASE_URL, DEV: import.meta.env.DEV }),
   );
   const [state, setState] = useState<DataState>({ status: "loading", stream: "idle", freshIds: new Set(), config });
   const [attempt, setAttempt] = useState(0);
@@ -37,7 +39,8 @@ export function useData(): DataState & { retry: () => void } {
     loadInitial(config)
       .then((r) => {
         if (cancelled) return;
-        setState((s) => ({ ...s, status: "ready", ...r, error: undefined }));
+        // authRequired / fallbackReason must not leak over from an earlier load (e.g. before login)
+        setState((s) => ({ ...s, status: "ready", authRequired: undefined, fallbackReason: undefined, sampleSections: undefined, ...r, error: undefined }));
         if (r.mode !== "live" || config.apiBase === null) return;
         const api = config.apiBase;
 
@@ -64,7 +67,8 @@ export function useData(): DataState & { retry: () => void } {
         // Skipped while the tab is hidden: every open dashboard costs the server NEAR RPC reads.
         poll = setInterval(() => {
           if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-          loadLive(fetch, api, 4000)
+          // Logged out: poll only the public endpoints instead of collecting a 401 from /snapshot every time.
+          loadLive(fetch, api, 8000, { skipSnapshot: r.authRequired })
             .then((snap) =>
               setState((s) => {
                 if (!s.snapshot) return s;

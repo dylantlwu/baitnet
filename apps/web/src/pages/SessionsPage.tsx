@@ -6,7 +6,7 @@ import type { Backend } from "../backend/types";
 import { useAuth } from "../auth/context";
 import { arenaReducer, initialArena } from "../arena/reducer";
 import { ChannelIcon } from "../components/Channel";
-import { Badge, Empty, PageHead, Segmented } from "../components/ui";
+import { Badge, Empty, PageHead, Segmented, LoadFailed } from "../components/ui";
 import { useI18n } from "../i18n";
 import { fmtTime } from "../lib/format";
 import { href } from "../lib/router";
@@ -81,7 +81,7 @@ function SessionList({ backend }: { backend: Backend }) {
     backend.listCorrections().then((c) => setCorr(Array.isArray(c) ? c : []), () => undefined);
   }, [backend]);
 
-  if (err) return <div className="card error-card">{t("common.loadFailed", { msg: err })}</div>;
+  if (err) return <LoadFailed msg={err} />;
   if (!sessions)
     return (
       <div className="loading">
@@ -206,7 +206,7 @@ function SessionDetail({ id, backend, snap }: { id: string; backend: Backend; sn
   };
   const drafts = useMemo(() => (s ? s.drafts.map((d, i) => [d, i] as const).filter(([d]) => !!d) : []), [s]);
 
-  if (err) return <div className="card error-card">{t("common.loadFailed", { msg: err })}</div>;
+  if (err) return <LoadFailed msg={err} />;
   if (!s)
     return (
       <div className="loading">

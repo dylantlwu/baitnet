@@ -3,7 +3,7 @@ import type { AlertDraft, Correction, EvalRun, PlaybookEntry, ScamScriptDef, Sca
 import type { ViewSnapshot } from "../data/parse";
 import { useBackend } from "../backend/context";
 import type { Backend } from "../backend/types";
-import { Badge, Empty, PageHead, Segmented } from "../components/ui";
+import { Badge, Empty, PageHead, Segmented, LoadFailed } from "../components/ui";
 import { LineChart } from "../components/LineChart";
 import { RichText } from "../components/RichText";
 import { useI18n } from "../i18n";
@@ -76,7 +76,7 @@ function useLoad<T>(fn: () => Promise<T>, deps: unknown[]): { data?: T; err?: st
 
 function LoadState({ err }: { err?: string }) {
   const { t } = useI18n();
-  return err ? <div className="card error-card">{t("common.loadFailed", { msg: err })}</div> : <div className="loading"><span className="spinner" /> {t("common.loading")}</div>;
+  return err ? <LoadFailed msg={err} /> : <div className="loading"><span className="spinner" /> {t("common.loading")}</div>;
 }
 
 /* ───────────── review queue ───────────── */

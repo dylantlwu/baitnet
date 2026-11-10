@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { AlertStatus, Chain, Level, VerdictKind } from "@baitnet/shared";
 import { CHAIN_LABEL, short } from "../lib/format";
 import { useI18n } from "../i18n";
+import { href } from "../lib/router";
 
 export function Badge({ tone, children, title }: { tone: string; children: ReactNode; title?: string }) {
   return (
@@ -99,4 +100,22 @@ export function Segmented<T extends string>({
       ))}
     </div>
   );
+}
+
+/** Errors from a 401 (BAITNET_AUTH=on, not signed in) the server words as "login required". */
+export const isLoginRequired = (msg: string) => /login required|HTTP 401\b/i.test(msg);
+
+/** Load error card; "login required" becomes a sign-in prompt instead of a raw error. */
+export function LoadFailed({ msg }: { msg: string }) {
+  const { t } = useI18n();
+  if (isLoginRequired(msg))
+    return (
+      <div className="card">
+        <p>{t("auth.needLogin")}</p>
+        <a className="btn primary" href={href("login")}>
+          {t("auth.login")}
+        </a>
+      </div>
+    );
+  return <div className="card error-card">{t("common.loadFailed", { msg })}</div>;
 }

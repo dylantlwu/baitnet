@@ -9,7 +9,7 @@ import { href } from "../lib/router";
 /** Where to go after login: reviewers manage the team, experts look at the review queue. */
 export const afterLogin = (me: Me) => (me.role === "reviewer" ? href("sessions") : href("training", "review"));
 
-export function LoginPage({ code: codeFromLink }: { code?: string | null }) {
+export function LoginPage({ code: codeFromLink, backendDown }: { code?: string | null; backendDown?: boolean }) {
   const { t } = useI18n();
   const { state, admin, setMe, logout } = useAuth();
   const [code, setCode] = useState(codeFromLink ?? "");
@@ -49,6 +49,16 @@ export function LoginPage({ code: codeFromLink }: { code?: string | null }) {
         {head}
         <div className="loading">
           <span className="spinner" /> {t("common.loading")}
+        </div>
+      </>
+    );
+  // Snapshot mode because the probe failed: that is not "local mode without login", say what really happened.
+  if (state.kind === "disabled" && backendDown)
+    return (
+      <>
+        {head}
+        <div className="card narrow">
+          <p>{t("auth.offline")}</p>
         </div>
       </>
     );

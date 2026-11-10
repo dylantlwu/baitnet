@@ -9,6 +9,7 @@ import { CorrectionCard } from "../pages/TrainingPage";
 import { InviteResult } from "../pages/TeamPage";
 import { LoginPage } from "../pages/LoginPage";
 import { qrMatrix } from "../components/QrCode";
+import { LoadFailed } from "../components/ui";
 import { channelOf, playsOf } from "../pages/SessionsPage";
 import type { Backend } from "../backend/types";
 
@@ -109,6 +110,24 @@ describe("role-based display", () => {
     expect(wrap({ kind: "anonymous" }, <LoginPage />)).toContain("邀请码");
     expect(wrap({ kind: "disabled" }, <LoginPage />)).toContain("没有启用登录");
     expect(wrap({ kind: "user", me: reviewer }, <LoginPage />)).toContain("已登录：Dylan（审核者）");
+  });
+
+  it("login page: backend unreachable is not called local mode", () => {
+    const html = wrap({ kind: "disabled" }, <LoginPage backendDown />);
+    expect(html).toContain("连不上后端");
+    expect(html).not.toContain("没有启用登录");
+  });
+
+  it("a 401 load error becomes a sign-in prompt, other errors stay errors", () => {
+    const html = wrap({ kind: "anonymous" }, <LoadFailed msg="login required" />);
+    expect(html).toContain("需要登录");
+    expect(html).toContain('href="#/login"');
+    expect(wrap({ kind: "anonymous" }, <LoadFailed msg="HTTP 500" />)).toContain("数据加载失败");
+  });
+
+  it("http admin: auth on + no session (/auth/me 401) = anonymous, so the login entry shows", async () => {
+    const f = (async () => new Response(JSON.stringify({ error: "login required" }), { status: 401 })) as unknown as typeof fetch;
+    expect(await createHttpAdmin("", f).me()).toEqual({ kind: "anonymous" });
   });
 
   it("invite result renders two QR codes (Telegram + web login)", () => {

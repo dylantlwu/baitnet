@@ -165,6 +165,8 @@ export const zh: Record<MsgKey, string> = {
   "auth.hint": "登录后，审核和改写都会自动记在你的名下，不用再手填名字。",
   "auth.badCode": "邀请码无效或已被撤销。",
   "auth.disabled": "当前是本机模式，没有启用登录，所有功能都可以直接使用。",
+  "auth.offline": "暂时连不上后端，所以现在无法登录（页面显示的是静态快照）。网络慢或经 VPN 访问时可能需要多等几秒，请点右下角徽标里的「重新连接后端」或刷新页面再试。",
+  "auth.needLogin": "这部分需要登录后才能查看。请用团队负责人给你的邀请链接或邀请码登录。",
   "auth.goReview": "去待审核",
   "auth.loggedInAs": "已登录：{name}（{role}）。",
   "auth.continue": "继续",
@@ -310,6 +312,8 @@ export const zh: Record<MsgKey, string> = {
   "mode.retryLive": "重新连接后端",
   "mode.sampleSections": "以下部分用的是样例数据：{list}",
   "mode.reason.unreachable": "连不上后端（{msg}）",
+  "mode.reason.timeout": "后端 {sec} 秒内没有响应（网络慢或连接被拦截），已改用静态快照。可点下方按钮重新连接。",
+  "mode.authRequired": "后端在线，但需要登录：现在只显示公开数据，登录后显示全部。",
   "mode.reason.forced": "已通过 ?mode=snapshot 强制使用快照",
   "mode.reason.static": "静态部署，没有配置后端",
 

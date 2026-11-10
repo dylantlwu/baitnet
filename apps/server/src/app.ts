@@ -114,8 +114,9 @@ export function createApp(opts: AppOptions = {}): App {
     new ArenaManager({
       log,
       stepDelayMs: Number(process.env.ARENA_STEP_MS ?? 900),
-      // per-person daily LLM limit (web with BAITNET_AUTH=on, and IM users); local owner is unlimited
-      llmQuota: (ownerId) => (ownerId === LOCAL_IDENTITY.expertId ? true : identity.consumeLlmQuota(ownerId)),
+      // per-person daily LLM limit (web with BAITNET_AUTH=on, and IM users); the local owner is unlimited only
+      // while auth is off — with auth on nobody is "local-expert", so that id must not unlock unlimited calls
+      llmQuota: (ownerId) => (!authEnabled() && ownerId === LOCAL_IDENTITY.expertId ? true : identity.consumeLlmQuota(ownerId)),
     });
   const router = new Router();
   let attCache: { at: number; value: AttestationResult } | undefined;
@@ -234,8 +235,9 @@ export function createApp(opts: AppOptions = {}): App {
         return json(res, 404, { error: "not found" });
       }
       if (m === "method") return json(res, 405, { error: "method not allowed" });
-      // ---- identity + policy (BAITNET_AUTH=on); otherwise everyone is the local reviewer
-      let user: Identity = LOCAL_IDENTITY;
+      // ---- identity + policy (BAITNET_AUTH=on); otherwise everyone is the local reviewer.
+      // With auth on, a visitor without a session is nobody (user undefined) — never the local reviewer.
+      let user: Identity | undefined = authEnabled() ? undefined : LOCAL_IDENTITY;
       if (authEnabled()) {
         const need = requiredRole(req.method ?? "GET", m.pattern);
         const who = identity.identify(readCookie(req));
@@ -245,19 +247,22 @@ export function createApp(opts: AppOptions = {}): App {
       }
       // zero-retention analysis calls NEAR AI but must not write anything: quota is counted in memory
       if (authEnabled() && m.pattern === "/scripts/analyze-ephemeral") {
-        const gate = ephemeralGate(user.expertId);
+        const gate = ephemeralGate(user!.expertId); // expert route: requiredRole guaranteed a login
         if (gate) return json(res, 429, { error: gate });
       }
       const body = await readJsonBody(req);
       if (authEnabled() && body && typeof body === "object" && !Array.isArray(body)) {
         // never trust identity fields from the client
-        if ("expertId" in body || /^\/(training|scripts|arena)\//.test(m.pattern)) body.expertId = user.expertId;
-        if (/\/review$/.test(m.pattern)) body.reviewer = user.name;
+        if ("expertId" in body || /^\/(training|scripts|arena)\//.test(m.pattern)) {
+          if (user) body.expertId = user.expertId;
+          else delete body.expertId;
+        }
+        if (/\/review$/.test(m.pattern)) body.reviewer = user?.name;
       }
       const out = await m.h({ params: m.params, query: url.searchParams, body, raw: req, res, user });
       // zero-retention analysis (D27) must not touch data/ at all — not even the audit log
       if (req.method === "POST" && m.pattern !== "/auth/login" && m.pattern !== "/scripts/analyze-ephemeral") {
-        void identity.audit({ expertId: user.expertId, action: auditAction(m.pattern), target: Object.values(m.params)[0], detail: auditDetail(body) }).catch(() => {});
+        void identity.audit({ expertId: user?.expertId ?? "anonymous", action: auditAction(m.pattern), target: Object.values(m.params)[0], detail: auditDetail(body) }).catch(() => {});
       }
       if (out === HANDLED) return;
       if (out === undefined) {

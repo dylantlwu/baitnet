@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { EvalCase, EvalReport, ScamScriptDef, ScamType } from "@baitnet/shared";
 import { useBackend } from "../backend/context";
-import { Badge, Empty, PageHead, Segmented } from "../components/ui";
+import { Badge, Empty, PageHead, Segmented, LoadFailed } from "../components/ui";
 import { useI18n } from "../i18n";
 import { fmtPct, fmtTime } from "../lib/format";
 import { href } from "../lib/router";
@@ -50,7 +50,7 @@ export function EvalPage() {
   }, [backend]);
 
   const head = <PageHead step={t("eval.step")} title={t("eval.title")} lead={t("eval.lead")} />;
-  if (err) return <>{head}<div className="card error-card">{t("common.loadFailed", { msg: err })}</div></>;
+  if (err) return <>{head}<LoadFailed msg={err} /></>;
   if (report === undefined) return <>{head}<div className="loading"><span className="spinner" /> {t("common.loading")}</div></>;
   if (report === null) return <>{head}<Empty>{t("eval.empty")}</Empty></>;
 

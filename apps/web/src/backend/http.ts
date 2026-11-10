@@ -103,6 +103,9 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
 export async function hasArenaApi(apiBase: string, fetchFn: typeof fetch = (...a) => fetch(...a)): Promise<boolean> {
   try {
     const res = await fetchFn(apiBase + API.arenaScripts, { credentials: "include", headers: { Accept: "application/json" } });
+    // 401/403: the Arena API exists but wants a login (BAITNET_AUTH=on). Use it — falling back to the in-browser
+    // mock here would leave a logged-in user on fake data, since the backend choice is made once.
+    if (res.status === 401 || res.status === 403) return true;
     if (!res.ok) return false;
     JSON.parse(await res.text());
     return true;

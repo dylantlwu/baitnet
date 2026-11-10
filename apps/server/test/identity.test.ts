@@ -162,6 +162,20 @@ describe("网页鉴权（BAITNET_AUTH=on）", () => {
     expect((await call("/arena/scripts", cookie)).status).toBe(401);
   });
 
+  it("没登录：/auth/me 401，绝不返回本机 reviewer 身份；写操作和审计不记到 local-expert", async () => {
+    const r = await fetch(base + "/auth/me");
+    expect(r.status).toBe(401);
+    const body = await r.text();
+    expect(body).not.toContain("local-expert");
+    expect(body).not.toContain("reviewer");
+    // public POST without a session (logout) is audited as anonymous, not as the local reviewer
+    expect((await fetch(base + "/auth/logout", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status).toBe(200);
+    await new Promise((res) => setTimeout(res, 20));
+    expect(app.identity.listAudit({ limit: 500 }).some((a: { expertId: string }) => a.expertId === "local-expert")).toBe(false);
+    // anonymous visitors cannot start LLM-backed work at all
+    expect((await fetch(base + "/arena/sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scriptId: "investment-01" }) })).status).toBe(401);
+  });
+
   it("没登录 401；expert 越权 403；reviewer 可以", async () => {
     expect((await fetch(base + "/arena/scripts")).status).toBe(401);
     expect((await fetch(base + "/alerts")).status).toBe(200); // public read
