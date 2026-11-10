@@ -106,6 +106,11 @@ describe("HOST 绑定", () => {
     expect(listenHost({ NODE_ENV: "production", HOST: "0.0.0.0" })).toBe("0.0.0.0");
     expect(listenHost({})).toBeUndefined();
   });
+  it("Railway 上监听全部网卡（HOST 仍优先）", () => {
+    expect(listenHost({ NODE_ENV: "production", RAILWAY_ENVIRONMENT: "production" })).toBe("0.0.0.0");
+    expect(listenHost({ NODE_ENV: "production", RAILWAY_ENVIRONMENT_NAME: "production" })).toBe("0.0.0.0");
+    expect(listenHost({ NODE_ENV: "production", RAILWAY_ENVIRONMENT: "production", HOST: "::" })).toBe("::");
+  });
   it("实际只在 127.0.0.1 上监听", async () => {
     const app = createApp({ log: () => {}, startIm: false });
     await app.ready;

@@ -1,7 +1,8 @@
 /**
  * Production helper: write $BAITNET_DATA_DIR/runtime.json (mode 600) from env vars.
- * Runs as systemd ExecStartPre before every server start (deploy/setup-server.sh), so
- * /etc/baitnet/env stays the single source of truth for chain config and keys.
+ * Runs before every server start — systemd ExecStartPre on the VPS (deploy/setup-server.sh), the
+ * container entrypoint on Railway (deploy/docker-entrypoint.sh) — so the env vars stay the single
+ * source of truth for chain config and keys.
  *
  *   BAITNET_DATA_DIR=/var/lib/baitnet tsx scripts/write-runtime.ts
  *
@@ -20,7 +21,7 @@ try {
     console.log(`BAITNET_REGISTRY=memory → removed ${out}`);
     process.exit(0);
   }
-  const rt = testnetRuntimeFromEnv(process.env, "/etc/baitnet/env");
+  const rt = testnetRuntimeFromEnv(process.env, process.env.RAILWAY_ENVIRONMENT ? "Railway Variables" : "/etc/baitnet/env");
   mkdirSync(dir, { recursive: true });
   writeFileSync(out, `${JSON.stringify(rt, null, 2)}\n`, { mode: 0o600 });
   chmodSync(out, 0o600);

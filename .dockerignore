@@ -1,0 +1,40 @@
+# Keep secrets, local state and build junk out of the Docker build context (and so out of the image).
+.git
+.github
+**/node_modules
+**/dist
+**/coverage
+**/.vite
+**/*.tsbuildinfo
+.vercel
+
+# secrets — no .env of any kind (only the committed template)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+.near-credentials
+**/neardev
+*.pem
+*.key
+
+# local runtime state / backups (user data, private keys in runtime.json)
+data
+backups
+.cache
+**/runtime.json
+**/*.sqlite
+**/*.sqlite-*
+
+# Rust build output
+contracts/target
+**/target
+
+# misc
+*.log
+.DS_Store
+.idea
+.vscode
+Dockerfile
+.dockerignore
