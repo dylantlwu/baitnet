@@ -66,6 +66,11 @@ export interface RpcRetryOptions {
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
   log?: (line: string) => void;
+  /**
+   * Record this call's latency for endpoint preference (default true). Off for calls that
+   * legitimately block on the node (send_tx waiting for finality).
+   */
+  trackLatency?: boolean;
 }
 
 /** Never park an endpoint longer than this, whatever Retry-After says. */
@@ -110,9 +115,28 @@ export function classifyRpcError(err: unknown): { retry: boolean; retryAfterMs?:
 /** Per-endpoint cooldown shared by every caller in this process (so one 429 slows all callers down). */
 const cooldownUntil = new Map<string, number>();
 
-/** Test helper: forget endpoint cooldowns. */
+/**
+ * Smoothed latency of successful calls per endpoint. With several endpoints the fastest healthy
+ * one goes first: measured from Singapore/Tokyo, rpc.testnet.near.org answers a view call in
+ * ~3.5 s and test.rpc.fastnear.com in ~0.5 s. Unmeasured endpoints count as 0 so each gets tried.
+ */
+const latencyMs = new Map<string, number>();
+
+/** Test helper: forget endpoint cooldowns and latencies. */
 export function resetRpcHealth() {
   cooldownUntil.clear();
+  latencyMs.clear();
+}
+
+/** Current smoothed latency per endpoint (diagnostics). */
+export function rpcLatencies(): Record<string, number> {
+  return Object.fromEntries([...latencyMs].map(([u, ms]) => [u, Math.round(ms)]));
+}
+
+function fastestIndex(urls: readonly string[]): number {
+  let best = 0;
+  for (let i = 1; i < urls.length; i++) if ((latencyMs.get(urls[i]!) ?? 0) < (latencyMs.get(urls[best]!) ?? 0)) best = i;
+  return best;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -130,7 +154,7 @@ export async function withRpcRetry<T>(urls: readonly string[], fn: (url: string,
   const classify = opts.classify ?? classifyRpcError;
   const deadline = now() + o.totalTimeoutMs;
   let lastErr: unknown;
-  let preferred = 0;
+  let preferred = fastestIndex(urls);
 
   for (let attempt = 0; attempt < o.maxAttempts; attempt++) {
     // first endpoint (in configured order, starting from `preferred`) that is not cooling down;
@@ -158,8 +182,14 @@ export async function withRpcRetry<T>(urls: readonly string[], fn: (url: string,
     const remaining = deadline - now();
     if (remaining <= 0) break;
     try {
+      const started = now();
       const out = await fn(url, Math.min(o.timeoutMs, remaining));
       cooldownUntil.delete(url);
+      if (o.trackLatency !== false) {
+        const ms = now() - started;
+        const prev = latencyMs.get(url);
+        latencyMs.set(url, prev === undefined ? ms : prev * 0.7 + ms * 0.3);
+      }
       return out;
     } catch (err) {
       lastErr = err;

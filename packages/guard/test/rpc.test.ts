@@ -9,6 +9,8 @@ import {
   parseRpcUrls,
   resetRpcHealth,
   rpcCall,
+  rpcLatencies,
+  withRpcRetry,
   viewFunction,
   type RegistryClient,
 } from "../src/index.js";
@@ -91,6 +93,29 @@ describe("rpc retry / failover", () => {
     // next call skips a (still in cooldown) and goes straight to b
     await expect(rpcCall("http://a.test,http://b.test", "status", [], k)).resolves.toBe("from-b");
     expect(calls.slice(2)).toEqual(["http://b.test"]);
+  });
+
+  it("prefers the fastest healthy endpoint once both have been measured", async () => {
+    const k = clock();
+    const speed: Record<string, number> = { "http://slow.test": 3500, "http://fast.test": 500 };
+    const hits: string[] = [];
+    const call = (url: string) => {
+      hits.push(url);
+      return k.sleep(speed[url]!).then(() => url);
+    };
+    const urls = ["http://slow.test", "http://fast.test"];
+    // unmeasured endpoints count as 0: the first call goes in configured order, then the unmeasured one
+    await withRpcRetry(urls, call, k);
+    await withRpcRetry(urls, call, k);
+    for (let i = 0; i < 3; i++) await withRpcRetry(urls, call, k);
+    expect(hits).toEqual(["http://slow.test", "http://fast.test", "http://fast.test", "http://fast.test", "http://fast.test"]);
+    expect(rpcLatencies()).toEqual({ "http://slow.test": 3500, "http://fast.test": 500 });
+    // the fast one failing still fails over to the slow one
+    const failing = (url: string) => (url === "http://fast.test" ? Promise.reject(Object.assign(new Error("fetch failed"))) : call(url));
+    await expect(withRpcRetry(urls, failing, k)).resolves.toBe("http://slow.test");
+    // calls that legitimately block (send_tx) do not count
+    await withRpcRetry(["http://slow.test"], (u) => k.sleep(60_000).then(() => u), { ...k, trackLatency: false });
+    expect(rpcLatencies()["http://slow.test"]).toBe(3500);
   });
 
   it("retries network errors and timeouts", async () => {

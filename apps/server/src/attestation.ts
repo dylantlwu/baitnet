@@ -252,3 +252,74 @@ export async function getAttestation(
   const { checks, signingAddress } = await verifyReport(rec.report, rec.recorded.nonce, rec.recorded.model, { online: false, recordedExternal: rec.recorded });
   return { model: rec.recorded.model, nonce: rec.recorded.nonce, signingAddress, checks, verified: checks.every((c) => c.pass), recorded: true, at: rec.recorded.at };
 }
+
+/** How long GET /attestation reuses a live result (BAITNET_ATTESTATION_CACHE_MS overrides). */
+export const DEFAULT_ATTESTATION_CACHE_MS = 10 * 60_000;
+/** A recorded result (offline mode, or live fetch failed) is recomputed / live retried after this. */
+export const ATTESTATION_RETRY_MS = 60_000;
+
+/**
+ * Stale-while-revalidate wrapper for the dashboard's GET /attestation. A live check is a NEAR AI
+ * report plus Phala DCAP (gateway + model) and NVIDIA NRAS — four sequential HTTPS calls, 3–12 s —
+ * and every open dashboard polls it every 10 s. The first call waits; afterwards the cached
+ * result is returned at once and refreshed in the background once it is older than `ttlMs`
+ * (`retryMs` for a recorded result). A live result is not replaced by the recorded fallback when
+ * a refresh fails. The zero-retention analysis (D27) calls fetchReport/verifyReport itself with
+ * its own nonce and is not affected.
+ */
+export class AttestationCache {
+  private value?: { at: number; result: AttestationResult; ttl: number };
+  private inflight?: Promise<AttestationResult>;
+  private readonly now: () => number;
+  refreshes = 0;
+
+  constructor(
+    private load: () => Promise<AttestationResult>,
+    private opts: { ttlMs?: number; retryMs?: number; now?: () => number; log?: (s: string) => void } = {},
+  ) {
+    this.now = opts.now ?? Date.now;
+  }
+
+  get(): Promise<AttestationResult> {
+    const v = this.value;
+    if (!v) return this.refresh();
+    if (this.now() - v.at >= v.ttl) void this.refresh().catch(() => {});
+    return Promise.resolve(v.result);
+  }
+
+  /** The cached result, if any (no network). */
+  peek(): AttestationResult | undefined {
+    return this.value?.result;
+  }
+
+  refresh(): Promise<AttestationResult> {
+    if (this.inflight) return this.inflight;
+    this.refreshes++;
+    const p = this.load()
+      .then((result) => {
+        const prev = this.value;
+        const ttlMs = this.opts.ttlMs ?? DEFAULT_ATTESTATION_CACHE_MS;
+        const retryMs = Math.min(this.opts.retryMs ?? ATTESTATION_RETRY_MS, ttlMs);
+        if (result.recorded && prev && !prev.result.recorded) {
+          // live refresh failed (getAttestation fell back to the recording): keep the last live result
+          this.value = { ...prev, at: this.now(), ttl: retryMs };
+          return prev.result;
+        }
+        this.value = { at: this.now(), result, ttl: result.recorded ? retryMs : ttlMs };
+        return result;
+      })
+      .catch((e: Error) => {
+        this.opts.log?.(`[attestation] refresh failed: ${e.message}`);
+        if (this.value) {
+          this.value = { ...this.value, at: this.now(), ttl: Math.min(this.opts.retryMs ?? ATTESTATION_RETRY_MS, this.value.ttl) };
+          return this.value.result;
+        }
+        throw e;
+      })
+      .finally(() => {
+        this.inflight = undefined;
+      });
+    this.inflight = p;
+    return p;
+  }
+}

@@ -47,7 +47,7 @@ export class ResilientRpcProvider extends JsonRpcProvider {
     const slow = SLOW_METHODS.has(String(method));
     return withRpcRetry(this.urls, (url) => this.inner.get(url)!.sendJsonRpc(method, params), {
       classify: classifyNearApiError,
-      ...(slow ? { totalTimeoutMs: 120_000, maxAttempts: 8 } : {}),
+      ...(slow ? { totalTimeoutMs: 120_000, maxAttempts: 8, trackLatency: false } : {}),
       ...this.retry,
     });
   }

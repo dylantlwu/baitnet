@@ -6,7 +6,8 @@ import {
   CompositeAccountInfo,
   DEFAULT_REGISTRY_CACHE_MS,
   Guard,
-  TtlCache,
+  MAX_PAGE,
+  SwrCache,
   MemoryRegistryClient,
   NearRpcAccountInfo,
   SampleAccountInfo,
@@ -28,15 +29,35 @@ import {
 } from "@baitnet/agent";
 
 /**
- * Chain registries are read through a short-TTL cache with in-flight de-duplication:
- * every dashboard tab polls /snapshot, and public RPCs answer bursts with HTTP 429.
- * Writes made through this server (B2 review, IM, …) invalidate it; writes from
- * other processes (the agent CLI) show up after at most one TTL.
+ * Chain registries are read through a stale-while-revalidate cache: every dashboard tab polls the
+ * public endpoints every 10 s, and a public testnet RPC takes 0.5–4 s per view call (and answers
+ * bursts with HTTP 429). Reads return the last value at once; a background timer reloads the keys
+ * that are being read every `refreshMs` (BAITNET_REGISTRY_CACHE_MS, default 15 s; 0 disables).
+ * Writes made through this server (B2 review, IM, …) invalidate it: the next read waits for data
+ * loaded after the write. Writes from other processes (the agent CLI) show up within one interval.
  */
-export function withReadCache(env: Env, ttlMs = Number(process.env.BAITNET_REGISTRY_CACHE_MS ?? DEFAULT_REGISTRY_CACHE_MS)): Env {
-  if (env.mode !== "chain" || !(ttlMs > 0)) return env;
-  const cached = new CachedRegistryClient(env.registry, new TtlCache(ttlMs));
+export function withReadCache(
+  env: Env,
+  refreshMs = Number(process.env.BAITNET_REGISTRY_CACHE_MS ?? DEFAULT_REGISTRY_CACHE_MS),
+  log?: (s: string) => void,
+): Env {
+  if (env.mode !== "chain" || !(refreshMs > 0)) return env;
+  const cached = new CachedRegistryClient(env.registry, new SwrCache({ refreshMs, log }).start());
   return { ...env, registry: cached, registryAs: (a) => cached.share(env.registryAs(a)) };
+}
+
+/** Like Promise.all(items.map(fn)) with at most `limit` calls in flight. */
+async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }
 
 /**
@@ -59,8 +80,9 @@ export class DataSource {
     this.envKey = key;
     this.guard?.stop();
     this.guard = undefined;
+    this.stopCache();
     try {
-      this.env = withReadCache(loadEnv());
+      this.env = withReadCache(loadEnv(), undefined, this.log);
       this.warning = undefined;
     } catch (e) {
       if (!(e instanceof RuntimeMissingError)) throw e;
@@ -89,18 +111,47 @@ export class DataSource {
     return this.guard;
   }
 
+  /** The SWR cache behind the registry (chain mode only). */
+  get cache(): SwrCache | undefined {
+    const reg = this.env?.registry;
+    return reg instanceof CachedRegistryClient && reg.cache instanceof SwrCache ? reg.cache : undefined;
+  }
+
+  private stopCache() {
+    this.cache?.stop();
+  }
+
+  /**
+   * Load what the dashboard reads (alerts, responders, acks) into the cache at startup, so the
+   * first visitor does not wait for the RPC. Failures only log; reads retry on demand.
+   */
+  async warm(): Promise<void> {
+    const env = this.getEnv();
+    if (env.mode !== "chain") return;
+    const t0 = Date.now();
+    try {
+      const alerts = await this.alerts();
+      await Promise.all([this.responders(), this.acks(alerts)]);
+      this.log(`[server] registry cache warm (${alerts.length} alerts) in ${Date.now() - t0} ms`);
+    } catch (e) {
+      this.log(`[server] registry cache warm-up failed: ${(e as Error).message}`);
+    }
+  }
+
   stop() {
     this.guard?.stop();
+    this.stopCache();
   }
 
   /** All alerts, enriched with txHash + conversationId from the local report index. */
   async alerts(): Promise<AlertView[]> {
     const out: AlertView[] = [];
+    // one list_alerts call per 100 alerts; the next page is only read when this one came back full
     for (let from = 0; ; ) {
-      const page = await this.registry.listAlerts(from, 100);
+      const page = await this.registry.listAlerts(from, MAX_PAGE);
       out.push(...page);
       from += page.length;
-      if (page.length < 100) break;
+      if (page.length < MAX_PAGE) break;
     }
     const reports = readReports();
     return out.map((a) => {
@@ -143,21 +194,23 @@ export class DataSource {
     return this.registry.listResponders(0, 100);
   }
 
+  /**
+   * The contract only has get_acks(alert_id), so this is one view call per alert: run them
+   * a few at a time (not one after another) — each is cached and refreshed in the background.
+   */
   async acks(alerts: AlertView[]): Promise<Ack[]> {
     const receipts = readAckReceipts();
-    const out: Ack[] = [];
-    for (const a of alerts) {
-      for (const ack of await this.registry.getAcks(a.id)) {
-        const r = receipts.find((x) => x.alertId === ack.alertId && x.responder === ack.responder);
-        out.push(r ? { ...ack, receivedAt: r.receivedAt } : ack);
-      }
-    }
-    return out;
+    const lists = await mapLimit(alerts, 4, (a) => this.registry.getAcks(a.id));
+    return lists.flat().map((ack) => {
+      const r = receipts.find((x) => x.alertId === ack.alertId && x.responder === ack.responder);
+      return r ? { ...ack, receivedAt: r.receivedAt } : ack;
+    });
   }
 
   async snapshot(attestation?: AttestationResult, arena?: ArenaManager): Promise<DemoSnapshot> {
     const env = this.getEnv();
     const alerts = await this.alerts();
+    const [responders, acks] = await Promise.all([this.responders(), this.acks(alerts)]);
     const t = await training();
     const safe = async <T,>(fn: (() => T | Promise<T>) | undefined): Promise<T | undefined> => {
       try {
@@ -177,8 +230,8 @@ export class DataSource {
       conversations: readConversations(),
       events: readEvents(),
       flows: readFlows(),
-      responders: await this.responders(),
-      acks: await this.acks(alerts),
+      responders,
+      acks,
       evidence: await this.evidenceMap(alerts),
       ...(attestation ? { attestation } : {}),
       arenaScripts: (arena ? await arena.scripts() : await loadScripts()).map(({ id, type, lang, title }) => ({ id, type, lang, title })),

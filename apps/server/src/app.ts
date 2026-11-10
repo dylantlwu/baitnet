@@ -11,7 +11,7 @@ import { existsSync, statSync, watchFile, unwatchFile, openSync, readSync, close
 import type { AttestationResult, Chain, GuardEvent } from "@baitnet/shared";
 import { eventsFile, readEvents } from "@baitnet/agent";
 import { DataSource } from "./data.js";
-import { getAttestation } from "./attestation.js";
+import { AttestationCache, DEFAULT_ATTESTATION_CACHE_MS, getAttestation } from "./attestation.js";
 import * as m10 from "./attestation.js";
 
 const CHAINS: Chain[] = ["near", "evm", "tron", "btc"];
@@ -101,7 +101,19 @@ class EventTail {
   }
 }
 
-export type App = Server & { stopIm(): Promise<void>; tail: EventTail; data: DataSource; arena: ArenaManager; router: Router; ready: Promise<void>; identity: IdentityStore; links: Links };
+export type App = Server & {
+  stopIm(): Promise<void>;
+  /** Pre-load the registry cache and the attestation so the first visitor does not wait (production start). */
+  warm(): Promise<void>;
+  tail: EventTail;
+  data: DataSource;
+  arena: ArenaManager;
+  router: Router;
+  ready: Promise<void>;
+  identity: IdentityStore;
+  links: Links;
+  attestation: AttestationCache;
+};
 
 export function createApp(opts: AppOptions = {}): App {
   const log = opts.log ?? ((s: string) => console.log(s));
@@ -120,7 +132,12 @@ export function createApp(opts: AppOptions = {}): App {
     });
   const router = new Router();
   let attCache: { at: number; value: AttestationResult } | undefined;
-  const attest = opts.attestation ?? (() => getAttestation());
+  // GET /attestation is public and polled by every dashboard: serve the cached result, refresh in the background
+  const attestation = new AttestationCache(opts.attestation ?? (() => getAttestation({ log })), {
+    ttlMs: Number(process.env.BAITNET_ATTESTATION_CACHE_MS ?? DEFAULT_ATTESTATION_CACHE_MS),
+    log,
+  });
+  const attest = () => attestation.get();
 
   // ---------------------------------------------------------------- core endpoints
   router.get("/", () => {
@@ -288,6 +305,16 @@ export function createApp(opts: AppOptions = {}): App {
     im = undefined;
   };
   server.links = links;
+  server.attestation = attestation;
+  server.warm = async () => {
+    await Promise.all([
+      data.warm(),
+      attestation.refresh().then(
+        (a) => log(`[server] attestation ready (${a.recorded ? "recorded" : "live"}, verified=${a.verified})`),
+        (e: Error) => log(`[server] attestation warm-up failed: ${e.message}`),
+      ),
+    ]);
+  };
   server.on("close", () => {
     tail.close();
     data.stop();
