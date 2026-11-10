@@ -31,7 +31,7 @@ import { nearToYocto } from "near-api-js";
 import { type RuntimeJson, testnetRuntimeFromEnv } from "./lib/runtime.ts";
 import { backupTraining, resetChainState, wipeAll } from "./lib/data.ts";
 import { installSignalHandlers, killLeftovers, onCleanup, portInUse, run, shutdown, shutdownIfOrphaned, start, startWatchdog, trackPid, waitForHttp } from "./lib/proc.ts";
-import { DATA_DIR, ROOT, RUNTIME_JSON, c, errMsg, loadDotEnv, log, retry, scriptStatus } from "./lib/util.ts";
+import { DATA_DIR, ROOT, RUNTIME_JSON, c, errMsg, loadDotEnv, log, retry, scriptStatus, sleep } from "./lib/util.ts";
 
 // ---------------------------------------------------------------- args ----
 type Mode = "offline" | "testnet" | "live";
@@ -244,21 +244,77 @@ async function runDemoFlow(childEnv: Record<string, string>) {
   else log.ok(`${script} 完成`);
 }
 
-/** Assertions for --ci: things a judge would expect to see after the run. */
-async function verifyOnChain(rt: RuntimeJson) {
+type ChainAlert = { id: number; address: string; chain: string; level: string; status: string };
+
+/** data/reports.json (written by the agent after each on-chain report) — used to find this run's writes. */
+function readReportRecords(): { alertId: number; chain: string; address: string }[] {
+  try {
+    const all = JSON.parse(readFileSync(join(DATA_DIR, "reports.json"), "utf8")) as unknown;
+    return Array.isArray(all) ? (all as { alertId: number; chain: string; address: string }[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function listAllAlerts(chain: Chain, registry: string): Promise<ChainAlert[]> {
+  const out: ChainAlert[] = [];
+  for (let from = 0; ; ) {
+    const page = await chain.view<ChainAlert[]>(registry, "list_alerts", { from_index: from, limit: 100 });
+    out.push(...page);
+    from += page.length;
+    if (page.length < 100) return out;
+  }
+}
+
+/**
+ * Assertions for --ci: things a judge would expect to see after the run.
+ *
+ * registry.check() only returns the *latest* alert of a target, and only if it is not
+ * Revoked and not L3 (contract semantics). On a persistent network (testnet) alert #0 is
+ * an old smoke-test entry that was revoked, so we check the addresses this run reported
+ * (data/reports.json entries added by demo-flow), else the newest checkable alert.
+ * Reads use finality=final and are retried briefly, so RPC lag / load balancing
+ * between nodes cannot produce a false miss right after the write.
+ */
+async function verifyOnChain(rt: RuntimeJson, reportsBefore: number) {
   log.step("检查关键输出");
   const chain = new Chain(rt.rpcUrl);
   try {
     const stats = await chain.view<Record<string, unknown>>(rt.registryContract, "stats");
-    const alerts = await chain.view<{ id: number; address: string; chain: string; status: string }[]>(rt.registryContract, "list_alerts", { from_index: 0, limit: 50 });
+    const alerts = await listAllAlerts(chain, rt.registryContract);
     log.info(`registry.stats() = ${JSON.stringify(stats)}`);
     if (alerts.length === 0) {
       if (scriptStatus("apps/agent", CI && !FULL ? "demo-flow" : "demo").ok || !ALLOW_MISSING) fail("链上没有任何警报（剧本 ② 应写入 ≥1 条）");
     } else {
-      log.ok(`链上 ${alerts.length} 条警报，例如 ${alerts[0]!.chain}:${alerts[0]!.address} [${alerts[0]!.status}]`);
-      const hit = await chain.view<unknown>(rt.registryContract, "check", { chain: alerts[0]!.chain, address: alerts[0]!.address });
-      if (hit) log.ok("registry.check() 命中已标记地址");
-      else fail("registry.check() 没有命中刚写入的地址");
+      const last = alerts[alerts.length - 1]!;
+      log.ok(`链上 ${alerts.length} 条警报，最新 #${last.id} ${last.chain}:${last.address} [${last.level} ${last.status}]`);
+      const latestByTarget = new Map<string, ChainAlert>();
+      for (const a of alerts) latestByTarget.set(`${a.chain}:${a.address}`, a); // ids ascending → last wins
+      const checkable = (a: ChainAlert) => a.status !== "Revoked" && a.level !== "L3";
+      const fresh = readReportRecords().slice(reportsBefore);
+      const ids = [...new Set(fresh.map((r) => Number(r.alertId)))];
+      let targets = ids.map((id) => alerts.find((a) => a.id === id)).filter((a): a is ChainAlert => !!a);
+      if (ids.length && targets.length < ids.length) fail(`本轮写入的警报 ${ids.filter((id) => !alerts.some((a) => a.id === id)).join(",")} 在链上 list_alerts 里找不到`);
+      if (!targets.length) {
+        const newest = [...latestByTarget.values()].filter(checkable).sort((a, b) => b.id - a.id)[0];
+        if (!newest) return fail("链上没有可被 check() 命中的警报（全部已撤销或为 L3）");
+        log.info(c.dim(`本轮没有新的 reports.json 记录，改为检查最新的有效警报 #${newest.id}`));
+        targets = [newest];
+      }
+      for (const t of targets) {
+        const expect = latestByTarget.get(`${t.chain}:${t.address}`)!;
+        const shouldHit = checkable(expect);
+        let hit: { id: number } | null = null;
+        for (let i = 0; i < 5; i++) {
+          hit = await chain.view<{ id: number } | null>(rt.registryContract, "check", { chain: t.chain, address: t.address }, "final");
+          if (!!hit === shouldHit) break;
+          await sleep(2000);
+        }
+        if (shouldHit && hit && Number(hit.id) === expect.id) log.ok(`registry.check(${t.chain}:${t.address}) 命中 #${hit.id}`);
+        else if (shouldHit) fail(`registry.check(${t.chain}:${t.address}) ${hit ? `返回 #${hit.id}，预期 #${expect.id}` : "没有命中刚写入的地址"}`);
+        else if (hit) fail(`registry.check(${t.chain}:${t.address}) 命中了已撤销/L3 的警报 #${hit.id}`);
+        else log.ok(`registry.check(${t.chain}:${t.address}) 为空（#${expect.id} 是 ${expect.level} ${expect.status}，符合合约语义）`);
+      }
     }
   } catch (err) {
     fail(`读取 registry 失败: ${errMsg(err)}`);
@@ -425,10 +481,11 @@ async function main() {
     childEnv.BAITNET_REGISTRY = "memory";
   }
 
+  const reportsBefore = readReportRecords().length;
   if (!SKIP_FLOW) await runDemoFlow(childEnv);
 
   if (CI) {
-    if (rt) await verifyOnChain(rt);
+    if (rt) await verifyOnChain(rt, reportsBefore);
     else log.warn("内存模式：跳过链上检查");
     if (await startServer(childEnv)) await verifyServer();
   } else if (exportMode) {

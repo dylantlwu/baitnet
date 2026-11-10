@@ -1,7 +1,8 @@
-import { Account, JsonRpcProvider, KeyPairSigner, actions, type KeyPairString } from "near-api-js";
+import { Account, KeyPairSigner, actions, type KeyPairString } from "near-api-js";
 import type { Ack, AckOutcome, AlertStatus, AlertView, Chain, Responder } from "@baitnet/shared";
 import { fromRawAlert, nsToIso, type RawAlertView, type RegistryClient, type ReportArgs, type TxResult } from "./registry.js";
-import { viewFunction } from "./rpc.js";
+import { viewFunction, type Finality } from "./rpc.js";
+import { ResilientRpcProvider } from "./rpc-provider.js";
 
 export interface NearKey {
   accountId: string;
@@ -19,14 +20,17 @@ export interface CallOutcome<T = unknown> {
   failure?: string;
 }
 
-/** Thin signer wrapper around near-api-js v7 `Account.callFunctionRaw`. */
+/**
+ * Thin signer wrapper around near-api-js v7 `Account.signAndSendTransaction`.
+ * `rpcUrl` may be a comma-separated list (failover); 429 / 5xx / network errors are retried.
+ */
 export class NearCaller {
   readonly account: Account;
   constructor(
     readonly rpcUrl: string,
     readonly key: NearKey,
   ) {
-    const provider = new JsonRpcProvider({ url: rpcUrl });
+    const provider = new ResilientRpcProvider(rpcUrl);
     const signer = KeyPairSigner.fromSecretKey(key.privateKey as KeyPairString);
     this.account = new Account(key.accountId, provider, signer);
   }
@@ -137,12 +141,13 @@ export class ChainRegistryClient implements RegistryClient {
     return this.change<void>("ack", { alert_id: alertId, outcome });
   }
 
-  private view<T>(method: string, args: Record<string, unknown> = {}) {
-    return viewFunction<T>(this.rpcUrl, this.contractId, method, args);
+  private view<T>(method: string, args: Record<string, unknown> = {}, finality?: Finality) {
+    return viewFunction<T>(this.rpcUrl, this.contractId, method, args, finality ? { finality } : {});
   }
 
-  async check(chain: Chain, address: string): Promise<AlertView | null> {
-    const r = await this.view<RawAlertView | null>("check", { chain, address });
+  /** `finality: "final"` for read-after-write checks (change calls already wait for FINAL). */
+  async check(chain: Chain, address: string, opts: { finality?: Finality } = {}): Promise<AlertView | null> {
+    const r = await this.view<RawAlertView | null>("check", { chain, address }, opts.finality);
     return r ? fromRawAlert(r) : null;
   }
 

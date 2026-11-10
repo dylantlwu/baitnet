@@ -109,8 +109,14 @@ export class Guard {
 
   start(intervalMs = this.opts.syncIntervalMs ?? 5000) {
     this.stop();
+    let running = false;
     this.timer = setInterval(() => {
-      this.sync().catch((e) => this.opts.log?.(`[guard] sync failed: ${(e as Error).message}`));
+      // a slow sync (RPC retries/backoff) must not stack up overlapping syncs
+      if (running) return;
+      running = true;
+      this.sync()
+        .catch((e) => this.opts.log?.(`[guard] sync failed: ${(e as Error).message}`))
+        .finally(() => (running = false));
     }, intervalMs);
     this.timer.unref?.();
   }

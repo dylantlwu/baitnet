@@ -17,11 +17,13 @@
 import { spawnSync } from "node:child_process";
 import { type WriteStream, chmodSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, utimesSync } from "node:fs";
 import { join } from "node:path";
-import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, actions, nearToYocto, teraToGas } from "near-api-js";
+import { Account, KeyPair, KeyPairSigner, actions, nearToYocto, teraToGas } from "near-api-js";
 import type { KeyPairString } from "near-api-js";
 import { DEFAULT_NEAR_SANDBOX_VERSION, Sandbox } from "near-sandbox";
 import { portInUse } from "./proc.ts";
 import { ROOT, c, errMsg, log, retry } from "./util.ts";
+// same retry (429/5xx, Retry-After) + comma-separated failover policy as the backend
+import { ResilientRpcProvider } from "../../packages/guard/src/rpc-provider.ts";
 
 /** The sandbox genesis validator account; we create every demo account under it. */
 export const SANDBOX_ROOT = "test.near";
@@ -277,17 +279,18 @@ export async function startSandbox(): Promise<Sandbox> {
 }
 
 export class Chain {
-  readonly provider: JsonRpcProvider;
+  readonly provider: ResilientRpcProvider;
+  /** `rpcUrl` may be a comma-separated list of endpoints (failover). */
   constructor(readonly rpcUrl: string) {
-    this.provider = new JsonRpcProvider({ url: rpcUrl });
+    this.provider = new ResilientRpcProvider(rpcUrl, { log: (l) => log.info(c.dim(l)) });
   }
 
   account(a: KeyedAccount): Account {
     return new Account(a.accountId, this.provider, new KeyPairSigner(KeyPair.fromString(a.privateKey)));
   }
 
-  async view<T>(contractId: string, method: string, args: Record<string, unknown> = {}): Promise<T> {
-    return (await this.provider.callFunction({ contractId, method, args })) as T;
+  async view<T>(contractId: string, method: string, args: Record<string, unknown> = {}, finality: "optimistic" | "final" = "optimistic"): Promise<T> {
+    return (await this.provider.callFunction({ contractId, method, args, blockQuery: { finality } } as Parameters<ResilientRpcProvider["callFunction"]>[0])) as T;
   }
 
   async accessKeys(accountId: string): Promise<{ keys: { public_key: string; access_key: { permission: unknown } }[] }> {

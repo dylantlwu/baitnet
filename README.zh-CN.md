@@ -7,7 +7,7 @@ BaitNet 让 AI 诱饵扮成诈骗受害者，从骗子嘴里套出收款地址�
 本项目在 NEAR HACKATHON 2026 期间开发，报名赛道：06 AI Security & Defense，加报 03 Privacy & Private AI。
 
 - 托管演示（只读快照）：`<TBD>`
-- 测试网合约：`<TBD>`（见[测试网部署](#测试网部署)）
+- 测试网合约：`registry.baitnet-651f.testnet`、`vault.baitnet-651f.testnet`（见[测试网部署](#测试网部署)）
 - 演示视频：`<TBD>`
 
 ## 要解决的问题
@@ -65,10 +65,13 @@ sandbox 下载失败或无法启动时，`pnpm demo` 会退回后端的内存登
 
 | 合约 / 账户 | 测试网 id | 浏览器链接 |
 |---|---|---|
-| 警报登记表 | `<TBD>` | `<TBD>` |
-| Vault | `<TBD>` | `<TBD>` |
-| Agent（只有 function-call key） | `<TBD>` | `<TBD>` |
-| Reporter | `<TBD>` | `<TBD>` |
+| 警报登记表 | `registry.baitnet-651f.testnet` | [nearblocks](https://testnet.nearblocks.io/address/registry.baitnet-651f.testnet) |
+| Vault | `vault.baitnet-651f.testnet` | [nearblocks](https://testnet.nearblocks.io/address/vault.baitnet-651f.testnet) |
+| Agent（只有 function-call key） | `agent.baitnet-651f.testnet` | [nearblocks](https://testnet.nearblocks.io/address/agent.baitnet-651f.testnet) |
+| Reporter | `reporter.baitnet-651f.testnet` | [nearblocks](https://testnet.nearblocks.io/address/reporter.baitnet-651f.testnet) |
+
+2026-11-10 用 `contracts/scripts/deploy-testnet.sh` 部署，同时在链上跑了冒烟测试：reporter 登记了 `baitnet-smoke-scam.testnet`，agent 用 `vault.pay` 付给它时被拒（`PAY_BLOCKED`），付给干净账户成功，最后撤销了这条测试警报。agent 账户只有一把 function-call key，只能调用 vault 的 `pay`（额度 0.25 NEAR），全权限 key 已删除。
+
 
 ## 架构
 

@@ -79,6 +79,11 @@ export function loadDotEnv(file = join(ROOT, ".env")): boolean {
     } else {
       value = value.replace(/\s+#.*$/, "");
     }
+    // 1Password reference that was not resolved: the command was not started with `op run`.
+    if (value.startsWith("op://") && process.env[m[1]!] === undefined) {
+      console.warn(`[env] ${m[1]} 是 1Password 引用，但没有用 op run 启动 → 当作未设置。用法：op run --env-file=.env -- pnpm …`);
+      continue;
+    }
     // Empty values mean "not set" (keeps .env.example copies harmless).
     if (value !== "" && process.env[m[1]!] === undefined) process.env[m[1]!] = value;
   }

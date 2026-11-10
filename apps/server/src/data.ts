@@ -2,8 +2,11 @@ import { existsSync } from "node:fs";
 import { loadScripts, readLatestReport, readSessions, training, type ArenaManager } from "@baitnet/arena";
 import type { Ack, AlertView, AttestationResult, DemoSnapshot, EvidenceResponse, FlowEdge, Responder } from "@baitnet/shared";
 import {
+  CachedRegistryClient,
   CompositeAccountInfo,
+  DEFAULT_REGISTRY_CACHE_MS,
   Guard,
+  TtlCache,
   MemoryRegistryClient,
   NearRpcAccountInfo,
   SampleAccountInfo,
@@ -23,6 +26,18 @@ import {
   readReports,
   type Env,
 } from "@baitnet/agent";
+
+/**
+ * Chain registries are read through a short-TTL cache with in-flight de-duplication:
+ * every dashboard tab polls /snapshot, and public RPCs answer bursts with HTTP 429.
+ * Writes made through this server (B2 review, IM, …) invalidate it; writes from
+ * other processes (the agent CLI) show up after at most one TTL.
+ */
+export function withReadCache(env: Env, ttlMs = Number(process.env.BAITNET_REGISTRY_CACHE_MS ?? DEFAULT_REGISTRY_CACHE_MS)): Env {
+  if (env.mode !== "chain" || !(ttlMs > 0)) return env;
+  const cached = new CachedRegistryClient(env.registry, new TtlCache(ttlMs));
+  return { ...env, registry: cached, registryAs: (a) => cached.share(env.registryAs(a)) };
+}
 
 /**
  * Data access for the HTTP server. Re-resolves the environment when
@@ -45,7 +60,7 @@ export class DataSource {
     this.guard?.stop();
     this.guard = undefined;
     try {
-      this.env = loadEnv();
+      this.env = withReadCache(loadEnv());
       this.warning = undefined;
     } catch (e) {
       if (!(e instanceof RuntimeMissingError)) throw e;

@@ -61,7 +61,9 @@ export function useData(): DataState & { retry: () => void } {
         }
 
         // Periodic refresh for alerts / acks / flows (no push channel for those yet).
+        // Skipped while the tab is hidden: every open dashboard costs the server NEAR RPC reads.
         poll = setInterval(() => {
+          if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
           loadLive(fetch, api, 4000)
             .then((snap) =>
               setState((s) => {

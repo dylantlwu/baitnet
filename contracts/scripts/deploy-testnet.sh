@@ -39,14 +39,14 @@ view() { near contract call-function as-read-only "$1" "$2" json-args "$3" netwo
 
 step "Owner $OWNER via faucet"
 near account create-account sponsor-by-faucet-service "$OWNER" \
-  autogenerate-new-keypair save-to-legacy-keychain network-config "$NET" create
+  autogenerate-new-keypair --signature-scheme ed25519 save-to-legacy-keychain network-config "$NET" create
 sleep 3
 
 for spec in "$REGISTRY:3" "$VAULT:2.5" "$REPORTER:0.5" "$AGENT:0.5" "$RESP1:0.3" "$RESP2:0.3"; do
   acc="${spec%%:*}"; bal="${spec##*:}"
   step "Sub-account $acc ($bal NEAR)"
   near account create-account fund-myself "$acc" "$bal NEAR" \
-    autogenerate-new-keypair save-to-legacy-keychain sign-as "$OWNER" "${SIGN[@]}"
+    autogenerate-new-keypair --signature-scheme ed25519 save-to-legacy-keychain sign-as "$OWNER" "${SIGN[@]}"
 done
 
 step "Deploy registry"
@@ -69,7 +69,7 @@ FULL_PK="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["publi
 cp "$CREDS/$AGENT.json" "$CREDS/$AGENT.full-access.bak.json"   # local backup, removed below once the swap works
 near account add-key "$AGENT" grant-function-call-access --allowance '0.25 NEAR' \
   --contract-account-id "$VAULT" --function-names pay \
-  autogenerate-new-keypair save-to-legacy-keychain "${SIGN[@]}"
+  autogenerate-new-keypair --signature-scheme ed25519 save-to-legacy-keychain "${SIGN[@]}"
 FC_FILE="$(ls -t "$CREDS/$AGENT"/*.json | head -1)"
 FC_PK="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["public_key"])' "$FC_FILE")"
 [ "$FC_PK" != "$FULL_PK" ] || { echo "could not locate new fc key"; exit 1; }
@@ -98,7 +98,9 @@ call "$AGENT" "$VAULT" pay "{\"to\":\"$RESP1\",\"amount\":\"10000000000000000000
 
 step "Smoke: revoke test alert"
 call "$OWNER" "$REGISTRY" set_status "{\"alert_id\":$ALERT_ID,\"status\":\"Revoked\",\"reason_hash\":\"$REASON_HASH\"}" '0 NEAR' '30 Tgas'
-[ "$(view "$REGISTRY" check "{\"chain\":\"near\",\"address\":\"$SCAM\"}" | tr -d '[:space:]')" = "null" ] && echo "OK: check -> null"
+CHECK_ARGS="{\"chain\":\"near\",\"address\":\"$SCAM\"}"
+AFTER="$(view "$REGISTRY" check "$CHECK_ARGS" | tr -d '[:space:]')"
+if [ "$AFTER" = "null" ]; then echo "OK: check -> null"; else echo "WARN: check after revoke returned: $AFTER"; fi
 view "$REGISTRY" stats '{}'
 view "$VAULT" get_config '{}'
 

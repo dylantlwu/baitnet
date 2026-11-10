@@ -7,7 +7,7 @@ BaitNet uses AI decoys that pose as scam victims to get scammers to reveal their
 Built at NEAR HACKATHON 2026 (tracks: 06 AI Security & Defense, 03 Privacy & Private AI).
 
 - Hosted demo (read-only snapshot): `<TBD>`
-- Testnet contracts: `<TBD>` (see [Testnet deployment](#testnet-deployment))
+- Testnet contracts: `registry.baitnet-651f.testnet`, `vault.baitnet-651f.testnet` (see [Testnet deployment](#testnet-deployment))
 - Demo video: `<TBD>`
 
 ## The problem
@@ -128,10 +128,13 @@ CI (`.github/workflows/ci.yml`): typecheck, unit tests, `pnpm demo --ci` and `--
 
 | Contract / account | Testnet id | Explorer |
 |---|---|---|
-| Alert registry | `<TBD>` | `<TBD>` |
-| Vault | `<TBD>` | `<TBD>` |
-| Agent (function-call key only) | `<TBD>` | `<TBD>` |
-| Reporter | `<TBD>` | `<TBD>` |
+| Alert registry | `registry.baitnet-651f.testnet` | [nearblocks](https://testnet.nearblocks.io/address/registry.baitnet-651f.testnet) |
+| Vault | `vault.baitnet-651f.testnet` | [nearblocks](https://testnet.nearblocks.io/address/vault.baitnet-651f.testnet) |
+| Agent (function-call key only) | `agent.baitnet-651f.testnet` | [nearblocks](https://testnet.nearblocks.io/address/agent.baitnet-651f.testnet) |
+| Reporter | `reporter.baitnet-651f.testnet` | [nearblocks](https://testnet.nearblocks.io/address/reporter.baitnet-651f.testnet) |
+
+Deployed 2026-11-10 with `contracts/scripts/deploy-testnet.sh`, which also ran an on-chain smoke test: the reporter flagged `baitnet-smoke-scam.testnet`, the agent's `vault.pay` to it failed with `PAY_BLOCKED`, a payment to a clean account went through, and the test alert was revoked. The agent account holds a single function-call key limited to `pay` on the vault (0.25 NEAR allowance); its full-access key was deleted.
+
 
 `pnpm demo testnet` uses these contracts when the ids and keys are set in `.env`. The default `pnpm demo` does not need them: it deploys the same prebuilt wasm to a local sandbox.
 
