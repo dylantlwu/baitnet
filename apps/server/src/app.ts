@@ -278,12 +278,16 @@ export function createApp(opts: AppOptions = {}): App {
       }
       // `id` too: packages/training resolves the expert / reviewer from req.user.id — without it every
       // annotation / rewrite / review was recorded as "local-expert" even with auth on
-      const out = await m.h({ params: m.params, query: url.searchParams, body, raw: req, res, user: user && { ...user, id: user.expertId } });
+      let out = await m.h({ params: m.params, query: url.searchParams, body, raw: req, res, user: user && { ...user, id: user.expertId } });
       // zero-retention analysis (D27) must not touch data/ at all — not even the audit log
       if (req.method === "POST" && m.pattern !== "/auth/login" && m.pattern !== "/scripts/analyze-ephemeral") {
         void identity.audit({ expertId: user?.expertId ?? "anonymous", action: auditAction(m.pattern), target: Object.values(m.params)[0], detail: auditDetail(body) }).catch(() => {});
       }
       if (out === HANDLED) return;
+      // rewrites store the submitter / reviewer as a user id: logged-in callers also get their names
+      if (authEnabled() && user) out = withPeopleNames(m.pattern, out, (id) => identity.nameOf(id));
+      // zero-retention analyses are counted in memory only (nothing written): include them in the quota shown
+      if (authEnabled() && user && m.pattern === "/auth/me") out = withEphemeralUse(out, ephemeralToday.get(`${user.expertId}:${new Date().toISOString().slice(0, 10)}`) ?? 0);
       if (out === undefined) {
         res.writeHead(204).end();
         return;
@@ -356,4 +360,32 @@ async function startImBridge(o: {
     o.log(`[server] WARNING: IM bridge not started: ${(e as Error).message}`);
     return undefined;
   }
+}
+
+/**
+ * Corrections keep `expertId` / `reviewer` as user ids (stable, renames-safe). For display the web needs
+ * names, so GET /training/corrections and the review response gain `expertName` / `reviewerName`.
+ * Only called for logged-in users (the route itself already needs a login), never for anonymous visitors.
+ */
+export function withPeopleNames(pattern: string, out: unknown, nameOf: (id: string) => string | undefined): unknown {
+  type C = { expertId?: string; reviewer?: string };
+  const named = (c: C) =>
+    c && typeof c === "object"
+      ? {
+          ...c,
+          ...(c.expertId && nameOf(c.expertId) ? { expertName: nameOf(c.expertId) } : {}),
+          ...(c.reviewer && nameOf(c.reviewer) ? { reviewerName: nameOf(c.reviewer) } : {}),
+        }
+      : c;
+  if (pattern === "/training/corrections") return Array.isArray(out) ? out.map(named) : out && typeof out === "object" && "expertId" in out ? named(out as C) : out;
+  if (pattern === "/training/corrections/:id/review" && out && typeof out === "object" && "correction" in out)
+    return { ...(out as object), correction: named((out as { correction: C }).correction) };
+  return out;
+}
+
+/** /auth/me quota plus today's in-memory zero-retention analyses (same sum the ephemeral gate checks). */
+export function withEphemeralUse(out: unknown, ephemeral: number): unknown {
+  const q = (out as { llmQuota?: { usedToday: number; limitPerDay: number } } | undefined)?.llmQuota;
+  if (!ephemeral || !q) return out;
+  return { ...(out as object), llmQuota: { ...q, usedToday: Math.min(q.limitPerDay, q.usedToday + ephemeral) } };
 }

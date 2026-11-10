@@ -193,6 +193,7 @@ export async function analyzeUpload(u: ScriptUpload, now = new Date()): Promise<
   // Stages: up to 4 equal chunks of the conversation.
   const nStages = Math.min(4, Math.max(1, Math.ceil(rlines.length / 3)));
   const per = Math.ceil(rlines.length / nStages);
+  // 0-based here; the returned analysis uses 1-based line numbers like the server (ScriptAnalysis.stages)
   const stages = Array.from({ length: nStages }, (_, i) => {
     const fromLine = i * per;
     const toLine = Math.min(rlines.length - 1, (i + 1) * per - 1);
@@ -260,7 +261,7 @@ export async function analyzeUpload(u: ScriptUpload, now = new Date()): Promise<
     redactedText,
     pii,
     scamType,
-    stages,
+    stages: stages.map((s) => ({ ...s, fromLine: s.fromLine + 1, toLine: s.toLine + 1 })),
     artifacts,
     injections,
     draft,

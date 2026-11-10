@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AuditEntry, Invite, Role, User } from "@baitnet/shared";
 import { useAuth } from "../auth/context";
-import { loginUrlFor } from "../auth/api";
+import { loginUrlFor, revokeKey, type InviteRow } from "../auth/api";
 import { ChannelIcon } from "../components/Channel";
 import { QrCode } from "../components/QrCode";
 import { Badge, Empty, PageHead } from "../components/ui";
@@ -54,7 +54,7 @@ function TeamAdmin() {
   const { t, tl } = useI18n();
   const { admin } = useAuth();
   const users = useList<User>(admin ? admin.listUsers : undefined);
-  const invites = useList<Invite>(admin ? admin.listInvites : undefined);
+  const invites = useList<InviteRow>(admin ? admin.listInvites : undefined);
   const audit = useList<AuditEntry>(admin ? admin.listAudit : undefined);
   const refreshAll = () => {
     users.reload();
@@ -230,15 +230,16 @@ function LinkQr({ title, hint, url, kind }: { title: string; hint: string; url: 
   );
 }
 
-function InviteList({ invites, err, onChange }: { invites: Invite[] | null; err: string | null; onChange: () => void }) {
+export function InviteList({ invites, err, onChange }: { invites: InviteRow[] | null; err: string | null; onChange: () => void }) {
   const { t } = useI18n();
   const { admin } = useAuth();
   const [confirm, setConfirm] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const revoke = async (code: string) => {
+  // the list only has masked codes ("AB…GJ"): revoke by the invited user's id
+  const revoke = async (key: string) => {
     setMsg(null);
     try {
-      await admin?.revokeInvite(code);
+      await admin?.revokeInvite(key);
       onChange();
     } catch (e) {
       setMsg((e as Error).message);
@@ -254,8 +255,9 @@ function InviteList({ invites, err, onChange }: { invites: Invite[] | null; err:
       <ul className="invite-list">
         {invites?.map((inv) => {
           const status = inv.revoked ? "revoked" : inv.usedAt ? "used" : "open";
+          const key = revokeKey(inv);
           return (
-            <li key={inv.code}>
+            <li key={inv.id ?? inv.code}>
               <div className="grow">
                 <strong>{inv.name}</strong> <Badge tone="muted">{t(`role.${inv.role}`)}</Badge>
                 <div className="muted small">
@@ -264,9 +266,11 @@ function InviteList({ invites, err, onChange }: { invites: Invite[] | null; err:
               </div>
               <Badge tone={status === "open" ? "info" : status === "used" ? "ok" : "muted"}>{t(`invite.${status}`)}</Badge>
               {status === "open" &&
-                (confirm === inv.code ? (
-                  <span className="row gap">
-                    <button type="button" className="btn small danger" onClick={() => void revoke(inv.code)}>
+                key &&
+                (confirm === key ? (
+                  <span className="row gap revoke-confirm">
+                    <span className="small warn-text">{t("team.revokeConfirm", { name: inv.name })}</span>
+                    <button type="button" className="btn small danger" onClick={() => void revoke(key)}>
                       {t("team.revokeYes")}
                     </button>
                     <button type="button" className="btn small" onClick={() => setConfirm(null)}>
@@ -274,7 +278,7 @@ function InviteList({ invites, err, onChange }: { invites: Invite[] | null; err:
                     </button>
                   </span>
                 ) : (
-                  <button type="button" className="btn small" onClick={() => setConfirm(inv.code)}>
+                  <button type="button" className="btn small" onClick={() => setConfirm(key)}>
                     {t("team.revoke")}
                   </button>
                 ))}

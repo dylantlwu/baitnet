@@ -223,7 +223,27 @@ describe("网页鉴权（BAITNET_AUTH=on）", () => {
     const { cookie: r } = await login(reviewerCode, "3.3.3.3");
     const rv = await call(`/training/corrections/${corr.id}/review`, r, { approve: true, reviewer: "冒充的人" });
     expect(rv.status).toBe(200);
-    expect((await rv.json()).reviewer).not.toBe("local-expert");
+    const reviewed = await rv.json();
+    expect(reviewed.reviewer).not.toBe("local-expert");
+    expect(reviewed.correction).toMatchObject({ expertName: "小王", reviewerName: "Dylan" });
+    // the review queue shows names, not u_xxxx ids, to logged-in users
+    const list = (await (await call("/training/corrections", e)).json()) as { id: string; expertId: string; expertName?: string; reviewerName?: string }[];
+    const row = list.find((x) => x.id === corr.id)!;
+    expect(row.expertId).toMatch(/^u_/);
+    expect(row).toMatchObject({ expertName: "小王", reviewerName: "Dylan" });
+    // …and nothing to anonymous visitors
+    expect((await fetch(base + "/training/corrections")).status).toBe(401);
+  });
+
+  it("撤销邀请：列表里是打码的码，用列表给的 id 撤销才有效（打码的码 404）", async () => {
+    const tmp = app.identity.createInvite("待撤销", "expert", "Dylan").code;
+    const { cookie: r } = await login(reviewerCode, "4.4.4.4");
+    const rows = (await (await call("/admin/invites", r)).json()) as { id: string; code: string; name: string; revoked?: boolean }[];
+    const row = rows.find((x) => x.name === "待撤销")!;
+    expect(row.code).toContain("…");
+    expect((await call(`/admin/invites/${encodeURIComponent(row.code)}/revoke`, r, {})).status).toBe(404);
+    expect((await call(`/admin/invites/${row.id}/revoke`, r, {})).status).toBe(200);
+    expect((await login(tmp, "5.5.5.5")).r.status).toBe(401);
   });
 
   it("撤销后立即 401；同一 IP 每分钟最多 10 次登录", async () => {

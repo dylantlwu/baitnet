@@ -13,12 +13,19 @@ export interface AdminApi {
   me(): Promise<AuthState>;
   login(code: string): Promise<Me>;
   logout(): Promise<void>;
-  listInvites(): Promise<Invite[]>;
+  listInvites(): Promise<InviteRow[]>;
   createInvite(name: string, role: Role): Promise<Invite>;
-  revokeInvite(code: string): Promise<void>;
+  /** By the user id from listInvites() (or a full, unmasked code). The masked code in the list does not work. */
+  revokeInvite(userIdOrCode: string): Promise<void>;
   listUsers(): Promise<User[]>;
   listAudit(): Promise<AuditEntry[]>;
 }
+
+/** An invite as listed (GET /admin/invites): the code is masked ("AB…GJ"); `id` is the invited user's id. */
+export type InviteRow = Invite & { id?: string };
+
+/** What to send to revoke a listed invite: the user id. The masked code alone cannot be revoked. */
+export const revokeKey = (inv: InviteRow): string | null => inv.id ?? (/[…•]/.test(inv.code) ? null : inv.code);
 
 export class AuthError extends Error {
   constructor(public status: number, msg: string) {
@@ -85,7 +92,7 @@ export function createHttpAdmin(apiBase: string, fetchFn: typeof fetch = (...a) 
     logout: async () => {
       await call("POST", API.authLogout, {});
     },
-    listInvites: async () => arr<Invite>(await call("GET", API.adminInvites), "invites"),
+    listInvites: async () => arr<InviteRow>(await call("GET", API.adminInvites), "invites"),
     createInvite: (name, role) => call<Invite>("POST", API.adminInvites, { name, role }),
     revokeInvite: async (code) => {
       await call("POST", API.adminInviteRevoke(encodeURIComponent(code)), {});
@@ -112,10 +119,10 @@ export function createMockAdmin(opts: { loggedInAs?: Role } = {}): AdminApi {
     { id: "u-mia", name: "Mia", role: "expert", createdAt: "2026-11-09T04:00:00.000Z", bindings: [{ kind: "lark", externalId: "ou_2b8c11", boundAt: "2026-11-09T04:10:00.000Z" }] },
     { id: "u-chen", name: "陈晨", role: "expert", createdAt: "2026-11-09T06:00:00.000Z", bindings: [] },
   ];
-  const invites: Invite[] = [
-    { code: "BN-••••-7Q2K", name: "老周", role: "expert", createdBy: "Dylan", createdAt: "2026-11-09T02:58:00.000Z", usedAt: "2026-11-09T03:00:00.000Z" },
-    { code: "BN-••••-M4XA", name: "陈晨", role: "expert", createdBy: "Dylan", createdAt: "2026-11-09T05:58:00.000Z" },
-    { code: "BN-••••-P0LD", name: "临时测试", role: "expert", createdBy: "Dylan", createdAt: "2026-11-09T01:00:00.000Z", revoked: true },
+  const invites: InviteRow[] = [
+    { id: "u-zhou", code: "H4…2K", name: "老周", role: "expert", createdBy: "Dylan", createdAt: "2026-11-09T02:58:00.000Z", usedAt: "2026-11-09T03:00:00.000Z" },
+    { id: "u-chen", code: "M4…XA", name: "陈晨", role: "expert", createdBy: "Dylan", createdAt: "2026-11-09T05:58:00.000Z" },
+    { id: "u-tmp", code: "P9…DW", name: "临时测试", role: "expert", createdBy: "Dylan", createdAt: "2026-11-09T01:00:00.000Z", revoked: true },
   ];
   const audit: AuditEntry[] = [
     { at: "2026-11-09T07:41:00.000Z", expertId: "u-zhou", action: "arena.say", target: "as-rec-pig-zh" },
@@ -151,21 +158,26 @@ export function createMockAdmin(opts: { loggedInAs?: Role } = {}): AdminApi {
     },
     async createInvite(name, role) {
       mustReview();
-      const code = `BN-${(++n).toString().padStart(4, "0")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      // same shape as the server: 12 characters, no look-alikes (0/O, 1/I/L)
+      const abc = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+      const code = Array.from({ length: 12 }, () => abc[Math.floor(Math.random() * abc.length)]).join("");
+      const id = `u-${++n}`;
       const inv: Invite = {
         code, name, role, createdBy: me!.name, createdAt: now(),
         telegramStartUrl: `https://t.me/BaitNetTrainerBot?start=${code}`,
       };
-      invites.unshift({ ...inv, code: `BN-••••-${code.slice(-4)}` });
-      users.push({ id: `u-${n}`, name, role, createdAt: now(), bindings: [] });
+      invites.unshift({ ...inv, id, code: `${code.slice(0, 2)}…${code.slice(-2)}` });
+      users.push({ id, name, role, createdAt: now(), bindings: [] });
       audit.unshift({ at: now(), expertId: me!.expertId, action: "admin.invite", target: name, detail: role });
       return inv;
     },
-    async revokeInvite(code) {
+    async revokeInvite(idOrCode) {
       mustReview();
-      const i = invites.find((x) => x.code === code);
-      if (i) i.revoked = true;
-      audit.unshift({ at: now(), expertId: me!.expertId, action: "admin.revoke", target: code });
+      // like the server: a user id (what the list gives) or a full code; a masked "AB…GJ" matches nothing
+      const i = invites.find((x) => x.id === idOrCode);
+      if (!i) throw new AuthError(404, "invite not found");
+      i.revoked = true;
+      audit.unshift({ at: now(), expertId: me!.expertId, action: "admin.revoke", target: idOrCode });
     },
     async listUsers() {
       mustReview();

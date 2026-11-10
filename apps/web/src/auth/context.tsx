@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Me, Role } from "@baitnet/shared";
 import { createHttpAdmin, createMockAdmin, type AdminApi, type AuthState } from "./api";
+import { LLM_USED_EVENT } from "../lib/quota";
 
 interface AuthCtx {
   state: AuthState | null; // null while loading
@@ -21,9 +22,21 @@ export function pickAdmin(apiBase: string | null, search: string): AdminApi | nu
   return apiBase === null ? null : createHttpAdmin(apiBase);
 }
 
+/**
+ * After logout every page must forget what it loaded while logged in (session lists, review queues…).
+ * Pages keep that in component state, so the simplest complete reset is a reload on the login page.
+ */
+export function reloadAfterLogout(loc: Pick<Location, "hash" | "reload"> = location): void {
+  loc.hash = "#/login";
+  loc.reload();
+}
+
+/** Quota refresh after LLM work: wait for a burst of calls to settle, then one /auth/me. */
+export const QUOTA_REFRESH_DELAY_MS = 1500;
+
 export function AuthProvider({
-  apiBase, ready, children, initialState, adminOverride,
-}: { apiBase: string | null; ready: boolean; children: ReactNode; initialState?: AuthState; adminOverride?: AdminApi }) {
+  apiBase, ready, children, initialState, adminOverride, onLoggedOut = reloadAfterLogout,
+}: { apiBase: string | null; ready: boolean; children: ReactNode; initialState?: AuthState; adminOverride?: AdminApi; onLoggedOut?: () => void }) {
   const admin = useMemo(
     () => adminOverride ?? (ready ? pickAdmin(apiBase, typeof location !== "undefined" ? location.search : "") : null),
     [apiBase, ready, adminOverride],
@@ -39,6 +52,26 @@ export function AuthProvider({
       alive = false;
     };
   }, [admin, ready, n]);
+  // Quota chip (used / limit) follows LLM use: the backend announces "LLM work done" (an AI turn on the
+  // stream, an analysis returned) and we re-read /auth/me once things are quiet. No polling.
+  const loggedIn = state?.kind === "user";
+  useEffect(() => {
+    if (!loggedIn || !admin || typeof window === "undefined") return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let alive = true;
+    const onUse = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        admin.me().then((s) => alive && s.kind === "user" && setState(s), () => undefined);
+      }, QUOTA_REFRESH_DELAY_MS);
+    };
+    window.addEventListener(LLM_USED_EVENT, onUse);
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener(LLM_USED_EVENT, onUse);
+    };
+  }, [loggedIn, admin]);
   const value = useMemo<AuthCtx>(
     () => ({
       state,
@@ -48,9 +81,10 @@ export function AuthProvider({
       logout: async () => {
         await admin?.logout().catch(() => undefined);
         setState({ kind: "anonymous" });
+        onLoggedOut();
       },
     }),
-    [state, admin],
+    [state, admin, onLoggedOut],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

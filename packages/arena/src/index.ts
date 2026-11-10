@@ -8,3 +8,4 @@ export * from "./manager.js";
 export * from "./eval.js";
 export * from "./recordings.js";
 export * from "./i18n.js";
+export * from "./placeholders.js";

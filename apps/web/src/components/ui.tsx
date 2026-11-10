@@ -119,3 +119,33 @@ export function LoadFailed({ msg }: { msg: string }) {
     );
   return <div className="card error-card">{t("common.loadFailed", { msg })}</div>;
 }
+
+/**
+ * On/off switch. A real checkbox (role="switch") underneath, so Space toggles it and screen readers say
+ * on / off; Enter toggles too. The knob position follows the `on` class set from React state, not only
+ * the `:checked` selector, so it can never disagree with what the page shows next to it.
+ */
+export function Switch({
+  checked, onChange, disabled, title, children, className,
+}: { checked: boolean; onChange: (on: boolean) => void; disabled?: boolean; title?: string; children: ReactNode; className?: string }) {
+  return (
+    <label className={`switch${checked ? " on" : ""}${disabled ? " disabled" : ""}${className ? ` ${className}` : ""}`} title={title}>
+      <input
+        type="checkbox"
+        role="switch"
+        aria-checked={checked}
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !disabled) {
+            e.preventDefault();
+            onChange(!checked);
+          }
+        }}
+      />
+      <span className="switch-track" aria-hidden />
+      {children}
+    </label>
+  );
+}

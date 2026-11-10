@@ -38,3 +38,8 @@ export function BackendProvider({
 }
 
 export const useBackend = () => useContext(Ctx);
+
+/** A fixed backend (tests, embedded previews). */
+export function StaticBackendProvider({ backend, children }: { backend: Backend | null; children: ReactNode }) {
+  return <Ctx.Provider value={backend}>{children}</Ctx.Provider>;
+}

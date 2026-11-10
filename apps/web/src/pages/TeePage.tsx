@@ -62,6 +62,24 @@ export function TeePage({ snap, apiBase }: { snap: ViewSnapshot; apiBase: string
   );
 }
 
+/**
+ * Zero-retention result: the TEE proof as one line ("TEE verified ✓ (23/23 checks passed)"); the full
+ * verdict and every check (names in plain words) open on click.
+ */
+export function AttestationFold({ a }: { a: AttestationResult }) {
+  const { t } = useI18n();
+  const passed = a.checks.filter((c) => c.pass).length;
+  return (
+    <details className={`card tee-fold ${a.verified ? "ok" : "bad"}`}>
+      <summary>
+        <strong>{t(a.verified ? "tee.foldOk" : "tee.foldBad", { a: passed, b: a.checks.length })}</strong>
+        <span className="muted small"> {t("tee.foldMore")}</span>
+      </summary>
+      <AttestationPanel a={a} />
+    </details>
+  );
+}
+
 /** Verdict + item-by-item checks for one attestation. Reused by the zero-retention upload result (D27). */
 export function AttestationPanel({ a }: { a: AttestationResult }) {
   const { t, lang } = useI18n();

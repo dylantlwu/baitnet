@@ -6,6 +6,7 @@ import { useI18n } from "../i18n";
 import { fmtPct, fmtTime } from "../lib/format";
 import { href } from "../lib/router";
 import { SCAM_TYPES } from "../scriptlab/analyze";
+import { useIdentity } from "../auth/context";
 
 type Lang = "zh" | "en";
 
@@ -34,6 +35,43 @@ export function summarize(cases: EvalCase[]) {
   };
 }
 
+/**
+ * Empty report card / improvement curve. Experts are told who makes it appear (a reviewer runs an eval);
+ * reviewers get a button that starts one here (offline rules run, no model calls).
+ */
+export function NoEvalYet({ what }: { what: "report" | "curve" }) {
+  const { t } = useI18n();
+  const backend = useBackend();
+  const { canReview } = useIdentity("");
+  const [state, setState] = useState<"idle" | "busy" | "started" | "error">("idle");
+  const [msg, setMsg] = useState("");
+  const reviewer = canReview;
+  const canRun = reviewer && !!backend?.runEval && !backend.readOnly;
+  const run = async () => {
+    setState("busy");
+    try {
+      await backend!.runEval!();
+      setState("started");
+    } catch (e) {
+      setMsg((e as Error).message);
+      setState("error");
+    }
+  };
+  return (
+    <Empty>
+      <p>{t(what === "report" ? "eval.emptyTitle" : "training.noRunsTitle")}</p>
+      <p className="small">{reviewer ? t("eval.emptyReviewer") : t("eval.emptyExpert")}</p>
+      {canRun && (
+        <button type="button" className="btn primary small" disabled={state === "busy" || state === "started"} onClick={() => void run()}>
+          {state === "busy" ? t("common.working") : t("eval.runNow")}
+        </button>
+      )}
+      {state === "started" && <p className="ok-text small">{t("eval.runStarted")}</p>}
+      {state === "error" && <p className="err small">{t("common.actionFailed", { msg })}</p>}
+    </Empty>
+  );
+}
+
 export function EvalPage() {
   const { t, tl } = useI18n();
   const backend = useBackend();
@@ -52,7 +90,7 @@ export function EvalPage() {
   const head = <PageHead step={t("eval.step")} title={t("eval.title")} lead={t("eval.lead")} />;
   if (err) return <>{head}<LoadFailed msg={err} /></>;
   if (report === undefined) return <>{head}<div className="loading"><span className="spinner" /> {t("common.loading")}</div></>;
-  if (report === null) return <>{head}<Empty>{t("eval.empty")}</Empty></>;
+  if (report === null) return <>{head}<NoEvalYet what="report" /></>;
 
   const byLang = (l: Lang) => report.cases.filter((c) => caseLang(c, scripts) === l);
   const rows = report.cases.filter((c) => (type === "all" || c.type === type) && (lang === "all" || caseLang(c, scripts) === lang));

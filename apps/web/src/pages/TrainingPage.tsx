@@ -3,7 +3,7 @@ import type { AlertDraft, Correction, EvalRun, PlaybookEntry, ScamScriptDef, Sca
 import type { ViewSnapshot } from "../data/parse";
 import { useBackend } from "../backend/context";
 import type { Backend } from "../backend/types";
-import { Badge, Empty, PageHead, Segmented, LoadFailed } from "../components/ui";
+import { Badge, Empty, PageHead, Segmented, LoadFailed, Switch } from "../components/ui";
 import { LineChart } from "../components/LineChart";
 import { RichText } from "../components/RichText";
 import { useI18n } from "../i18n";
@@ -14,9 +14,10 @@ import { fileToUpload, pastedUpload, PASTE_MAX_CHARS, SCAM_TYPES } from "../scri
 import { translateWarning } from "../i18n/vocab";
 import { defang } from "../lib/tokens";
 import { DraftItem, TACTIC_TAGS, useExpert } from "./ArenaPage";
-import { AttestationPanel } from "./TeePage";
+import { AttestationFold } from "./TeePage";
+import { NoEvalYet } from "./EvalPage";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { useIdentity } from "../auth/context";
+import { useAuth, useIdentity } from "../auth/context";
 
 type Sub = "review" | "playbook" | "curve" | "upload";
 const SUBS: Sub[] = ["review", "playbook", "curve", "upload"];
@@ -86,6 +87,7 @@ function ReviewQueue({ backend }: { backend: Backend }) {
   const { data, err, reload } = useLoad(() => backend.listCorrections(), [backend]);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [reviewer, setReviewer, editable] = useExpert();
+  const { canReview } = useIdentity(reviewer);
   if (!data) return <LoadState err={err} />;
   const list = data.filter((c) => filter === "all" || c.review === "pending");
   const pendingN = data.filter((c) => c.review === "pending").length;
@@ -102,14 +104,17 @@ function ReviewQueue({ backend }: { backend: Backend }) {
             { value: "all", label: t("training.allN", { n: data.length }) },
           ]}
         />
-        <label className="row gap push">
-          <span className="small muted">{t("training.reviewer")}</span>
-          {editable ? (
-            <input className="input sm" value={reviewer} placeholder={t("training.expertPlaceholder")} onChange={(e) => setReviewer(e.target.value)} />
-          ) : (
-            <strong>{reviewer}</strong>
-          )}
-        </label>
+        {/* experts do not review: no "reviewer <me>" label that reads as if they were one */}
+        {canReview && (
+          <label className="row gap push" data-testid="reviewer-label">
+            <span className="small muted">{t("training.reviewer")}</span>
+            {editable ? (
+              <input className="input sm" value={reviewer} placeholder={t("training.expertPlaceholder")} onChange={(e) => setReviewer(e.target.value)} />
+            ) : (
+              <strong>{reviewer}</strong>
+            )}
+          </label>
+        )}
       </div>
       {list.length === 0 ? (
         <Empty>{filter === "pending" ? t("training.noPending") : t("training.noCorrections")}</Empty>
@@ -124,14 +129,28 @@ function ReviewQueue({ backend }: { backend: Backend }) {
   );
 }
 
+/**
+ * Who submitted / reviewed a rewrite, as names. With login on the server stores user ids and adds
+ * `expertName` / `reviewerName` for logged-in callers; a bare id (u_xxxx) is never shown — it becomes
+ * a neutral word instead. Local mode stores names already.
+ */
+export function peopleNames(c: Correction & { expertName?: string; reviewerName?: string }, someone: string): { expert: string; reviewer?: string } {
+  const isId = (s: string | undefined) => !!s && /^u_[0-9a-f]{6,}$/i.test(s);
+  const pick = (name: string | undefined, raw: string | undefined, fallback: string) => name || (isId(raw) ? fallback : raw);
+  return { expert: pick(c.expertName, c.expertId, someone)!, reviewer: c.reviewer ? pick(c.reviewerName, c.reviewer, someone) : undefined };
+}
+
 /** One rewrite with bad/good side by side and approve / reject (reviewers only; not your own). */
 export function CorrectionCard({ c, backend, reviewer, onDone }: { c: Correction; backend: Backend; reviewer: string; onDone: () => void }) {
   const { t, tl } = useI18n();
   const { canReview } = useIdentity(reviewer);
+  const { state } = useAuth();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmReject, setConfirmReject] = useState(false);
-  const own = !!reviewer.trim() && c.expertId.trim() === reviewer.trim();
+  const myId = state?.kind === "user" ? state.me.expertId : null;
+  const own = (!!myId && c.expertId === myId) || (!!reviewer.trim() && c.expertId.trim() === reviewer.trim());
+  const names = peopleNames(c, t("training.someone"));
   const decide = async (ok: boolean) => {
     setBusy(true);
     setMsg(null);
@@ -184,8 +203,8 @@ export function CorrectionCard({ c, backend, reviewer, onDone }: { c: Correction
           </span>
         ))}
         <span className="muted small push">
-          {t("training.by", { who: c.expertId, at: fmtTime(c.at) })}
-          {c.reviewer && ` · ${t("training.reviewedBy", { who: c.reviewer })}`}
+          {t("training.by", { who: names.expert, at: fmtTime(c.at) })}
+          {names.reviewer && ` · ${t("training.reviewedBy", { who: names.reviewer })}`}
         </span>
       </div>
       {msg && <p className="err small">{t("common.actionFailed", { msg })}</p>}
@@ -327,7 +346,7 @@ export function Curve({ backend }: { backend: Backend }) {
   const { t } = useI18n();
   const { data, err } = useLoad(() => backend.getEvalRuns(), [backend]);
   if (!data) return <LoadState err={err} />;
-  if (data.length === 0) return <Empty>{t("training.noRuns")}</Empty>;
+  if (data.length === 0) return <NoEvalYet what="curve" />;
   // One point per playbook version (latest run wins).
   const byV = new Map<number, EvalRun>();
   for (const r of [...data].sort((a, b) => (a.at < b.at ? -1 : 1))) byV.set(r.playbookVersion, r);
@@ -481,19 +500,16 @@ function Upload({ backend, network }: { backend: Backend; network: ViewSnapshot[
           </label>
         )}
         <div className={`zr-toggle${ephemeral ? " on" : ""}`}>
-          <label className="switch">
-            <input
-              type="checkbox"
-              checked={ephemeral}
-              disabled={disabled}
-              onChange={(e) => {
-                setEphemeral(e.target.checked);
-                setErr(null);
-              }}
-            />
-            <span className="switch-track" />
+          <Switch
+            checked={ephemeral}
+            disabled={disabled}
+            onChange={(on) => {
+              setEphemeral(on);
+              setErr(null);
+            }}
+          >
             <strong>{t("upload.ephemeral")}</strong>
-          </label>
+          </Switch>
           <span className="muted small">{ephemeral ? t("upload.ephemeralOnHint") : t("upload.ephemeralOffHint")}</span>
         </div>
         <div
@@ -554,6 +570,9 @@ function Upload({ backend, network }: { backend: Backend; network: ViewSnapshot[
   );
 }
 
+/** Stage line range for display. ScriptAnalysis line numbers are already 1-based (server and local analyzer). */
+export const stageLines = (s: { fromLine: number; toLine: number }) => ({ a: s.fromLine, b: s.toLine });
+
 /** Accepted file types: no screenshots in zero-retention mode (they need Claude vision, which is not in the TEE). */
 export function uploadAccept(ephemeral: boolean): string {
   return ephemeral ? ".txt,.md,.json,text/plain,text/markdown,application/json" : ".txt,.md,.json,.png,.jpg,.jpeg,.webp,image/*";
@@ -611,7 +630,7 @@ export function AnalysisView({ a, backend, network, expert }: { a: ScriptAnalysi
         (a.attestation ? (
           <section aria-label={t("upload.zrAttestation")}>
             <h2 className="section-h">{t("upload.zrAttestation")}</h2>
-            <AttestationPanel a={a.attestation} />
+            <AttestationFold a={a.attestation} />
           </section>
         ) : (
           <p className="note warn-note">{t("upload.zrNoAttestation")}</p>
@@ -661,7 +680,7 @@ export function AnalysisView({ a, backend, network, expert }: { a: ScriptAnalysi
               <div key={i} className="tl-stage" style={{ flexGrow: Math.max(1, s.toLine - s.fromLine + 1) }}>
                 <div className="tl-bar" />
                 <strong className="small">{s.name}</strong>
-                <span className="muted small">{t("upload.lines", { a: s.fromLine + 1, b: s.toLine + 1 })}</span>
+                <span className="muted small">{t("upload.lines", stageLines(s))}</span>
                 <span className="row gap-s">
                   {s.tactics.map((x) => (
                     <span key={x} className="tag static">

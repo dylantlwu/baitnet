@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { useAuth } from "../auth/context";
 import { useI18n } from "../i18n";
 import { closedTour, markTourDone, placeBubble, shouldAutoStart, spotlight, tourDone, tourReducer, waitForTarget, type Rect } from "./machine";
-import { enterStep, stepsFor, type TourStep } from "./steps";
+import { enterStep, onRoute, routeHash, stepsFor, type TourStep } from "./steps";
+import { parseHash } from "../lib/router";
 
 interface TourCtx {
   /** Start (or replay) the tour; no-op when nobody is logged in. */
@@ -36,6 +37,8 @@ export function TourProvider({ live, children }: { live: boolean; children: Reac
   const finish = useCallback(() => {
     if (userId) markTourDone(userId);
     dispatch({ type: "skip" });
+    // the last steps live on other pages (upload, team): end where work starts, in the arena
+    returnToArena({ getHash: () => window.location.hash, setHash: (h) => (window.location.hash = h) });
   }, [userId]);
   const next = useCallback(() => {
     if (tour.open && tour.index + 1 >= tour.total) finish();
@@ -67,6 +70,20 @@ export function TourProvider({ live, children }: { live: boolean; children: Reac
       )}
     </Ctx.Provider>
   );
+}
+
+/** After the tour (done or skipped): back to the arena unless already there. */
+export function returnToArena(env: { getHash: () => string; setHash: (h: string) => void }): void {
+  if (!onRoute({ route: "arena" } as TourStep, parseHash(env.getHash()).parts)) env.setHash(routeHash("arena"));
+}
+
+/** Phones / tablets: no keyboard, so no "Esc skips, ← → page through" hint. */
+export function isTouchOnly(win: { matchMedia?: (q: string) => { matches: boolean } } | undefined = typeof window === "undefined" ? undefined : window): boolean {
+  try {
+    return !!win?.matchMedia && win.matchMedia("(pointer: coarse)").matches && !win.matchMedia("(any-pointer: fine)").matches;
+  } catch {
+    return false;
+  }
 }
 
 const NARROW_PX = 640;
@@ -208,7 +225,10 @@ export function TourOverlay({ step, index, total, onNext, onPrev, onSkip }: { st
           </span>
         </div>
         <h2 id="tour-title">{t(step.title)}</h2>
-        <p id="tour-body">{searching ? t("tour.finding") : t(bodyKey)}</p>
+        <p id="tour-body">
+          {searching ? t("tour.finding") : t(bodyKey)}
+          {index === 0 && !searching && !isTouchOnly() && <span className="tour-keys"> {t("tour.keysHint")}</span>}
+        </p>
         {missing && step.demo && <TourDemo kind={step.demo} />}
         <div className="tour-actions">
           <button type="button" className="btn ghost small" onClick={onSkip}>

@@ -5,8 +5,8 @@ import type { ArenaModelsInfo, Backend } from "../backend/types";
 import { useBackend } from "../backend/context";
 import { arenaReducer, initialArena, nextSide } from "../arena/reducer";
 import { RichText } from "../components/RichText";
-import { Badge, ChainTag, Empty, Mono, PageHead, Segmented, LoadFailed } from "../components/ui";
-import { useI18n } from "../i18n";
+import { Badge, ChainTag, Empty, Mono, PageHead, Segmented, LoadFailed, Switch } from "../components/ui";
+import { useI18n, type MsgKey } from "../i18n";
 import { fmtClock, nearTxUrl, short } from "../lib/format";
 import { href } from "../lib/router";
 import { EXPERT_KEY, load, save } from "../lib/storage";
@@ -15,6 +15,7 @@ import { normalizeScripts } from "../backend/normalize";
 import { sendSay } from "../arena/optimistic";
 import type { PendingTurn } from "../arena/reducer";
 import { useIdentity } from "../auth/context";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 export const TACTIC_TAGS = [
   "stalling", "ask-address", "ask-chain", "confirm-details", "play-dumb",
@@ -272,12 +273,23 @@ export function ScriptPicker({
   );
 }
 
-/** D30 relative price: by output price against the cheapest option. */
-export function modelPriceTier(id: ArenaModelChoice, list: readonly { id: ArenaModelChoice; price: { output: number } }[] = ARENA_MODELS): "cheapest" | "cheap" | "pricey" {
+/**
+ * D30 relative price, by output price per 1M tokens against the cheapest option. "Cheapest" is unique:
+ * on an output-price tie the lower input price wins (GLM $0.08 vs Haiku $0.10 in), so two models are
+ * never both labelled "cheapest".
+ */
+export function modelPriceTier(id: ArenaModelChoice, list: readonly { id: ArenaModelChoice; price: { input: number; output: number } }[] = ARENA_MODELS): "cheapest" | "cheap" | "pricey" {
   const m = list.find((x) => x.id === id);
   if (!m) return "cheap";
   const min = Math.min(...list.map((x) => x.price.output));
-  return m.price.output >= 4 * min ? "pricey" : m.price.output === min ? "cheapest" : "cheap";
+  if (m.price.output >= 4 * min) return "pricey";
+  const cheapest = [...list].sort((a, b) => a.price.output - b.price.output || a.price.input - b.price.input)[0];
+  return cheapest?.id === id ? "cheapest" : "cheap";
+}
+
+/** One price badge per model: the tier, plus the catch when there is one ("Cheapest · slower"). */
+export function modelPriceBadge(m: { slow?: boolean }, tier: "cheapest" | "cheap" | "pricey", t: (k: MsgKey) => string): string {
+  return m.slow ? `${t(TIER_KEY[tier])} · ${t("arena.modelSlow")}` : t(TIER_KEY[tier]);
 }
 
 const TIER_KEY = { cheapest: "arena.modelCheapest", cheap: "arena.modelCheap", pricey: "arena.modelPricey" } as const;
@@ -321,12 +333,9 @@ function ModelPicker({ value, onChange, info }: { value: ArenaModelChoice; onCha
                 <Badge tone={m.tee ? "ok" : "muted"} title={t(m.tee ? "arena.modelTeeTitle" : "arena.modelNoTeeTitle")}>
                   {t(m.tee ? "arena.modelTee" : "arena.modelNoTee")}
                 </Badge>
-                <Badge tone={tier === "pricey" ? "warn" : "info"}>{t(TIER_KEY[tier])}</Badge>
-                {m.slow && (
-                  <Badge tone="warn" title={t("arena.modelSlowTitle")}>
-                    {t("arena.modelSlow")}
-                  </Badge>
-                )}
+                <Badge tone={tier === "pricey" || m.slow ? "warn" : "info"} title={m.slow ? t("arena.modelSlowTitle") : undefined}>
+                  {modelPriceBadge(m, tier, t)}
+                </Badge>
               </span>
               <span className="muted small">{t("arena.modelPrice", { in: m.price.input, out: m.price.output })}</span>
             </button>
@@ -531,11 +540,9 @@ function SessionLayout(p: LayoutProps) {
         <div className="row gap push-md">
           <Badge tone={s.status === "running" ? "ok" : s.status === "finished" ? "muted" : "info"}>{t(`status.${s.status}`)}</Badge>
           <EngineBadge session={s} />
-          <label className={`switch${ro ? " disabled" : ""}`} title={ro ? t("arena.hostedHint") : undefined}>
-            <input type="checkbox" checked={p.training} disabled={ro} onChange={(e) => p.setTraining?.(e.target.checked)} />
-            <span className="switch-track" />
+          <Switch checked={p.training} disabled={ro} title={ro ? t("arena.hostedHint") : undefined} onChange={(on) => p.setTraining?.(on)}>
             {t("training.mode")}
-          </label>
+          </Switch>
         </div>
       </div>
       {s.engine === "rules" && <div className="rules-banner">{ro ? t("arena.rulesBannerReplay") : t("arena.rulesBanner")}</div>}
@@ -823,12 +830,18 @@ function DraftList({
   );
 }
 
+/** Where an approved address gets written, for the confirm text. */
+export function registryWhereKey(network: string | undefined): MsgKey {
+  return network === "testnet" ? "arena.whereTestnet" : network === "mainnet" ? "arena.whereMainnet" : "arena.whereLocal";
+}
+
 export function DraftItem({
   d, i, network, tx, readOnly, busy, onReview,
 }: { d: DraftRow; i: number; network: ViewSnapshot["network"]; tx?: string; readOnly: boolean; busy: boolean; onReview: (i: number, ok: boolean) => void }) {
   const { t, tl } = useI18n();
   const { canReview } = useIdentity("");
   const [confirmReject, setConfirmReject] = useState(false);
+  const [confirmApprove, setConfirmApprove] = useState(false);
   const txHash = tx ?? d.txHash;
   const url = nearTxUrl(network, txHash);
   return (
@@ -884,7 +897,7 @@ export function DraftItem({
         </div>
       ) : (
         <div className="row gap draft-actions">
-          <button type="button" className="btn small primary" disabled={readOnly || busy} onClick={() => onReview(i, true)}>
+          <button type="button" className="btn small primary" disabled={readOnly || busy} onClick={() => setConfirmApprove(true)}>
             {busy ? t("common.working") : t("arena.approve")}
           </button>
           <button type="button" className="btn small" disabled={readOnly || busy} onClick={() => setConfirmReject(true)}>
@@ -892,6 +905,19 @@ export function DraftItem({
           </button>
         </div>
       )}
+      {/* publishing writes to the NEAR registry: confirm first, it cannot be taken back (only re-labelled later) */}
+      <ConfirmDialog
+        open={confirmApprove}
+        title={t("arena.approveConfirmTitle")}
+        body={t("arena.approveConfirmBody", { address: short(d.address, 8, 6), where: t(registryWhereKey(network)) })}
+        confirmLabel={t("arena.approveConfirmYes")}
+        cancelLabel={t("common.cancel")}
+        onConfirm={() => {
+          setConfirmApprove(false);
+          onReview(i, true);
+        }}
+        onCancel={() => setConfirmApprove(false)}
+      />
     </li>
   );
 }

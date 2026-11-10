@@ -2,7 +2,7 @@ import { ARENA_MODELS, DEFAULT_ARENA_MODEL, type Role } from "@baitnet/shared";
 import type { ReactNode } from "react";
 import { useAuth } from "../auth/context";
 import { useI18n, type MsgKey } from "../i18n";
-import { useTour } from "../tour/Tour";
+import { isTouchOnly, useTour } from "../tour/Tour";
 import { Badge, PageHead } from "../components/ui";
 
 /** D31: the in-app manual. Works logged out too; only the tour button needs a login. */
@@ -134,7 +134,10 @@ export function GuideView({ role }: { role: Role | null }) {
             <button type="button" className="btn primary guide-replay-btn" onClick={tour.start}>
               ▶ {t("guide.replay")}
             </button>
-            <span className="muted small">{t("guide.replayHint")}</span>
+            <span className="muted small">
+              {t("guide.replayHint")}
+              {!isTouchOnly() && ` ${t("tour.keysHint")}`}
+            </span>
           </>
         ) : (
           <>

@@ -152,6 +152,11 @@ export class IdentityStore implements IdentityService {
     return this.user(inv.user_id);
   }
 
+  /** Display name for a user id, revoked users included (old records keep showing who did them). */
+  nameOf(id: string): string | undefined {
+    return (this.db.prepare("SELECT name FROM users WHERE id = ?").get(id) as { name?: string } | undefined)?.name;
+  }
+
   listUsers(): User[] {
     return (this.db.prepare("SELECT id FROM users WHERE revoked = 0 ORDER BY created_at").all() as any[]).map((r) => this.user(r.id)!).filter(Boolean);
   }

@@ -100,6 +100,9 @@ describe("零留存端点的额度和限流（BAITNET_AUTH=on，内存计数）"
     const r = await analyze(cookie);
     expect(await r.json()).toMatchObject({ error: "daily LLM quota used up" });
     expect(snapshot(dataPath())).toEqual(before);
+    // the quota chip (/auth/me) counts the in-memory zero-retention analyses too
+    const me = await (await fetch(b2 + "/auth/me", { headers: { cookie } })).json();
+    expect(me.llmQuota).toEqual({ usedToday: 3, limitPerDay: 3 });
   });
 
   it("每人每分钟最多 5 次", async () => {

@@ -1,6 +1,7 @@
 import { API, type ArenaTurn, type ArenaSession, type Correction, type EvalReport, type EvalRun, type PlaybookEntry, type ScamScriptDef, type ScriptAnalysis } from "@baitnet/shared";
 import type { ArenaModelsInfo, ArenaStreamEvent, Backend } from "./types";
 import { normalizeScripts } from "./normalize";
+import { noteLlmUse } from "../lib/quota";
 
 export class HttpError extends Error {
   constructor(public status: number, msg: string) {
@@ -22,6 +23,9 @@ export function parseArenaEvent(data: string): ArenaStreamEvent | null {
     return null;
   }
 }
+
+/** Stream events that mean the server may just have spent LLM quota: an AI-written turn. */
+export const spendsQuota = (ev: ArenaStreamEvent) => ev.type === "turn" && (ev as { turn?: { author?: string } }).turn?.author === "ai";
 
 export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a) => fetch(...a)): Backend {
   async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -66,7 +70,9 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
       const es = new EventSource(apiBase + API.arenaEvents(id), { withCredentials: true });
       const handler = (e: MessageEvent<string>) => {
         const ev = parseArenaEvent(e.data);
-        if (ev) onEvent(ev);
+        if (!ev) return;
+        onEvent(ev);
+        if (spendsQuota(ev)) noteLlmUse();
       };
       es.onmessage = handler;
       for (const t of ["turn", "draft", "mode", "status", "onchain", "safety", "typing"]) es.addEventListener(t, handler as EventListener);
@@ -95,7 +101,17 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
       }
     },
     getEvalRuns: async () => unwrap<EvalRun[]>(await get(API.evalRuns), "runs") ?? [],
-    upload: (u, opts) => post<ScriptAnalysis>(opts?.ephemeral ? API.scriptAnalyzeEphemeral : API.scriptUpload, u),
+    // not in the shared API table: reviewer-only, offline (rules engine) unless {live: true}
+    runEval: async () => {
+      await post("/eval/run", { live: false });
+    },
+    upload: async (u, opts) => {
+      try {
+        return await post<ScriptAnalysis>(opts?.ephemeral ? API.scriptAnalyzeEphemeral : API.scriptUpload, u);
+      } finally {
+        noteLlmUse(); // analysis may have called the model (even when it then failed)
+      }
+    },
     saveScript: async (id, draft, analysis) =>
       unwrap<ScamScriptDef>(await post(API.scriptSave(id), analysis?.ephemeral ? { draft, analysis } : { draft }), "script"),
     reviewUploadDraft: (id, draftIndex, approve) => post(API.scriptReview(id), { draftIndex, approve }),

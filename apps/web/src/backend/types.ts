@@ -52,6 +52,8 @@ export interface Backend {
   // Eval
   getEval(): Promise<EvalReport | undefined>;
   getEvalRuns(): Promise<EvalRun[]>;
+  /** Reviewers: start an offline eval run (POST /eval/run, rules engine, no model calls). Absent = not available. */
+  runEval?(): Promise<void>;
   // Script Lab
   /** ephemeral = D27 zero-retention analysis in the TEE: nothing is stored server-side. */
   upload(u: ScriptUpload, opts?: { ephemeral?: boolean }): Promise<ScriptAnalysis>;

@@ -36,6 +36,7 @@ import { RulesBait, RulesScammer, type ScammerPlan } from "./rules.js";
 import { baitSystemPrompt, scammerSystemPrompt } from "./prompts.js";
 import { filterBaitText, isInjection, looksHijacked } from "./safety.js";
 import type { PlaybookRetriever } from "./deps.js";
+import { decoyReadyPlaybook, hasPlaceholder, naturalizePlaceholders } from "./placeholders.js";
 
 export type ArenaDraft = ArenaSession["drafts"][number];
 
@@ -417,7 +418,8 @@ export class ArenaSessionEngine extends EventEmitter {
     const stage = lastScammer ? (this.metrics.stageByTurn[lastScammer.index] ?? this.scammerRules.stageFor(Math.max(0, this.scammerRules.scammerTurns - 1))) : 0;
     let playbook: Awaited<ReturnType<PlaybookRetriever["search"]>> = [];
     try {
-      playbook = await this.deps.retriever.search({ scamType: this.script.type, stage, lastScammerText: scammerText, k: 3 });
+      // placeholders ([NAME_1]…) from redaction become natural wording; examples that cannot be fixed are dropped
+      playbook = decoyReadyPlaybook(await this.deps.retriever.search({ scamType: this.script.type, stage, lastScammerText: scammerText, k: 3 }), lang);
     } catch (e) {
       this.log(`[arena] playbook search failed: ${(e as Error).message}`);
     }
@@ -437,6 +439,8 @@ export class ArenaSessionEngine extends EventEmitter {
     // never send the exact same bait line twice in a row (rules engine, or a looping LLM)
     const prevBait = [...this.session.turns].reverse().find((t) => t.side === "bait")?.text;
     if (prevBait && draft.trim() === prevBait.trim()) draft = this.rulesBait(scammerText, lang, [], undefined);
+    // belt and braces: a decoy line never carries a redaction placeholder
+    if (hasPlaceholder(draft)) draft = naturalizePlaceholders(draft, lang);
     const lastWasInjection = lastScammer ? this.metrics.injectionTurns.includes(lastScammer.index) : false;
     if (lastWasInjection && looksHijacked(draft)) this.metrics.hijackTurns.push(this.session.turns.length);
     const f = filterBaitText(draft, lang, this.rand, { haveAddress: this.session.drafts.length > 0 });

@@ -18,8 +18,16 @@ type ChannelFilter = "all" | ChannelKind;
 
 export const channelOf = (s: ArenaSession): ChannelKind => s.channel?.kind ?? "web";
 
-/** Who plays which side: explicit expertPlays (IM) or inferred from the web side modes. */
-export function playsOf(s: ArenaSession): "scammer" | "bait" | "observer" {
+/**
+ * Who played which side. What the humans actually said wins: a session where the expert took over a side
+ * for a while (modes are back to AI afterwards) is not "watching". Without human lines: explicit
+ * expertPlays (IM), else the current web side modes.
+ */
+export function playsOf(s: ArenaSession): "scammer" | "bait" | "both" | "observer" {
+  const human = new Set((s.turns ?? []).filter((t) => t.author === "human").map((t) => t.side));
+  if (human.has("scammer") && human.has("bait")) return "both";
+  if (human.has("scammer")) return "scammer";
+  if (human.has("bait")) return "bait";
   if (s.channel?.expertPlays) return s.channel.expertPlays;
   if (s.modes.scammer === "human") return "scammer";
   if (s.modes.bait === "human") return "bait";

@@ -59,8 +59,10 @@ describe("auth state from /auth/me", () => {
     expect(loginUrlFor(inv, "https://bn.example")).toBe(`https://bn.example/#/login?code=${encodeURIComponent(inv.code)}`);
     expect((await a.listUsers()).some((u) => u.name === "小王")).toBe(true);
     const open = (await a.listInvites()).find((i) => !i.usedAt && !i.revoked)!;
-    await a.revokeInvite(open.code);
-    expect((await a.listInvites()).find((i) => i.code === open.code)?.revoked).toBe(true);
+    expect(open.code).toMatch(/…/); // the list only has masked codes
+    await expect(a.revokeInvite(open.code)).rejects.toMatchObject({ status: 404 }); // like the server
+    await a.revokeInvite(open.id!);
+    expect((await a.listInvites()).find((i) => i.id === open.id)?.revoked).toBe(true);
     await a.logout();
     expect(await a.me()).toEqual({ kind: "anonymous" });
   });
