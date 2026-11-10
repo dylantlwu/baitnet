@@ -68,6 +68,17 @@ export interface SessionMetrics {
   stageByTurn: Record<number, number>;
 }
 
+/**
+ * Not an ArenaEvent (packages/shared is frozen): emitted as the engine's "typing" event while an AI line is
+ * generated; the server forwards it on the SSE stream so the web can show "typing…".
+ */
+export interface ArenaTypingEvent {
+  type: "typing";
+  sessionId: string;
+  side: ArenaSide;
+  on: boolean;
+}
+
 const other = (s: ArenaSide): ArenaSide => (s === "scammer" ? "bait" : "scammer");
 
 /**
@@ -176,17 +187,51 @@ export class ArenaSessionEngine extends EventEmitter {
     this.whispers[side] = text;
   }
 
-  /** Human speaks for `side` (switches that side to human = takeover). */
-  async say(side: ArenaSide, text: string): Promise<ArenaTurn> {
+  /**
+   * Human speaks for `side` (switches that side to human = takeover).
+   * `autoReply` (web): when the other side is AI ("ai" / "ai+whisper") it answers once, queued right
+   * behind this line on the same exclusive queue, so a concurrent step() / second say() never makes it
+   * answer twice. The HTTP call returns as soon as the human line is stored; the reply arrives as a turn
+   * event, with "typing" events around it. Telegram drives its own reply (router.aiReply) and leaves this off.
+   */
+  async say(side: ArenaSide, text: string, opts: { autoReply?: boolean } = {}): Promise<ArenaTurn> {
     if (this.session.status === "finished") throw new Error("session finished");
     if (this.session.modes[side] !== "human") this.setMode(side, "human");
-    return this.exclusive(async () => {
+    const p = this.exclusive(async () => {
       if (side === "scammer") this.scammerRules.commitHuman(text);
       const turn = this.pushTurn({ side, text, author: "human" });
       if (side === "scammer") await this.afterScammer(turn);
       if (this.session.status === "running") this.kick();
       return turn;
     });
+    if (opts.autoReply) this.lastAutoReply = this.autoReply();
+    return p;
+  }
+
+  /** The auto reply queued by the last say({autoReply}) (tests / callers that want to wait for it). */
+  lastAutoReply: Promise<ArenaTurn | null> = Promise.resolve(null);
+
+  /**
+   * One AI answer after a human line. No-op when the run loop is on (it answers by itself), when the next
+   * side is human (both sides human, or the AI already answered), or when the session is done.
+   */
+  private autoReply(): Promise<ArenaTurn | null> {
+    return this.exclusive(async () => {
+      if (this.session.status === "running") return null;
+      return this.stepInner();
+    }).catch((e: Error) => {
+      this.log(`[arena] ${this.session.id}: auto reply failed: ${e.message}`);
+      return null;
+    });
+  }
+
+  /** Side whose AI line is being generated right now (web "typing…"), null when idle. */
+  typing: ArenaSide | null = null;
+  private setTyping(side: ArenaSide | null) {
+    if (this.typing === side) return;
+    const prev = this.typing;
+    this.typing = side;
+    this.emit("typing", { type: "typing", sessionId: this.session.id, side: (side ?? prev)!, on: side !== null } satisfies ArenaTypingEvent);
   }
 
   /** Play exactly one AI turn (if the next side is AI). Returns null when a human is due or finished. */
@@ -228,6 +273,9 @@ export class ArenaSessionEngine extends EventEmitter {
   private kick(): Promise<void> {
     if (this.loop) return this.loop;
     this.loop = (async () => {
+      // yield first: if the loop ended synchronously (a human side is due), `finally` would clear
+      // this.loop before the assignment below and leave a stale, settled loop that blocks every later kick()
+      await Promise.resolve();
       try {
         while (this.session.status === "running") {
           if (this.done) {
@@ -274,12 +322,17 @@ export class ArenaSessionEngine extends EventEmitter {
     if (this.session.modes[side] === "human") return null;
     const whisper = this.session.modes[side] === "ai+whisper" ? this.whispers[side] : undefined;
     delete this.whispers[side]; // a whisper applies to the next AI turn of that side only
-    if (side === "scammer") {
-      const turn = await this.scammerTurn(whisper);
-      await this.afterScammer(turn);
-      return turn;
+    this.setTyping(side);
+    try {
+      if (side === "scammer") {
+        const turn = await this.scammerTurn(whisper);
+        await this.afterScammer(turn);
+        return turn;
+      }
+      return await this.baitTurn(whisper);
+    } finally {
+      this.setTyping(null);
     }
-    return this.baitTurn(whisper);
   }
 
   /** true if this turn may use the LLM (quota check); downgrades the session to rules otherwise. */

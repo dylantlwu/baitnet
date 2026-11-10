@@ -1,5 +1,5 @@
-import { API, type ArenaTurn, type ArenaEvent, type ArenaSession, type Correction, type EvalReport, type EvalRun, type PlaybookEntry, type ScamScriptDef, type ScriptAnalysis } from "@baitnet/shared";
-import type { ArenaModelsInfo, Backend } from "./types";
+import { API, type ArenaTurn, type ArenaSession, type Correction, type EvalReport, type EvalRun, type PlaybookEntry, type ScamScriptDef, type ScriptAnalysis } from "@baitnet/shared";
+import type { ArenaModelsInfo, ArenaStreamEvent, Backend } from "./types";
 import { normalizeScripts } from "./normalize";
 
 export class HttpError extends Error {
@@ -14,9 +14,9 @@ const unwrap = <T>(v: unknown, key: string): T => {
   return v as T;
 };
 
-export function parseArenaEvent(data: string): ArenaEvent | null {
+export function parseArenaEvent(data: string): ArenaStreamEvent | null {
   try {
-    const v = JSON.parse(data) as ArenaEvent;
+    const v = JSON.parse(data) as ArenaStreamEvent;
     return v && typeof v === "object" && typeof v.type === "string" ? v : null;
   } catch {
     return null;
@@ -69,7 +69,7 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
         if (ev) onEvent(ev);
       };
       es.onmessage = handler;
-      for (const t of ["turn", "draft", "mode", "status", "onchain", "safety"]) es.addEventListener(t, handler as EventListener);
+      for (const t of ["turn", "draft", "mode", "status", "onchain", "safety", "typing"]) es.addEventListener(t, handler as EventListener);
       return () => es.close();
     },
     control: (id, action) => post(API.arenaControl(id), { action }),

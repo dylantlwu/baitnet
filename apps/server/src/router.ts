@@ -7,8 +7,11 @@ export interface RouteRequest {
   body: any;
   raw: IncomingMessage;
   res: ServerResponse;
-  /** Caller identity (local reviewer when BAITNET_AUTH is off). */
-  user?: { expertId: string; name: string; role: "expert" | "reviewer" };
+  /**
+   * Caller identity (local reviewer when BAITNET_AUTH is off). `id` = expertId: the training / scriptlab
+   * routes (packages/training AuthUser) read `req.user.id`.
+   */
+  user?: { expertId: string; id?: string; name: string; role: "expert" | "reviewer" };
 }
 export type RouteHandler = (req: RouteRequest) => unknown | Promise<unknown>;
 

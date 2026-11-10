@@ -271,6 +271,16 @@ export async function analyzeUpload(u: ScriptUpload, now = new Date()): Promise<
 }
 
 /** Read a browser File into a ScriptUpload. */
+/** Max pasted text (same limit as a text file upload). */
+export const PASTE_MAX_CHARS = 2_000_000;
+
+/** Chat text pasted into the box → the same upload a .txt file would make. Empty → null. */
+export function pastedUpload(text: string, expertId: string): ScriptUpload | null {
+  const content = text.replace(/\r\n?/g, "\n").trim();
+  if (!content) return null;
+  return { filename: "pasted.txt", content, encoding: "utf8", expertId };
+}
+
 export async function fileToUpload(file: File, expertId: string): Promise<ScriptUpload> {
   const isImage = file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(file.name);
   if (isImage) {

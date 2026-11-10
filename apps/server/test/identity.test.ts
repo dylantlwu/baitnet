@@ -205,6 +205,27 @@ describe("网页鉴权（BAITNET_AUTH=on）", () => {
     expect(audit.some((a: { action: string; expertId: string }) => a.action === "arena.sessions.rate" && a.expertId === s.channel.ownerId)).toBe(true);
   });
 
+  it("训练台：标注 / 改写 / 审核记在登录的人名下（不是 local-expert），审核者可以通过别人的改写", async () => {
+    const { cookie: e } = await login(expertCode, "3.3.3.3");
+    const me = await (await call("/auth/me", e)).json();
+    const s = await (await call("/arena/sessions", e, { scriptId: "fake-loan-02", scammer: "human", bait: "ai" })).json();
+    await call(`/arena/sessions/${s.id}/say`, e, { side: "scammer", text: "你好，贷款批了" });
+    await app.arena.get(s.id)!.lastAutoReply;
+    const ann = await call("/training/annotations", e, { sessionId: s.id, turnIndex: 1, expertId: "冒充的人", rating: "good", tags: [], note: "" });
+    expect(ann.status).toBe(200);
+    expect((await ann.json()).expertId).toBe(me.expertId);
+    const c = await call("/training/corrections", e, {
+      sessionId: s.id, turnIndex: 1, expertId: "冒充的人", scriptId: "fake-loan-02", scamType: "fake-loan", stage: 0, situation: "你好", badReply: "嗯", goodReply: "请问是哪家公司？", rationale: "", tags: [],
+    });
+    expect(c.status).toBe(200);
+    const corr = await c.json();
+    expect(corr.expertId).toBe(me.expertId);
+    const { cookie: r } = await login(reviewerCode, "3.3.3.3");
+    const rv = await call(`/training/corrections/${corr.id}/review`, r, { approve: true, reviewer: "冒充的人" });
+    expect(rv.status).toBe(200);
+    expect((await rv.json()).reviewer).not.toBe("local-expert");
+  });
+
   it("撤销后立即 401；同一 IP 每分钟最多 10 次登录", async () => {
     const tmp = app.identity.createInvite("临时", "expert", "Dylan").code;
     const { cookie } = await login(tmp);

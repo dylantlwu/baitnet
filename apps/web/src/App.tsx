@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { Role } from "@baitnet/shared";
 import { useData } from "./data/useData";
 import { href, useHashRoute } from "./lib/router";
 import { fmtTime } from "./lib/format";
@@ -17,11 +18,39 @@ import { SessionsPage } from "./pages/SessionsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { TeamPage } from "./pages/TeamPage";
 import { AuthProvider, useAuth } from "./auth/context";
+import { useBackend } from "./backend/context";
 
 const TABS = ["arena", "replay", "alerts", "guard", "flows", "responders", "tee", "training", "eval"] as const;
 /** Back-office pages (not part of the numbered demo walk-through). */
 const ADMIN_TABS = ["sessions", "team", "login"] as const;
 type TabId = (typeof TABS)[number] | (typeof ADMIN_TABS)[number];
+
+/** Phone width (same breakpoint as the stylesheet's phone layout). */
+export const NARROW_MQ = "(max-width: 640px)";
+
+/**
+ * Logged-in experts / reviewers on a phone see the pages they work in first; the judge demo pages go under
+ * "More". Desktop, logged out and auth-off keep the full numbered walk-through (null = full nav).
+ */
+export function compactNav(role: Role | null, narrow: boolean): { primary: TabId[]; more: TabId[] } | null {
+  if (!role || !narrow) return null;
+  const primary: TabId[] = role === "reviewer" ? ["arena", "training", "sessions", "eval", "team", "alerts"] : ["arena", "training", "sessions", "eval"];
+  return { primary, more: TABS.filter((id) => !primary.includes(id)) };
+}
+
+function useMediaQuery(q: string): boolean {
+  const get = () => (typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(q).matches : false);
+  const [m, setM] = useState(get);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(q);
+    const on = () => setM(mq.matches);
+    on();
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, [q]);
+  return m;
+}
 
 export default function App() {
   return (
@@ -71,15 +100,7 @@ function Shell() {
           </div>
         </header>
 
-        <nav className="tabs" aria-label={t("nav.label")}>
-          {TABS.map((id, i) => (
-            <a key={id} href={href(id)} className={id === tab ? "tab on" : "tab"} aria-current={id === tab ? "page" : undefined}>
-              <span className="tab-n">{i}</span>
-              {t(`nav.${id}` as MsgKey)}
-            </a>
-          ))}
-          <AdminTabs tab={tab} />
-        </nav>
+        <NavTabs tab={tab} />
 
         <main className="main">
           {data.status === "loading" && !data.snapshot && (
@@ -151,18 +172,61 @@ function ReloadOnAuthChange({ retry }: { retry: () => void }) {
   return null;
 }
 
-function AdminTabs({ tab }: { tab: TabId }) {
+function NavTabs({ tab }: { tab: TabId }) {
   const { t } = useI18n();
+  const { state } = useAuth();
+  const narrow = useMediaQuery(NARROW_MQ);
+  const layout = compactNav(state?.kind === "user" ? state.me.role : null, narrow);
+  if (!layout)
+    return (
+      <nav className="tabs" aria-label={t("nav.label")}>
+        {TABS.map((id) => (
+          <TabLink key={id} id={id} tab={tab} />
+        ))}
+        <AdminTabs tab={tab} />
+      </nav>
+    );
+  const inMore = layout.more.includes(tab);
+  return (
+    <nav className="tabs compact" aria-label={t("nav.label")}>
+      {layout.primary.map((id) => (
+        <TabLink key={id} id={id} tab={tab} />
+      ))}
+      <details className="tabs-more" open={inMore || undefined}>
+        <summary className={inMore ? "tab more on" : "tab more"}>
+          <span className="tab-n">…</span>
+          {t("nav.more")}
+        </summary>
+        <div className="tabs-more-list">
+          {layout.more.map((id) => (
+            <TabLink key={id} id={id} tab={tab} />
+          ))}
+        </div>
+      </details>
+    </nav>
+  );
+}
+
+function TabLink({ id, tab }: { id: TabId; tab: TabId }) {
+  const { t } = useI18n();
+  const i = (TABS as readonly string[]).indexOf(id);
+  const admin = i < 0;
+  return (
+    <a href={href(id)} className={`tab${admin ? " admin" : ""}${id === tab ? " on" : ""}`} aria-current={id === tab ? "page" : undefined}>
+      <span className="tab-n">{admin ? (id === "team" ? "◆" : "≡") : i}</span>
+      {t(`nav.${id}` as MsgKey)}
+    </a>
+  );
+}
+
+function AdminTabs({ tab }: { tab: TabId }) {
   const { state } = useAuth();
   const showTeam = state?.kind === "user" && state.me.role === "reviewer";
   const items: TabId[] = showTeam ? ["sessions", "team"] : ["sessions"];
   return (
     <>
       {items.map((id) => (
-        <a key={id} href={href(id)} className={id === tab ? "tab admin on" : "tab admin"} aria-current={id === tab ? "page" : undefined}>
-          <span className="tab-n">{id === "team" ? "◆" : "≡"}</span>
-          {t(`nav.${id}` as MsgKey)}
-        </a>
+        <TabLink key={id} id={id} tab={tab} />
       ))}
     </>
   );
@@ -218,8 +282,22 @@ function LangSwitch() {
   );
 }
 
+/**
+ * Sample sections only reach the screen through the snapshot-seeded backend (read-only replay or the in-browser
+ * mock). With the live HTTP backend every arena / training / eval page reads the server, so nothing shown
+ * is sample data and the notice would be wrong.
+ */
+export function visibleSampleSections(sampleSections: string[] | undefined, backendKind: "http" | "mock" | "replay" | null | undefined): string[] | null {
+  if (!sampleSections?.length) return null;
+  if (backendKind === "http") return null;
+  return sampleSections;
+}
+
 function ModeBadge({ data }: { data: ReturnType<typeof useData> }) {
   const { t, tl, lang } = useI18n();
+  const backend = useBackend();
+  // until the backend is chosen we don't know yet: say nothing rather than something wrong
+  const sampleShown = backend ? visibleSampleSections(data.sampleSections, backend.kind) : null;
   if (!data.mode) return null;
   const live = data.mode === "live";
   const sample = !live && (data.source ?? "").includes("sample");
@@ -248,8 +326,8 @@ function ModeBadge({ data }: { data: ReturnType<typeof useData> }) {
             <b>{t("mode.generated")}</b> {fmtTime(data.snapshot.generatedAt)}
           </div>
         )}
-        {data.sampleSections && (
-          <div className="muted small">{t("mode.sampleSections", { list: data.sampleSections.map((k) => tl("section", k)).join(lang === "zh" ? "、" : ", ") })}</div>
+        {sampleShown && (
+          <div className="muted small">{t("mode.sampleSections", { list: sampleShown.map((k) => tl("section", k)).join(lang === "zh" ? "、" : ", ") })}</div>
         )}
         {live && data.authRequired && <div className="muted small">{t("mode.authRequired")}</div>}
         {reason && (

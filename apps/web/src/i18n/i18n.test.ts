@@ -66,3 +66,17 @@ describe("i18n dictionaries", () => {
     expect(zh["arena.approve"]).toContain("上链");
   });
 });
+
+import { translateWarning as tw } from "./vocab";
+describe("zero-retention redaction warning (track 03 claim)", () => {
+  it("never turns a zero-retention warning into 'original stored encrypted'", () => {
+    for (const w of ["已打码 15 项个人资料；零留存模式：原文和结果都没有保存", "15 PII item(s) redacted; zero-retention mode: nothing was stored"]) {
+      for (const lang of ["zh", "en"] as const) {
+        const out = tw(w, lang);
+        expect(out).not.toMatch(/加密保存|stored encrypted/);
+        expect(out).toMatch(/零留存|zero-retention/);
+        expect(out).toMatch(/15/);
+      }
+    }
+  });
+});

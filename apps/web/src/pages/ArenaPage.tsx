@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { ARENA_MODELS, DEFAULT_ARENA_MODEL, type ArenaModelChoice, type ArenaSession, type ArenaSide, type ArenaTurn, type ScamScriptDef, type ScamType, type SideMode, type TurnRating } from "@baitnet/shared";
 import type { ViewSnapshot } from "../data/parse";
 import type { ArenaModelsInfo, Backend } from "../backend/types";
@@ -114,6 +114,9 @@ function ScriptTags({ s }: { s: ScamScriptDef }) {
 
 /* ───────────── script picker ───────────── */
 
+/** Same breakpoint as the stylesheet: below it the script list and the detail card are stacked. */
+const STACKED_MQ = "(max-width: 1080px)";
+
 export function ScriptPicker({
   scripts, recorded, backend, picked, onPick, onStart,
 }: {
@@ -161,6 +164,13 @@ export function ScriptPicker({
     (s) => (type === "all" || s.type === type) && (lang === "all" || s.lang === lang) && (!backend.readOnly || recBy.has(s.id)),
   );
   const sel = safeScripts.find((s) => s.id === picked) ?? list[0];
+  const detailRef = useRef<HTMLElement>(null);
+  // Phones (stacked layout): jump from the tapped card straight to the settings + "start" button.
+  const pick = (id: string) => {
+    onPick(id);
+    if (typeof window === "undefined" || !window.matchMedia?.(STACKED_MQ).matches) return;
+    requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   const start = async () => {
     if (!sel) return;
@@ -210,7 +220,7 @@ export function ScriptPicker({
           <ul className="script-list">
             {list.map((s) => (
               <li key={s.id}>
-                <button type="button" className={s.id === sel?.id ? "script-item on" : "script-item"} onClick={() => onPick(s.id)}>
+                <button type="button" className={s.id === sel?.id ? "script-item on" : "script-item"} onClick={() => pick(s.id)}>
                   <span className="script-title">{s.title}</span>
                   <ScriptTags s={s} />
                   {recBy.has(s.id) && <span className="muted small">{t("arena.recordedCount", { n: recBy.get(s.id)!.length })}</span>}
@@ -222,7 +232,7 @@ export function ScriptPicker({
       </section>
 
       {sel && (
-        <section className="card script-detail" aria-label={sel.title}>
+        <section ref={detailRef} className="card script-detail" aria-label={sel.title}>
           <h2>{sel.title}</h2>
           <ScriptTags s={sel} />
           <dl className="kv">
@@ -253,7 +263,7 @@ export function ScriptPicker({
           )}
           {!backend.readOnly && <ModelPicker value={model} onChange={setModel} info={modelInfo} />}
           {err && <p className="err small">{t("common.actionFailed", { msg: err })}</p>}
-          <button type="button" className="btn primary wide" onClick={start} disabled={busy}>
+          <button type="button" className="btn primary wide start-btn" onClick={start} disabled={busy}>
             {backend.readOnly ? t("arena.replay") : busy ? t("common.working") : t("arena.start")}
           </button>
         </section>
@@ -342,6 +352,14 @@ function ModeSwitch({ value, onChange, disabled }: { value: SideMode; onChange: 
 
 /* ───────────── live session ───────────── */
 
+/**
+ * Training mode (rate / rewrite each decoy line) starts on for a logged-in expert or reviewer: that is what
+ * they are here for. Logged out, auth off (local demo) and read-only snapshots keep it off.
+ */
+export function defaultTrainingMode(id: { loggedIn: boolean }, readOnly: boolean): boolean {
+  return id.loggedIn && !readOnly;
+}
+
 /** Expert name: the logged-in user when auth is on, otherwise a locally remembered name. */
 export function useExpert(): [string, (v: string) => void, boolean] {
   const [local, setLocal] = useState(() => load(EXPERT_KEY) ?? "");
@@ -363,7 +381,15 @@ function LiveSession({
   const { t } = useI18n();
   const [st, dispatch] = useReducer(arenaReducer, initialArena);
   const [err, setErr] = useState<string | null>(null);
-  const [training, setTraining] = useState(false);
+  const identity = useIdentity("");
+  const [training, setTraining] = useState(() => defaultTrainingMode(identity, backend.readOnly));
+  // auth state can arrive after the session opened: switch on once when the login becomes known
+  const autoOn = useRef(false);
+  useEffect(() => {
+    if (autoOn.current || !defaultTrainingMode(identity, backend.readOnly)) return;
+    autoOn.current = true;
+    setTraining(true);
+  }, [identity, backend.readOnly]);
 
   useEffect(() => {
     dispatch({ type: "session", session: initial });
@@ -377,6 +403,8 @@ function LiveSession({
     p.catch((e: Error) => setErr(e.message));
   };
   const waitingHuman = s.status !== "finished" && s.modes[nextSide(s)] === "human";
+  // the AI is answering (auto reply after a human line, or a step): one line at a time
+  const typing = s.status !== "finished" ? st.typing : null;
 
   return (
     <SessionLayout
@@ -398,14 +426,15 @@ function LiveSession({
           <button type="button" className="btn" disabled={s.status !== "running"} onClick={() => act(backend.control(s.id, "pause"))}>
             ❚❚ {t("arena.pause")}
           </button>
-          <button type="button" className="btn" disabled={s.status === "finished" || waitingHuman} onClick={() => act(backend.control(s.id, "step"))}>
+          <button type="button" className="btn" disabled={s.status === "finished" || waitingHuman || !!typing} onClick={() => act(backend.control(s.id, "step"))}>
             ⇥ {t("arena.step1")}
           </button>
-          {waitingHuman && <span className="badge tone-accent">{t("arena.waitingHuman", { side: t(`side.${nextSide(s)}`) })}</span>}
+          {waitingHuman && !typing && <span className="badge tone-accent">{t("arena.waitingHuman", { side: t(`side.${nextSide(s)}`) })}</span>}
         </>
       }
       onMode={(side, m) => act(backend.setMode(s.id, side, m))}
       pending={st.pending}
+      typing={typing}
       onSay={(side, text) => void sendSay(backend, s.id, side, text, dispatch)}
       onRetrySay={(p) => void sendSay(backend, s.id, p.side, p.text, dispatch, p.localId)}
       onDiscardSay={(p) => dispatch({ type: "sayDiscard", localId: p.localId })}
@@ -480,6 +509,8 @@ interface LayoutProps {
   readOnly?: boolean;
   onMode?: (side: ArenaSide, m: SideMode) => void;
   pending?: PendingTurn[];
+  /** side whose AI line is being generated ("typing…") */
+  typing?: ArenaSide | null;
   onSay?: (side: ArenaSide, text: string) => void;
   onRetrySay?: (p: PendingTurn) => void;
   onDiscardSay?: (p: PendingTurn) => void;
@@ -509,17 +540,13 @@ function SessionLayout(p: LayoutProps) {
       </div>
       {s.engine === "rules" && <div className="rules-banner">{ro ? t("arena.rulesBannerReplay") : t("arena.rulesBanner")}</div>}
       {p.err && <p className="err small">{t("common.actionFailed", { msg: p.err })}</p>}
-      {p.training && !ro && (
+      {p.training && !ro && expertEditable && (
         <div className="card expert-bar">
           <label className="row gap">
             <span className="small">{t("training.expertName")}</span>
-            {expertEditable ? (
-              <input className="input" value={expert} placeholder={t("training.expertPlaceholder")} onChange={(e) => setExpert(e.target.value)} />
-            ) : (
-              <strong>{expert || "—"}</strong>
-            )}
+            <input className="input" value={expert} placeholder={t("training.expertPlaceholder")} onChange={(e) => setExpert(e.target.value)} />
           </label>
-          <span className="muted small">{expertEditable ? t("training.expertHint") : t("auth.nameFromLogin")}</span>
+          <span className="muted small">{t("training.expertHint")}</span>
         </div>
       )}
 
@@ -553,6 +580,18 @@ function SessionLayout(p: LayoutProps) {
             {p.pending?.map((pt) => (
               <PendingRow key={pt.localId} p={pt} snap={p.snap} onRetry={p.onRetrySay} onDiscard={p.onDiscardSay} />
             ))}
+            {p.typing && (
+              <div className={`turn-row ${p.typing} typing-row`} role="status">
+                <div className="bubble2 typing">
+                  <span className="typing-dots" aria-hidden>
+                    <i />
+                    <i />
+                    <i />
+                  </span>{" "}
+                  <span className="small">{t("arena.typing", { side: t(`side.${p.typing}`) })}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="chat2-foot">
             {SIDES.map((side) => (
@@ -859,12 +898,16 @@ export function DraftItem({
 
 /* ───────────── training: annotate / rewrite ───────────── */
 
-function AnnotateBar({ turn, expert, session, script, backend }: { turn: ArenaTurn; expert: string; session: ArenaSession; script?: ScamScriptDef; backend: Backend }) {
+/**
+ * One compact row per decoy line: 好 / 差 / 有风险 / ✎ 改写. "Good" is saved with one tap; "bad" / "risky"
+ * open tags + reason (then save); "rewrite" opens tags + reason + the better line (then submit for review).
+ */
+export function AnnotateBar({ turn, expert, session, script, backend }: { turn: ArenaTurn; expert: string; session: ArenaSession; script?: ScamScriptDef; backend: Backend }) {
   const { t, tl } = useI18n();
   const [rating, setRating] = useState<TurnRating | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [rewrite, setRewrite] = useState(false);
+  const [open, setOpen] = useState<"rate" | "rewrite" | null>(null);
   const [good, setGood] = useState(turn.text);
   const [state, setState] = useState<"idle" | "saving" | "saved" | "submitted" | "error">("idle");
   const [msg, setMsg] = useState("");
@@ -878,12 +921,24 @@ function AnnotateBar({ turn, expert, session, script, backend }: { turn: ArenaTu
     setState("error");
     setMsg(e.message);
   };
-  const saveAnn = () => {
-    if (!rating) return;
+  const saveAnn = (r: TurnRating | null = rating) => {
+    if (!r) return;
     setState("saving");
     backend
-      .postAnnotation({ sessionId: session.id, turnIndex: turn.index, expertId: expert.trim(), rating, tags, note })
-      .then(() => setState("saved"), fail);
+      .postAnnotation({ sessionId: session.id, turnIndex: turn.index, expertId: expert.trim(), rating: r, tags, note })
+      .then(() => {
+        setState("saved");
+        setOpen(null);
+      }, fail);
+  };
+  const rate = (r: TurnRating) => {
+    setRating(r);
+    if (r === "good") {
+      saveAnn("good");
+      return;
+    }
+    setOpen("rate");
+    if (state === "saved") setState("idle");
   };
   const submitCorrection = () => {
     setState("saving");
@@ -903,48 +958,73 @@ function AnnotateBar({ turn, expert, session, script, backend }: { turn: ArenaTu
       })
       .then(() => {
         setState("submitted");
-        setRewrite(false);
+        setOpen(null);
       }, fail);
   };
 
   if (noExpert) return <div className="annot muted small">{t("training.needExpert")}</div>;
   return (
-    <div className="annot">
-      <div className="row gap">
+    <div className={`annot${open ? " open" : " compact"}`}>
+      <div className="annot-row">
         {(["good", "bad", "risky"] as TurnRating[]).map((r) => (
-          <button key={r} type="button" className={`rate rate-${r}${rating === r ? " on" : ""}`} onClick={() => setRating(r)}>
+          <button
+            key={r}
+            type="button"
+            aria-pressed={rating === r}
+            className={`rate rate-${r}${rating === r ? " on" : ""}`}
+            disabled={state === "saving"}
+            onClick={() => rate(r)}
+          >
             {t(`rating.${r}`)}
           </button>
         ))}
-        <button type="button" className="btn small ghost push" onClick={() => setRewrite((v) => !v)}>
-          ✎ {t("training.rewrite")}
-        </button>
-      </div>
-      <div className="tag-pick">
-        {TACTIC_TAGS.map((tag) => (
-          <button key={tag} type="button" className={tags.includes(tag) ? "tag on" : "tag"} onClick={() => toggle(tag)}>
-            {tl("tag", tag)}
-          </button>
-        ))}
-      </div>
-      <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("training.notePlaceholder")} />
-      {rewrite && (
-        <div className="rewrite">
-          <label className="small">{t("training.goodReply")}</label>
-          <textarea className="input" rows={3} value={good} onChange={(e) => setGood(e.target.value)} />
-          <button type="button" className="btn small primary" disabled={!good.trim() || good.trim() === turn.text || state === "saving"} onClick={submitCorrection}>
-            {t("training.submitCorrection")}
-          </button>
-        </div>
-      )}
-      <div className="row gap">
-        <button type="button" className="btn small" disabled={!rating || state === "saving"} onClick={saveAnn}>
-          {t("training.saveAnnotation")}
+        <button
+          type="button"
+          aria-expanded={open === "rewrite"}
+          className={`rate rate-edit${open === "rewrite" ? " on" : ""}`}
+          onClick={() => setOpen((o) => (o === "rewrite" ? null : "rewrite"))}
+        >
+          ✎ {t("training.rewriteShort")}
         </button>
         {state === "saved" && <span className="ok-text small">✓ {t("training.annotationSaved")}</span>}
         {state === "submitted" && <span className="ok-text small">✓ {t("training.correctionSubmitted")}</span>}
-        {state === "error" && <span className="err small">{t("common.actionFailed", { msg })}</span>}
       </div>
+      {open && (
+        <>
+          <div className="tag-pick">
+            {TACTIC_TAGS.map((tag) => (
+              <button key={tag} type="button" className={tags.includes(tag) ? "tag on" : "tag"} onClick={() => toggle(tag)}>
+                {tl("tag", tag)}
+              </button>
+            ))}
+          </div>
+          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("training.notePlaceholder")} />
+          {open === "rewrite" ? (
+            <div className="rewrite">
+              <label className="small">{t("training.goodReply")}</label>
+              <textarea className="input" rows={3} value={good} onChange={(e) => setGood(e.target.value)} />
+              <div className="row gap">
+                <button type="button" className="btn small primary" disabled={!good.trim() || good.trim() === turn.text || state === "saving"} onClick={submitCorrection}>
+                  {t("training.submitCorrection")}
+                </button>
+                <button type="button" className="btn small ghost" onClick={() => setOpen(null)}>
+                  {t("training.collapse")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="row gap">
+              <button type="button" className="btn small" disabled={!rating || state === "saving"} onClick={() => saveAnn()}>
+                {t("training.saveAnnotation")}
+              </button>
+              <button type="button" className="btn small ghost" onClick={() => setOpen(null)}>
+                {t("training.collapse")}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+      {state === "error" && <span className="err small">{t("common.actionFailed", { msg })}</span>}
     </div>
   );
 }

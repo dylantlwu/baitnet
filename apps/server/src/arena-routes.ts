@@ -1,5 +1,5 @@
 import type { ArenaSession, ArenaSide, SideMode } from "@baitnet/shared";
-import { ArenaManager, ARENA_MODEL_IDS, isArenaModelChoice, langFromAcceptLanguage, readLatestReport } from "@baitnet/arena";
+import { ArenaManager, ARENA_MODEL_IDS, type ArenaTypingEvent, isArenaModelChoice, langFromAcceptLanguage, readLatestReport } from "@baitnet/arena";
 import { HANDLED, httpError, type Router } from "./router.js";
 import { SSE_HEADERS } from "./static.js";
 
@@ -71,11 +71,16 @@ export function registerArenaRoutes(router: Router, mgr: ArenaManager, o: { auth
     // replay current state so a late subscriber can render
     for (const turn of eng.session.turns) res.write(`data: ${JSON.stringify({ type: "turn", sessionId: eng.session.id, turn })}\n\n`);
     eng.session.drafts.forEach((draft, draftIndex) => res.write(`data: ${JSON.stringify({ type: "draft", sessionId: eng.session.id, draftIndex, draft })}\n\n`));
+    // an AI line being generated right now (late subscriber / page reload): show "typing…" at once
+    if (eng.typing) res.write(`data: ${JSON.stringify({ type: "typing", sessionId: eng.session.id, side: eng.typing, on: true } satisfies ArenaTypingEvent)}\n\n`);
     const off = mgr.subscribe(eng.session.id, (e) => res.write(`data: ${JSON.stringify(e)}\n\n`));
+    const onTyping = (e: ArenaTypingEvent) => res.write(`data: ${JSON.stringify(e)}\n\n`);
+    eng.on("typing", onTyping);
     const ping = setInterval(() => res.write(": ping\n\n"), 15_000);
     raw.on("close", () => {
       clearInterval(ping);
       off();
+      eng.off("typing", onTyping);
     });
     return HANDLED;
   });
@@ -108,7 +113,8 @@ export function registerArenaRoutes(router: Router, mgr: ArenaManager, o: { auth
   router.post("/arena/sessions/:id/say", async ({ params, body }) => {
     const eng = live(params.id!);
     try {
-      return await eng.say(side(body?.side), text(body?.text));
+      // the AI side (if any) answers once by itself; the reply arrives on the SSE stream
+      return await eng.say(side(body?.side), text(body?.text), { autoReply: true });
     } catch (e) {
       throw (e as { status?: number }).status ? e : httpError(409, (e as Error).message);
     }

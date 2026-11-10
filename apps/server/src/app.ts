@@ -276,7 +276,9 @@ export function createApp(opts: AppOptions = {}): App {
         }
         if (/\/review$/.test(m.pattern)) body.reviewer = user?.name;
       }
-      const out = await m.h({ params: m.params, query: url.searchParams, body, raw: req, res, user });
+      // `id` too: packages/training resolves the expert / reviewer from req.user.id — without it every
+      // annotation / rewrite / review was recorded as "local-expert" even with auth on
+      const out = await m.h({ params: m.params, query: url.searchParams, body, raw: req, res, user: user && { ...user, id: user.expertId } });
       // zero-retention analysis (D27) must not touch data/ at all — not even the audit log
       if (req.method === "POST" && m.pattern !== "/auth/login" && m.pattern !== "/scripts/analyze-ephemeral") {
         void identity.audit({ expertId: user?.expertId ?? "anonymous", action: auditAction(m.pattern), target: Object.values(m.params)[0], detail: auditDetail(body) }).catch(() => {});

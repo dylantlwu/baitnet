@@ -1,4 +1,5 @@
-import type { ArenaEvent, ArenaSession, ArenaSide } from "@baitnet/shared";
+import type { ArenaSession, ArenaSide } from "@baitnet/shared";
+import type { ArenaStreamEvent } from "../backend/types";
 
 /** A human line shown immediately (optimistic) until the server's "turn" event replaces it. */
 export interface PendingTurn {
@@ -16,18 +17,20 @@ export interface ArenaState {
   txHashes: Record<number, string>;
   safetyLog: { side: ArenaSide; rule: string }[];
   pending: PendingTurn[];
+  /** Side whose AI line is being generated ("typing…"), null when idle. */
+  typing: ArenaSide | null;
 }
 
 export type ArenaAction =
   | { type: "reset" }
   | { type: "session"; session: ArenaSession }
-  | { type: "event"; event: ArenaEvent }
+  | { type: "event"; event: ArenaStreamEvent }
   | { type: "sayStart"; pending: Omit<PendingTurn, "status" | "error"> }
   | { type: "sayFailed"; localId: string; error: string }
   | { type: "sayRetry"; localId: string }
   | { type: "sayDiscard"; localId: string };
 
-export const initialArena: ArenaState = { session: null, txHashes: {}, safetyLog: [], pending: [] };
+export const initialArena: ArenaState = { session: null, txHashes: {}, safetyLog: [], pending: [], typing: null };
 
 const norm = (t: string) => t.trim().replace(/\s+/g, " ");
 
@@ -41,6 +44,7 @@ export function arenaReducer(state: ArenaState, action: ArenaAction): ArenaState
         txHashes: {},
         safetyLog: [],
         pending: [],
+        typing: null,
       };
     case "event":
       return applyEvent(state, action.event);
@@ -55,7 +59,7 @@ export function arenaReducer(state: ArenaState, action: ArenaAction): ArenaState
   }
 }
 
-export function applyEvent(state: ArenaState, e: ArenaEvent): ArenaState {
+export function applyEvent(state: ArenaState, e: ArenaStreamEvent): ArenaState {
   const s = state.session;
   if (!s || e.sessionId !== s.id) return state;
   switch (e.type) {
@@ -70,7 +74,9 @@ export function applyEvent(state: ArenaState, e: ArenaEvent): ArenaState {
         const i = pending.findIndex((p) => p.side === e.turn.side && norm(p.text) === norm(e.turn.text));
         if (i >= 0) pending = pending.filter((_, j) => j !== i);
       }
-      return { ...state, pending, session: { ...s, turns } };
+      // the AI line that was being "typed" has arrived (also covers a lost typing-off event)
+      const typing = state.typing === e.turn.side && e.turn.author !== "human" ? null : state.typing;
+      return { ...state, pending, typing, session: { ...s, turns } };
     }
     case "draft": {
       const drafts = [...s.drafts];
@@ -80,7 +86,9 @@ export function applyEvent(state: ArenaState, e: ArenaEvent): ArenaState {
     case "mode":
       return { ...state, session: { ...s, modes: { ...s.modes, [e.side]: e.mode } } };
     case "status":
-      return { ...state, session: { ...s, status: e.status } };
+      return { ...state, typing: e.status === "finished" ? null : state.typing, session: { ...s, status: e.status } };
+    case "typing":
+      return { ...state, typing: e.on ? e.side : state.typing === e.side ? null : state.typing };
     case "onchain": {
       const d = s.drafts[e.draftIndex];
       if (!d) return state;

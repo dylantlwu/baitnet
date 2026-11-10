@@ -13,8 +13,10 @@ const WARNING_RULES: Rule[] = [
   { re: /^(?:No speakers detected.*|没有识别出说话人.*)$/i, zh: () => "没有识别出说话人，整段按骗子话术处理", en: () => "No speakers detected; treating every line as scammer text" },
   { re: /^(?:(\d+) injection line\(s\).*|发现 (\d+) 句注入\/诱导句.*)$/i, zh: (m) => `发现 ${m[1] ?? m[2]} 句注入/诱导句，已列入注入句`, en: (m) => `${m[1] ?? m[2]} injection line(s) found and listed under injections` },
   { re: /^(?:(\d+) address\(es\).*|(\d+) 个地址命中已知机构名单.*)$/i, zh: (m) => `${m[1] ?? m[2]} 个地址命中已知机构名单（疑似投毒），不会上链`, en: (m) => `${m[1] ?? m[2]} address(es) match known entities (likely poisoning) and will not go on-chain` },
+  // zero-retention: nothing was stored — never translate this into "original stored encrypted"
+  { re: /^(?:(\d+) PII item\(s\) redacted.*zero-retention.*|Redacted (\d+).*zero-retention.*|已打码 (\d+) 项个人资料.*零留存.*)$/i, zh: (m) => `已打码 ${m[1] ?? m[2] ?? m[3]} 项个人资料；零留存模式：原文和结果都没有保存`, en: (m) => `Redacted ${m[1] ?? m[2] ?? m[3]} personal-data items; zero-retention: neither the original nor the result was stored` },
   { re: /^(?:Redacted (\d+) (?:PII )?item.*?(?:evidence ([0-9a-f]{6,})).*|已打码 (\d+) 项个人资料.*?evidence ([0-9a-f]{6,}).*)$/i, zh: (m) => `已打码 ${m[1] ?? m[3]} 项个人资料；原文已加密保存（证据 ${m[2] ?? m[4]}…）`, en: (m) => `Redacted ${m[1] ?? m[3]} personal-data items; original stored encrypted (evidence ${m[2] ?? m[4]}…)` },
-  { re: /^(?:Redacted (\d+).*|已打码 (\d+) 项个人资料.*)$/i, zh: (m) => `已打码 ${m[1] ?? m[2]} 项个人资料；原文已加密保存`, en: (m) => `Redacted ${m[1] ?? m[2]} personal-data items; original stored encrypted` },
+  { re: /^(?:Redacted (\d+).*|已打码 (\d+) 项个人资料.*)$/i, zh: (m) => `已打码 ${m[1] ?? m[2]} 项个人资料`, en: (m) => `Redacted ${m[1] ?? m[2]} personal-data items` },
   { re: /^(?:No actionable intel.*|没有可上链的情报.*)$/i, zh: () => "没有可上链的情报（地址/网址）", en: () => "No actionable intel (address / URL)" },
 ];
 

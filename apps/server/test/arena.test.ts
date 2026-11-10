@@ -100,6 +100,48 @@ describe("Arena API", () => {
     expect(types).toContain("onchain");
   });
 
+  it("say: human scammer → the AI decoy answers once by itself (typing on SSE); both human → no answer", async () => {
+    const s = (await post("/arena/sessions", { scriptId: "fake-loan-02", scammer: "human", bait: "ai" })).body as ArenaSession;
+    const ctrl = new AbortController();
+    const res = await fetch(`${base}/arena/sessions/${s.id}/events`, { signal: ctrl.signal });
+    const reader = res.body!.getReader();
+    const seen: { type: string; on?: boolean; side?: string }[] = [];
+    let buf = "";
+    const pump = (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += new TextDecoder().decode(value);
+          let i;
+          while ((i = buf.indexOf("\n\n")) >= 0) {
+            const line = buf.slice(0, i).split("\n").find((l) => l.startsWith("data: "));
+            buf = buf.slice(i + 2);
+            if (line) seen.push(JSON.parse(line.slice(6)));
+          }
+        }
+      } catch {
+        /* aborted */
+      }
+    })();
+    const said = await post(`/arena/sessions/${s.id}/say`, { side: "scammer", text: "你好，你的贷款批下来了" });
+    expect(said.body).toMatchObject({ side: "scammer", author: "human" });
+    // an immediate "step" must not produce a second decoy line
+    await post(`/arena/sessions/${s.id}/control`, { action: "step" });
+    await app.arena.get(s.id)!.lastAutoReply;
+    const d = (await get(`/arena/sessions/${s.id}`)) as ArenaSession;
+    expect(d.turns.map((t) => `${t.side}:${t.author}`)).toEqual(["scammer:human", "bait:ai"]);
+    await new Promise((r) => setTimeout(r, 50));
+    ctrl.abort();
+    await pump;
+    expect(seen.filter((e) => e.type === "typing").map((e) => `${e.side}:${e.on}`)).toEqual(["bait:true", "bait:false"]);
+
+    const both = (await post("/arena/sessions", { scriptId: "fake-loan-02", scammer: "human", bait: "human" })).body as ArenaSession;
+    await post(`/arena/sessions/${both.id}/say`, { side: "scammer", text: "你好" });
+    await app.arena.get(both.id)!.lastAutoReply;
+    expect(((await get(`/arena/sessions/${both.id}`)) as ArenaSession).turns).toHaveLength(1);
+  });
+
   it("whisper / mode / validation errors", async () => {
     const s = (await post("/arena/sessions", { scriptId: "investment-01" })).body as ArenaSession;
     const w = await post(`/arena/sessions/${s.id}/whisper`, { side: "bait", text: "问问是不是 TRC20" });

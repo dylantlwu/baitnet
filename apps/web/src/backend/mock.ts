@@ -1,7 +1,6 @@
 import type {
   AttestationResult,
   Annotation,
-  ArenaEvent,
   ArenaSession,
   ArenaSide,
   ArenaTurn,
@@ -17,7 +16,7 @@ import { ARENA_MODELS, DEFAULT_ARENA_MODEL } from "@baitnet/shared";
 import { tokenize } from "../lib/tokens";
 import { analyzeUpload } from "../scriptlab/analyze";
 import { normalizeScripts } from "./normalize";
-import { ReadOnlyError, type Backend } from "./types";
+import { ReadOnlyError, type ArenaStreamEvent, type Backend } from "./types";
 
 export interface MockSeed {
   scripts: ScamScriptDef[];
@@ -76,8 +75,10 @@ const fakeTx = () => Array.from({ length: 44 }, () => b58[Math.floor(Math.random
 interface Live {
   session: ArenaSession;
   script: ScamScriptDef;
-  listeners: Set<(e: ArenaEvent) => void>;
+  listeners: Set<(e: ArenaStreamEvent) => void>;
   timer?: ReturnType<typeof setTimeout>;
+  /** auto reply after a human line (one at a time, like the server's queue) */
+  replyTimer?: ReturnType<typeof setTimeout>;
   whispers: Partial<Record<ArenaSide, string>>;
   scammerStep: number;
   injected: boolean;
@@ -102,7 +103,7 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
     if (readOnly) throw new ReadOnlyError();
   };
 
-  const emit = (l: Live, e: ArenaEvent) => l.listeners.forEach((f) => f(e));
+  const emit = (l: Live, e: ArenaStreamEvent) => l.listeners.forEach((f) => f(e));
   const setStatus = (l: Live, status: ArenaSession["status"]) => {
     l.session.status = status;
     emit(l, { type: "status", sessionId: l.session.id, status });
@@ -198,6 +199,20 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
     return true;
   }
 
+  /** Same rule as the server: after a human line an AI other side answers once (never twice). */
+  function autoReply(l: Live) {
+    if (l.replyTimer || l.session.status === "finished") return;
+    const last = l.session.turns[l.session.turns.length - 1];
+    const side: ArenaSide = !last || last.side === "bait" ? "scammer" : "bait";
+    if (l.session.modes[side] === "human") return;
+    emit(l, { type: "typing", sessionId: l.session.id, side, on: true });
+    l.replyTimer = setTimeout(() => {
+      l.replyTimer = undefined;
+      if (l.session.status !== "running") stepOnce(l);
+      emit(l, { type: "typing", sessionId: l.session.id, side, on: false });
+    }, Math.min(700, tickMs));
+  }
+
   function stop(l: Live) {
     if (l.timer) clearTimeout(l.timer);
     l.timer = undefined;
@@ -271,6 +286,7 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
       const l = live(id);
       const turn = addTurn(l, side, text, "human");
       if (l.session.status === "running") loop(l);
+      else autoReply(l);
       return clone(turn);
     },
     async whisper(id, side, text) {

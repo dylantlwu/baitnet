@@ -36,7 +36,7 @@ export interface Backend {
   createSession(scriptId: string, modes: Record<ArenaSide, SideMode>, modelChoice?: ArenaModelChoice): Promise<ArenaSession>;
   /** D30: models offered when starting a session (GET /arena/models); optional for older backends. */
   listModels?(): Promise<ArenaModelsInfo>;
-  subscribe(sessionId: string, onEvent: (e: ArenaEvent) => void): () => void;
+  subscribe(sessionId: string, onEvent: (e: ArenaStreamEvent) => void): () => void;
   control(sessionId: string, action: "run" | "pause" | "step"): Promise<void>;
   setMode(sessionId: string, side: ArenaSide, mode: SideMode): Promise<void>;
   /** Resolves with the created turn when the server returns it (lets the UI confirm before SSE arrives). */
@@ -60,6 +60,15 @@ export interface Backend {
   /** Not in the shared API yet: review an AlertDraft found in an uploaded chat. */
   reviewUploadDraft(analysisId: string, draftIndex: number, approve: boolean): Promise<{ alertId?: number; txHash?: string }>;
 }
+
+/** "typing…": an AI line is being generated (server SSE, not in the shared ArenaEvent union). */
+export interface ArenaTypingEvent {
+  type: "typing";
+  sessionId: string;
+  side: ArenaSide;
+  on: boolean;
+}
+export type ArenaStreamEvent = ArenaEvent | ArenaTypingEvent;
 
 export class ReadOnlyError extends Error {
   constructor() {

@@ -765,3 +765,27 @@ h3.first { margin-top: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- expert UX: compact nav, typing, compact rating, paste upload ---------- */
+.tabs-more { min-width: 0; }
+.tabs-more[open] { grid-column: 1 / -1; display: grid; gap: 6px; }
+.tabs-more > summary { list-style: none; cursor: pointer; }
+.tabs-more > summary::-webkit-details-marker { display: none; }
+.tabs-more-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 6px; border: 1px dashed var(--border); border-radius: 10px; }
+.typing-row .bubble2.typing { display: inline-flex; align-items: center; gap: 6px; opacity: 0.85; }
+.typing-dots { display: inline-flex; gap: 3px; }
+.typing-dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.4; animation: typing-blink 1.2s infinite ease-in-out; }
+.typing-dots i:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing-blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+.annot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.annot.compact { gap: 0; }
+.rate-edit.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.paste-box { display: grid; gap: 6px; }
+.paste-box textarea { width: 100%; resize: vertical; }
+@media (max-width: 640px) {
+  .rate { min-height: 36px; padding: 4px 12px; font-size: 14px; }
+  .annot .tag { min-height: 32px; }
+  /* the start button stays in reach while the settings card is on screen */
+  .script-detail .start-btn { position: sticky; bottom: 8px; z-index: 5; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
+}

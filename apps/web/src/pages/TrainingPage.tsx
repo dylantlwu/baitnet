@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AlertDraft, Correction, EvalRun, PlaybookEntry, ScamScriptDef, ScamType, ScriptAnalysis } from "@baitnet/shared";
+import type { AlertDraft, Correction, EvalRun, PlaybookEntry, ScamScriptDef, ScamType, ScriptAnalysis, ScriptUpload } from "@baitnet/shared";
 import type { ViewSnapshot } from "../data/parse";
 import { useBackend } from "../backend/context";
 import type { Backend } from "../backend/types";
@@ -10,7 +10,7 @@ import { useI18n } from "../i18n";
 import { fmtTime } from "../lib/format";
 import { href } from "../lib/router";
 import { EXPERT_KEY, load, save } from "../lib/storage";
-import { fileToUpload, SCAM_TYPES } from "../scriptlab/analyze";
+import { fileToUpload, pastedUpload, PASTE_MAX_CHARS, SCAM_TYPES } from "../scriptlab/analyze";
 import { translateWarning } from "../i18n/vocab";
 import { defang } from "../lib/tokens";
 import { DraftItem, TACTIC_TAGS, useExpert } from "./ArenaPage";
@@ -406,6 +406,7 @@ function Upload({ backend, network }: { backend: Backend; network: ViewSnapshot[
   const [err, setErr] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<ScriptAnalysis | null>(null);
   const [ephemeral, setEphemeral] = useState(false);
+  const [pasted, setPasted] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const disabled = backend.readOnly;
 
@@ -423,11 +424,30 @@ function Upload({ backend, network }: { backend: Backend; network: ViewSnapshot[
       setErr(t("upload.tooLarge"));
       return;
     }
+    await analyze(() => fileToUpload(file, expert.trim()));
+  };
+
+  /** Pasted chat text: the same analysis as a .txt file ("pasted.txt"), zero-retention switch included. */
+  const handlePaste = async () => {
+    if (disabled || busy) return;
+    if (!expert.trim()) {
+      setErr(t("upload.needExpert"));
+      return;
+    }
+    if (pasted.length > PASTE_MAX_CHARS) {
+      setErr(t("upload.tooLarge"));
+      return;
+    }
+    const u = pastedUpload(pasted, expert.trim());
+    if (u) await analyze(async () => u);
+  };
+
+  const analyze = async (make: () => Promise<ScriptUpload>) => {
     setErr(null);
     setBusy(true);
     setAnalysis(null);
     try {
-      setAnalysis(await backend.upload(await fileToUpload(file, expert.trim()), { ephemeral }));
+      setAnalysis(await backend.upload(await make(), { ephemeral }));
     } catch (e) {
       const m = (e as Error).message;
       setErr(
@@ -447,9 +467,10 @@ function Upload({ backend, network }: { backend: Backend; network: ViewSnapshot[
   return (
     <>
       <div className="card upload-card">
-        <label className="row gap">
-          <span className="small">{t("training.expertName")}</span>
-          {expertEditable ? (
+        {/* logged in: the server takes the identity from the session cookie, no name field */}
+        {expertEditable && (
+          <label className="row gap">
+            <span className="small">{t("training.expertName")}</span>
             <input
               className="input sm"
               value={expert}
@@ -457,10 +478,8 @@ function Upload({ backend, network }: { backend: Backend; network: ViewSnapshot[
               placeholder={t("training.expertPlaceholder")}
               onChange={(e) => setExpert(e.target.value)}
             />
-          ) : (
-            <strong>{expert}</strong>
-          )}
-        </label>
+          </label>
+        )}
         <div className={`zr-toggle${ephemeral ? " on" : ""}`}>
           <label className="switch">
             <input
@@ -503,9 +522,29 @@ function Upload({ backend, network }: { backend: Backend; network: ViewSnapshot[
             <>
               <strong>{t("upload.drop")}</strong>
               <span className="muted small">{ephemeral ? t("upload.formatsEphemeral") : t("upload.formats")}</span>
-              <span className="muted small">{t("upload.privacy")}</span>
+              <span className="muted small">{t(ephemeral ? "upload.privacyEphemeral" : "upload.privacy")}</span>
             </>
           )}
+        </div>
+        <div className="paste-box">
+          <label className="small" htmlFor="upload-paste">
+            {t("upload.pasteLabel")}
+          </label>
+          <textarea
+            id="upload-paste"
+            className="input"
+            rows={6}
+            value={pasted}
+            disabled={disabled || busy}
+            placeholder={t("upload.pastePlaceholder")}
+            onChange={(e) => setPasted(e.target.value)}
+          />
+          <div className="row gap">
+            <button type="button" className="btn primary small" disabled={disabled || busy || !pasted.trim()} onClick={() => void handlePaste()}>
+              {busy ? t("upload.analyzing") : t("upload.pasteSubmit")}
+            </button>
+            {pasted.trim() && <span className="muted small">{t("upload.pasteCount", { n: pasted.trim().split(/\n+/).length })}</span>}
+          </div>
         </div>
         {err && <p className="err small">{err}</p>}
       </div>
