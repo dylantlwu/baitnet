@@ -1,5 +1,13 @@
 # BaitNet 上线：Railway 部署步骤（给 Dylan）
 
+
+> **现行部署（2026-11-10，产品用 Railway CLI 建好）**
+> - 项目 `baitnet` / 服务 `baitnet` / 环境 `production`，区域 Southeast Asia（Singapore），Volume `baitnet-volume` 挂 `/data`
+> - 网址：https://baitnet-production.up.railway.app （来源：GitHub `dylantlwu/baitnet` 的 main 分支，push 即自动部署）
+> - 已填：PORT、BAITNET_AUTH=on、BAITNET_MODE=live、BAITNET_REVIEW=manual、BAITNET_LLM_DAILY_LIMIT=200、NEAR_NETWORK/NEAR_RPC_URL、BAITNET_PUBLIC_URL/CORS_ORIGINS、两个随机密钥（副本在本机 `.env.railway`，已被 git 忽略，请移进密码管理器）
+> - **Dylan 还要填**：`NEARAI_API_KEY`（用新 key）；测试网部署后填 4.3 节的账户和私钥；在 Usage 里设月度上限
+> - `railway.json` 属于 Railway 的 "Config as Code"，官方说 2026-12-01 前继续有效；评审期结束后再迁移到 `.railway/railway.ts`
+
 > 现行方案：**一个 Railway 项目 + 一个服务 + 一个 Volume + 一个域名**。旧的香港 VPS 方案见 [部署说明.md](部署说明.md)，保留备用。
 > 代码侧已准备好：`Dockerfile`、`.dockerignore`、`railway.json`、`deploy/docker-entrypoint.sh`（容器里的 `baitnet` 命令）、`scripts/backup-data.ts`。
 > 更新：2026-11-10（运维 agent）
