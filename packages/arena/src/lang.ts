@@ -36,3 +36,9 @@ export const CHAIN_NAME: Record<Lang, Record<string, string>> = {
   zh: { near: "NEAR 链", evm: "以太坊（ERC20）", tron: "波场（TRC20）", btc: "比特币" },
   en: { near: "NEAR", evm: "Ethereum (ERC-20)", tron: "Tron (TRC-20)", btc: "Bitcoin" },
 };
+
+/** Chain names a non-technical persona would say (no "TRC20"/"ERC20" jargon, D32 knowledge-leak). */
+export const PLAIN_CHAIN_NAME: Record<Lang, Record<string, string>> = {
+  zh: { near: "NEAR 链", evm: "以太坊", tron: "波场", btc: "比特币" },
+  en: { near: "NEAR", evm: "Ethereum", tron: "Tron", btc: "Bitcoin" },
+};

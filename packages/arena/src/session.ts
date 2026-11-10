@@ -9,6 +9,7 @@ import type {
   ArenaSide,
   ArenaTurn,
   Conversation,
+  DecoyPersona,
   Lang,
   ScamScript,
   ScamScriptDef,
@@ -37,6 +38,12 @@ import { baitSystemPrompt, scammerSystemPrompt } from "./prompts.js";
 import { filterBaitText, isInjection, looksHijacked } from "./safety.js";
 import type { PlaybookRetriever } from "./deps.js";
 import { decoyReadyPlaybook, hasPlaceholder, naturalizePlaceholders } from "./placeholders.js";
+import { initDecoyMind, selectPersona } from "./personas.js";
+import { checkDraft, describeHits, type CheckHit } from "./decoy-checks.js";
+import { codeIntel, parseDecoyOutput, updateDecoyMind, type DecoyOutput } from "./decoy-mind.js";
+
+/** Bait answers carry a JSON mind (think / plan / facts …) now; 400 tokens could cut the reply off. */
+const BAIT_MAX_TOKENS = 900;
 
 export type ArenaDraft = ArenaSession["drafts"][number];
 
@@ -102,6 +109,10 @@ export class ArenaSessionEngine extends EventEmitter {
     const eng = new ArenaSessionEngine(script, deps, { id: saved.id, modes: saved.modes });
     Object.assign(eng.session, JSON.parse(JSON.stringify(saved)) as ArenaSession);
     eng.applyModel();
+    // sessions saved before D32: pick their persona now (stable by id, so the same one every restart)
+    if (!eng.session.persona) eng.attachPersona(selectPersona(script, saved.id));
+    else eng.session.decoyMind ??= initDecoyMind(eng.session.persona);
+    eng.baitRules.persona = eng.session.persona;
     if (eng.session.status === "running") eng.session.status = "paused";
     const scammer = saved.turns.filter((t) => t.side === "scammer");
     eng.scammerRules.restoreFrom(scammer.map((t) => t.text));
@@ -117,7 +128,7 @@ export class ArenaSessionEngine extends EventEmitter {
   constructor(
     readonly script: ScamScriptDef,
     private deps: SessionDeps,
-    init: { id?: string; modes?: Partial<Record<ArenaSide, SideMode>>; channel?: SessionChannel } = {},
+    init: { id?: string; modes?: Partial<Record<ArenaSide, SideMode>>; channel?: SessionChannel; persona?: DecoyPersona } = {},
   ) {
     super();
     const id = init.id ?? `arena-${randomUUID().slice(0, 8)}`;
@@ -137,6 +148,15 @@ export class ArenaSessionEngine extends EventEmitter {
       ...(init.channel ? { channel: init.channel } : {}),
       createdAt: this.now().toISOString(),
     };
+    this.attachPersona(init.persona ?? selectPersona(script, id));
+  }
+
+  /** D32: snapshot the character card on the session and start an empty mind. */
+  private attachPersona(p: DecoyPersona | undefined) {
+    if (!p) return;
+    this.session.persona = JSON.parse(JSON.stringify(p)) as DecoyPersona;
+    this.session.decoyMind = initDecoyMind(p);
+    this.baitRules.persona = this.session.persona;
   }
 
   /** session.engine / model / modelChoice from deps (rules = no model). */
@@ -415,21 +435,26 @@ export class ArenaSessionEngine extends EventEmitter {
     const lastScammer = [...this.session.turns].reverse().find((t) => t.side === "scammer");
     const scammerText = lastScammer?.text ?? "";
     const lang = this.lang;
+    const persona = this.session.persona;
     const stage = lastScammer ? (this.metrics.stageByTurn[lastScammer.index] ?? this.scammerRules.stageFor(Math.max(0, this.scammerRules.scammerTurns - 1))) : 0;
     let playbook: Awaited<ReturnType<PlaybookRetriever["search"]>> = [];
     try {
       // placeholders ([NAME_1]…) from redaction become natural wording; examples that cannot be fixed are dropped
-      playbook = decoyReadyPlaybook(await this.deps.retriever.search({ scamType: this.script.type, stage, lastScammerText: scammerText, k: 3 }), lang);
+      playbook = decoyReadyPlaybook(await this.deps.retriever.search({ scamType: this.script.type, stage, lastScammerText: scammerText, k: 3 }), lang, persona?.name);
     } catch (e) {
       this.log(`[arena] playbook search failed: ${(e as Error).message}`);
     }
     if (playbook.length) this.metrics.playbookHits++;
 
     let draft: string;
+    let out: DecoyOutput | undefined; // set only when the LLM wrote the line
     if (await this.llmAllowed("bait")) {
       try {
-        draft = await this.deps.llm!.complete({ system: baitSystemPrompt(lang, playbook, whisper), messages: this.messagesFor("bait") });
+        out = await this.llmBait(lang, playbook, whisper);
+        draft = out.reply;
+        if (!draft.trim()) throw new Error("no usable reply in the model output");
       } catch (e) {
+        out = undefined;
         this.metrics.llmFallbacks++;
         this.log(`[arena] bait LLM failed (${(e as Error).message}); rules fallback`);
         draft = this.rulesBait(scammerText, lang, playbook, whisper);
@@ -438,16 +463,28 @@ export class ArenaSessionEngine extends EventEmitter {
 
     // never send the exact same bait line twice in a row (rules engine, or a looping LLM)
     const prevBait = [...this.session.turns].reverse().find((t) => t.side === "bait")?.text;
-    if (prevBait && draft.trim() === prevBait.trim()) draft = this.rulesBait(scammerText, lang, [], undefined);
+    if (prevBait && draft.trim() === prevBait.trim()) {
+      draft = this.rulesBait(scammerText, lang, [], undefined);
+      // the facts belonged to the replaced line; keep think/plan only
+      if (out?.mind?.newFacts) out = { ...out, mind: { think: out.mind.think, ...(out.mind.plan ? { plan: out.mind.plan } : {}) } };
+    }
     // belt and braces: a decoy line never carries a redaction placeholder
-    if (hasPlaceholder(draft)) draft = naturalizePlaceholders(draft, lang);
+    if (hasPlaceholder(draft)) draft = naturalizePlaceholders(draft, lang, persona?.name);
     const lastWasInjection = lastScammer ? this.metrics.injectionTurns.includes(lastScammer.index) : false;
     if (lastWasInjection && looksHijacked(draft)) this.metrics.hijackTurns.push(this.session.turns.length);
-    const f = filterBaitText(draft, lang, this.rand, { haveAddress: this.session.drafts.length > 0 });
+    const f = filterBaitText(draft, lang, this.rand, { haveAddress: this.session.drafts.length > 0, stallExcuses: this.session.persona?.stallExcuses });
+    // D32: update the hidden mind before the turn is pushed (pushTurn persists the session)
+    const mind = this.session.decoyMind;
+    if (mind) {
+      const firstScore = !this.session.turns.some((t) => t.side === "bait" && t.mind);
+      const scammerTexts = this.session.turns.filter((t) => t.side === "scammer").map((t) => t.text);
+      updateDecoyMind(mind, this.session.turns.length, out, codeIntel(scammerTexts, persona?.lang ?? lang), { firstScore });
+    }
     const turn = this.pushTurn({
       side: "bait",
       text: f.text,
       author: "ai",
+      ...(out?.mind ? { mind: out.mind } : {}),
       ...(whisper ? { whisper } : {}),
       ...(f.blocked ? { safety: { blocked: true, rule: f.rule!, original: f.original } } : {}),
     });
@@ -456,6 +493,44 @@ export class ArenaSessionEngine extends EventEmitter {
       this.emitEvent({ type: "safety", sessionId: this.session.id, side: "bait", rule: f.rule!, turnIndex: turn.index });
     }
     return turn;
+  }
+
+  /**
+   * D32 LLM bait line: layered prompt → JSON → post-checks → at most one rewrite (same prompt + "上一稿的问题")
+   * → the draft with fewer issues. Every hit is recorded in decoyMind.checks. filterBaitText runs after this.
+   */
+  private async llmBait(lang: Lang, playbook: Awaited<ReturnType<PlaybookRetriever["search"]>>, whisper?: string): Promise<DecoyOutput> {
+    const persona = this.session.persona;
+    const mind = this.session.decoyMind;
+    const messages = this.decoyJsonMessages(lang);
+    const ask = async (rewriteNote?: string) =>
+      parseDecoyOutput(await this.deps.llm!.complete({ system: baitSystemPrompt(lang, playbook, whisper, { persona, mind, rewriteNote }), messages, maxTokens: BAIT_MAX_TOKENS }));
+    const first = await ask();
+    if (!persona || !mind || !first.reply.trim()) return first;
+    const turn = this.session.turns.length;
+    const ctx = {
+      persona,
+      facts: mind.facts.map((x) => x.fact),
+      scammerText: this.session.turns.filter((t) => t.side === "scammer").map((t) => t.text).join("\n"),
+    };
+    const hits1 = checkDraft(first.reply, first.mind?.newFacts ?? [], ctx);
+    if (!hits1.length) return first;
+    let second: DecoyOutput | undefined;
+    let hits2: CheckHit[] | undefined;
+    // the rewrite is a second model call: it counts against the daily quota too (no quota → keep the draft)
+    if (!this.deps.llmGate || (await this.deps.llmGate())) {
+      try {
+        second = await ask(describeHits(hits1, lang));
+        if (second.reply.trim()) hits2 = checkDraft(second.reply, second.mind?.newFacts ?? [], ctx);
+      } catch (e) {
+        this.log(`[arena] bait rewrite failed (${(e as Error).message}); keeping the first draft`);
+      }
+    }
+    const useSecond = !!second && !!hits2 && hits2.length < hits1.length;
+    const tried = !!hits2;
+    for (const h of hits1) mind.checks.push({ turn, issue: h.issue, detail: tried && !useSecond ? `${h.detail} (rewrite was not better; kept)` : h.detail, rewritten: tried });
+    if (useSecond) for (const h of hits2!) mind.checks.push({ turn, issue: h.issue, detail: `after rewrite: ${h.detail}`, rewritten: false });
+    return useSecond ? second! : first;
   }
 
   private rulesBait(scammerText: string, lang: Lang, playbook: Awaited<ReturnType<PlaybookRetriever["search"]>>, whisper?: string): string {
@@ -477,11 +552,35 @@ export class ArenaSessionEngine extends EventEmitter {
     return r.text;
   }
 
-  /** Chat history from one side's perspective; whispers are never included. */
+  /** Chat history from one side's perspective: turn text only; whispers, persona and mind are never included. */
   private messagesFor(me: ArenaSide): ChatMessage[] {
     const msgs: ChatMessage[] = this.session.turns.map((t) => ({ role: t.side === me ? "assistant" : "user", content: t.text }));
     while (msgs.length && msgs[0]!.role === "assistant") msgs.shift();
     if (!msgs.length) msgs.push({ role: "user", content: me === "scammer" ? "(Start the conversation with your opening hook.)" : "(The other side has not said anything yet.)" });
+    return msgs;
+  }
+
+  /**
+   * History for the JSON-speaking decoy: earlier bait lines are shown as {"reply": …} (with their stored
+   * think / plan when present) so the model keeps answering in JSON instead of copying its plain-text past
+   * replies (measured 2026-11-11: DeepSeek drifted to plain text from the 2nd reply on). The last message
+   * ends with a one-line format reminder. Still turn text only: no whispers, no persona.
+   */
+  private decoyJsonMessages(lang: Lang): ChatMessage[] {
+    const msgs: ChatMessage[] = this.session.turns.map((t) => {
+      if (t.side !== "bait") return { role: "user", content: t.text };
+      const o: Record<string, unknown> = {};
+      if (t.mind?.think) o.think = t.mind.think;
+      if (t.mind?.plan) o.plan = t.mind.plan;
+      if (t.mind?.newFacts?.length) o.new_facts = t.mind.newFacts;
+      o.reply = t.text;
+      return { role: "assistant", content: JSON.stringify(o) };
+    });
+    while (msgs.length && msgs[0]!.role === "assistant") msgs.shift();
+    if (!msgs.length) msgs.push({ role: "user", content: "(The other side has not said anything yet.)" });
+    const last = msgs[msgs.length - 1]!;
+    if (last.role === "user")
+      last.content += lang === "zh" ? "\n\n（按【输出格式】只回一个 JSON；这一轮提到自己的新细节都写进 new_facts）" : "\n\n(Answer with ONE JSON object as in [Output format]; put every new detail about yourself into new_facts.)";
     return msgs;
   }
 

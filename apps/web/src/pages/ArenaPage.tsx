@@ -16,6 +16,7 @@ import { sendSay } from "../arena/optimistic";
 import type { PendingTurn } from "../arena/reducer";
 import { useIdentity } from "../auth/context";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DecoyMindCard, PersonaLine, PrincipleChips, TurnMindChip, TurnMindNote, hasTurnMind, mindUpTo, ALL_PRINCIPLE_TAGS, PRINCIPLE_TAGS } from "../arena/DecoyMind";
 
 export const TACTIC_TAGS = [
   "stalling", "ask-address", "ask-chain", "confirm-details", "play-dumb",
@@ -405,6 +406,25 @@ function LiveSession({
     return backend.subscribe(initial.id, (event) => dispatch({ type: "event", event }));
   }, [backend, initial]);
 
+  // D32: the stream has no event for the decoy's hidden state; re-read the session after new lines
+  // (only when the server sends that state at all: old servers / rules-only builds are left alone).
+  const turnCount = st.session?.turns.length ?? 0;
+  const hasMind = !!(initial.persona || initial.decoyMind);
+  useEffect(() => {
+    if (!hasMind || turnCount === 0) return;
+    let alive = true;
+    const tm = setTimeout(() => {
+      backend.getSession(initial.id).then(
+        (fresh) => alive && fresh && dispatch({ type: "mind", sessionId: initial.id, persona: fresh.persona, decoyMind: fresh.decoyMind, turns: fresh.turns }),
+        () => undefined,
+      );
+    }, 400);
+    return () => {
+      alive = false;
+      clearTimeout(tm);
+    };
+  }, [backend, initial.id, hasMind, turnCount]);
+
   const s = st.session;
   if (!s) return null;
   const act = (p: Promise<unknown>) => {
@@ -471,6 +491,7 @@ function ReplaySession({ rec, script, snap, network }: { rec: ArenaSession; scri
     ...rec,
     turns,
     status: shown >= total ? "finished" : playing ? "running" : "paused",
+    decoyMind: mindUpTo(rec.decoyMind, turns.length ? turns[turns.length - 1].index : -1),
     // A recorded draft becomes visible once the turn revealing its address has been replayed.
     drafts: rec.drafts.map((d) => (text.includes(d.address.toLowerCase()) ? d : { ...d, review: "hidden" as never })),
   };
@@ -557,6 +578,8 @@ function SessionLayout(p: LayoutProps) {
         </div>
       )}
 
+      <PersonaLine persona={s.persona} />
+
       <div className="arena-grid">
         <section className="card chat2" aria-label={t("arena.conversation")}>
           <div className="chat2-head">
@@ -619,6 +642,7 @@ function SessionLayout(p: LayoutProps) {
           <h2>{t("arena.drafts")}</h2>
           <DraftList session={s} network={p.network} txHashes={p.txHashes} readOnly={ro} onReview={p.onReview} />
           {p.safetyCount > 0 && <p className="note small">🛡 {t("arena.safetyCount", { n: p.safetyCount })}</p>}
+          <DecoyMindCard mind={s.decoyMind} />
         </aside>
       </div>
     </div>
@@ -645,6 +669,8 @@ export function TurnRow({
   const { t, tl } = useI18n();
   const [showWhisper, setShowWhisper] = useState(false);
   const [showSafety, setShowSafety] = useState(false);
+  const [showMind, setShowMind] = useState(false);
+  const mind = turn.side === "bait" && hasTurnMind(turn.mind) ? turn.mind : undefined;
   return (
     <div className={`turn-row ${turn.side}`}>
       <div className={`bubble2${turn.safety ? " flagged" : ""}`}>
@@ -661,11 +687,13 @@ export function TurnRow({
               🛡 {t("arena.safetyMark")}
             </button>
           )}
+          {mind && <TurnMindChip open={showMind} onToggle={() => setShowMind((v) => !v)} />}
           <time className="push">{fmtClock(turn.ts)}</time>
         </div>
         <div className="bubble-text">
           <RichText text={turn.text} alerts={snap.alerts} />
         </div>
+        {showMind && mind && <TurnMindNote mind={mind} />}
         {showWhisper && turn.whisper && (
           <div className="aside-note whisper-note">
             <b>{t("arena.whisperLabel")}</b> {turn.whisper}
@@ -927,6 +955,9 @@ export function DraftItem({
 /**
  * One compact row per decoy line: 好 / 差 / 有风险 / ✎ 改写. "Good" is saved with one tap; "bad" / "risky"
  * open tags + reason (then save); "rewrite" opens tags + reason + the better line (then submit for review).
+ * D32: after 好 / 差 the expert may also tick principle tags (像真人 / 套到信息 / 前后一致, or the opposites);
+ * they go into Annotation.tags. Saving again replaces this expert's previous rating of the line (when the
+ * backend can delete), so a one-tap 好 followed by tags does not leave two training examples behind.
  */
 export function AnnotateBar({ turn, expert, session, script, backend }: { turn: ArenaTurn; expert: string; session: ArenaSession; script?: ScamScriptDef; backend: Backend }) {
   const { t, tl } = useI18n();
@@ -937,6 +968,10 @@ export function AnnotateBar({ turn, expert, session, script, backend }: { turn: 
   const [good, setGood] = useState(turn.text);
   const [state, setState] = useState<"idle" | "saving" | "saved" | "submitted" | "error">("idle");
   const [msg, setMsg] = useState("");
+  /** D32 principle tags for the current rating; `savedP` = what the last saved annotation carried. */
+  const [ptags, setPtags] = useState<string[]>([]);
+  const [savedP, setSavedP] = useState<string[] | null>(null);
+  const savedId = useRef<string | null>(null);
   const prevScam = [...session.turns].reverse().find((x) => x.side === "scammer" && x.index < turn.index);
   const scammerTurns = session.turns.filter((x) => x.side === "scammer" && x.index < turn.index).length;
   const stage = Math.min(Math.max(0, (script?.stages.length ?? 1) - 1), Math.floor(scammerTurns / 2));
@@ -947,20 +982,28 @@ export function AnnotateBar({ turn, expert, session, script, backend }: { turn: 
     setState("error");
     setMsg(e.message);
   };
-  const saveAnn = (r: TurnRating | null = rating) => {
+  const togglePrinciple = (tag: string) => setPtags((x) => (x.includes(tag) ? x.filter((y) => y !== tag) : [...x, tag]));
+  const saveAnn = (r: TurnRating | null = rating, principles: string[] = ptags) => {
     if (!r) return;
     setState("saving");
+    const keep = principles.filter((x) => PRINCIPLE_TAGS[r]?.includes(x));
+    const prev = savedId.current;
     backend
-      .postAnnotation({ sessionId: session.id, turnIndex: turn.index, expertId: expert.trim(), rating: r, tags, note })
-      .then(() => {
+      .postAnnotation({ sessionId: session.id, turnIndex: turn.index, expertId: expert.trim(), rating: r, tags: [...tags.filter((x) => !ALL_PRINCIPLE_TAGS.includes(x)), ...keep], note })
+      .then((a) => {
+        savedId.current = a?.id ?? null;
+        // replace, not add: drop this expert's earlier rating of the same line (best effort)
+        if (prev && prev !== a?.id) backend.deleteAnnotation?.(prev).catch(() => undefined);
+        setSavedP(keep);
         setState("saved");
         setOpen(null);
       }, fail);
   };
   const rate = (r: TurnRating) => {
+    if (r !== rating) setPtags([]);
     setRating(r);
     if (r === "good") {
-      saveAnn("good");
+      saveAnn("good", r === rating ? ptags : []);
       return;
     }
     setOpen("rate");
@@ -1015,8 +1058,20 @@ export function AnnotateBar({ turn, expert, session, script, backend }: { turn: 
         {state === "saved" && <span className="ok-text small">✓ {t("training.annotationSaved")}</span>}
         {state === "submitted" && <span className="ok-text small">✓ {t("training.correctionSubmitted")}</span>}
       </div>
+      {/* 好 is saved with one tap: its principle tags come afterwards, saved with a small button once changed */}
+      {rating === "good" && !open && (state === "saved" || state === "saving" || (state === "error" && savedP !== null)) && (
+        <div className="principle-row">
+          <PrincipleChips rating="good" value={ptags} onToggle={togglePrinciple} />
+          {savedP !== null && !sameSet(ptags, savedP) && (
+            <button type="button" className="btn small" disabled={state === "saving"} onClick={() => saveAnn("good")}>
+              {t("mind.saveTags")}
+            </button>
+          )}
+        </div>
+      )}
       {open && (
         <>
+          {open === "rate" && rating === "bad" && <PrincipleChips rating="bad" value={ptags} onToggle={togglePrinciple} />}
           <div className="tag-pick">
             {TACTIC_TAGS.map((tag) => (
               <button key={tag} type="button" className={tags.includes(tag) ? "tag on" : "tag"} onClick={() => toggle(tag)}>
@@ -1054,3 +1109,5 @@ export function AnnotateBar({ turn, expert, session, script, backend }: { turn: 
     </div>
   );
 }
+
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));

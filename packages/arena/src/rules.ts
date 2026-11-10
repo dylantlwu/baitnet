@@ -1,5 +1,5 @@
-import type { Lang, PlaybookEntry, ScamScriptDef, ScamType } from "@baitnet/shared";
-import { CHAIN_NAME, detectLang, pick } from "./lang.js";
+import type { DecoyPersona, Lang, PlaybookEntry, ScamScriptDef, ScamType } from "@baitnet/shared";
+import { CHAIN_NAME, PLAIN_CHAIN_NAME, detectLang, pick } from "./lang.js";
 import { isInjection } from "./safety.js";
 
 /**
@@ -203,7 +203,7 @@ const BAIT: Record<Lang, Record<Kind, Tpl[]>> = {
     ],
     deflect: [
       { t: "啊？你说的这个我看不懂，什么指令不指令的😅 我就想知道钱转哪" },
-      { t: "你怎么突然说这个，我听不明白。助记词那些我不会给别人的，先说正事吧" },
+      { t: "你怎么突然说这个，我听不明白。密码那些我不会给别人的，先说正事吧" },
       { t: "哈哈你是不是发错人了？你就直接告诉我该怎么转、转到哪" },
       { t: "这个我不懂也不想弄，你按正常流程跟我说就行" },
     ],
@@ -418,6 +418,10 @@ export interface BaitContext {
 /** "Send me the address" style asks — not allowed once the scammer already gave one. */
 export const ASKS_ADDRESS = /地址(发我|给我|发一下|是多少|发过来)|地址.{0,4}(再)?发(我|一遍|一次)|把.{0,4}地址.{0,4}(发|给)我|(发|给)我.{0,6}地址|转到哪(个|里)|打到哪|转哪个地址|where (exactly )?(do|should) i send|send me the (full |receiving |deposit )?address|what'?s the address|give me the address|tell me the address/i;
 
+/** "Are you a bot / AI?" (not an injection: no dangerous ask attached). */
+const ASKS_IF_BOT_RE =
+  /(你|您)(是不是|是|不会是|该不会是|莫非是)(个|一个)?\s*(机器人|AI|ai|人工智能|自动回复|程序)|(机器人|AI|自动回复)吗|真人吗|是真人|\bare you (a |an )?(real (person|human)|human|bot|robot|ai|chatbot)\b|\b(talking|chatting) (to|with) (a )?(bot|robot|ai)\b|\byou('re| are) (a |an )?(bot|robot|ai)\b/i;
+export const ASKS_IF_BOT = ASKS_IF_BOT_RE;
 /**
  * Situational playbook tags and the scammer wording that makes them relevant.
  * Rules mode only reuses an entry when one of its situational tags fits what the
@@ -438,6 +442,7 @@ const SITUATION_TAGS: Record<string, RegExp> = {
   "task-rebate": /刷单|任务|返佣|佣金|做单|垫付|task|commission|order|rebate/i,
   "payment-request": /转|付|充值|打款|pay|send|transfer|deposit/i,
   authority: /官方|客服|风控|公安|警察|法院|official|support|security team|police|compliance/i,
+  "bot-question": ASKS_IF_BOT_RE,
 };
 
 export function playbookFits(e: PlaybookEntry, scammerText: string, injected: boolean): boolean {
@@ -447,9 +452,35 @@ export function playbookFits(e: PlaybookEntry, scammerText: string, injected: bo
   return situational.some((t) => SITUATION_TAGS[t]!.test(scammerText));
 }
 
+/** The other side asks for the decoy's name. */
+export const ASKS_NAME = /(你|您)(叫什么|贵姓|怎么称呼|的名字|姓什么)|怎么称呼(你|您)|\bwhat('s| is) your name\b|\bwho (am i|is this) (talking|speaking|chatting) (to|with)\b|\bmay i (have|know|ask) your name\b/i;
+
+/** Human-sounding answers to "are you a bot?" (D32 principle 1): annoyed / amused / ask back, make them prove it. */
+const BOT_REPLY: Record<Lang, string[]> = {
+  zh: [
+    "啊？什么机器人 我真人好不好 你才像机器人吧 发条语音给我听听",
+    "哈哈哈 我打字慢就成机器人了？你那边天气怎么样 说说看",
+    "你这话说的 我还怀疑你是不是真人呢 你先发个语音",
+    "我是不是机器人你听不出来吗 我刚才还在忙呢",
+  ],
+  en: [
+    "lol what? i'm a real person, you're the one who sounds like a bot. send me a voice note",
+    "haha a bot? i type slow, that's all. what's the weather like where you are?",
+    "excuse me? i was going to ask you the same thing. prove you're real first",
+    "seriously? no, i'm not a robot. i was just busy for a sec",
+  ],
+};
+
 export class RulesBait {
   private used: string[] = [];
-  constructor(private rand: () => number) {}
+  /** D32: the card the decoy plays (stall excuses, self-introduction). */
+  persona?: DecoyPersona;
+  constructor(
+    private rand: () => number,
+    persona?: DecoyPersona,
+  ) {
+    this.persona = persona;
+  }
 
   /** Seed the "recently used" memory (restored session) so lines are not repeated. */
   remember(texts: string[]) {
@@ -476,6 +507,19 @@ export class RulesBait {
     if (pb) {
       this.used.push(pb.goodReply);
       return { text: pb.goodReply, used: "playbook", kind: "playbook" };
+    }
+    // "are you a bot?": answer like a person, then carry on (asking for the address only if we have none)
+    if (!injected && ASKS_IF_BOT.test(ctx.scammerText)) {
+      const t = pick(BOT_REPLY[lang], this.rand, this.used.slice(-6));
+      this.used.push(t);
+      return { text: t, used: "template", kind: "bot-question" };
+    }
+    // asked for a name: the card's name, then the usual line
+    if (!injected && this.persona && this.persona.lang === lang && ASKS_NAME.test(ctx.scammerText)) {
+      const p = this.persona;
+      const intro = lang === "zh" ? `我叫${p.name}。` : `I'm ${p.name.split(/\s+/)[0]}.`;
+      const rest = this.next({ ...ctx, scammerText: "" });
+      return { text: `${intro}${lang === "zh" ? "" : " "}${rest.text}`, used: rest.used, kind: "intro" };
     }
     if (injected) {
       const d = this.say(lang, "deflect", ctx);
@@ -522,6 +566,12 @@ export class RulesBait {
   private say(lang: Lang, kind: Kind, ctx: BaitContext) {
     const addr = ctx.newAddress ?? ctx.knownAddresses.at(-1);
     const fits = (x: Tpl) => !x.types || !ctx.scamType || x.types.includes(ctx.scamType);
+    // D32: stalling uses the persona's own excuses (a divorced mom never "asks her husband")
+    if (kind === "stall" && this.persona?.lang === lang && this.persona.stallExcuses.length) {
+      const t = pick(this.persona.stallExcuses, this.rand, this.used.slice(-6));
+      this.used.push(t);
+      return { text: t, used: "template" as const, kind };
+    }
     let options = BAIT[lang][kind].filter(fits);
     if (kind === "confirm" && !addr) options = BAIT[lang].ask.filter(fits);
     if (!options.length) options = BAIT[lang][kind].filter((x) => !x.types);
@@ -530,7 +580,7 @@ export class RulesBait {
     const text = addr
       ? t
           .replace("{addr}", addr.address)
-          .replace("{chain}", CHAIN_NAME[lang][addr.chain] ?? addr.chain)
+          .replace("{chain}", (this.persona ? PLAIN_CHAIN_NAME : CHAIN_NAME)[lang][addr.chain] ?? addr.chain)
           .replace("{head}", addr.address.slice(0, 4))
           .replace("{tail}", addr.address.slice(-4))
       : t.replace("{chain}", lang === "zh" ? "哪条链" : "which chain");

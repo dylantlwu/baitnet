@@ -205,6 +205,19 @@ describe("网页鉴权（BAITNET_AUTH=on）", () => {
     expect(audit.some((a: { action: string; expertId: string }) => a.action === "arena.sessions.rate" && a.expertId === s.channel.ownerId)).toBe(true);
   });
 
+  it("D32：专家能删自己的标注（换成带原则标签的同一评分），删不了别人的；审核者可以删", async () => {
+    const { cookie: e } = await login(expertCode, "4.4.4.4");
+    const { cookie: r } = await login(reviewerCode, "4.4.4.4");
+    const mk = async (c: string) => (await (await call("/training/annotations", c, { sessionId: "d32-s", turnIndex: 1, rating: "good", tags: [], note: "" })).json()) as { id: string };
+    const mine = await mk(e);
+    const theirs = await mk(r);
+    expect((await call(`/training/annotations/${theirs.id}/delete`, e, {})).status).toBe(403);
+    expect((await call(`/training/annotations/${mine.id}/delete`, e, {})).status).toBe(200);
+    const tagged = await call("/training/annotations", e, { sessionId: "d32-s", turnIndex: 1, rating: "good", tags: ["p1-human", "p2-intel"], note: "" });
+    expect((await tagged.json()).tags).toEqual(["p1-human", "p2-intel"]);
+    expect((await call(`/training/annotations/${theirs.id}/delete`, r, {})).status).toBe(200);
+  });
+
   it("训练台：标注 / 改写 / 审核记在登录的人名下（不是 local-expert），审核者可以通过别人的改写", async () => {
     const { cookie: e } = await login(expertCode, "3.3.3.3");
     const me = await (await call("/auth/me", e)).json();

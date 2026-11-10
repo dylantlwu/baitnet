@@ -88,6 +88,9 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
     whisper: (id, side, text) => post(API.arenaWhisper(id), { side, text }),
     review: (id, draftIndex, approve) => post(API.arenaReview(id), { draftIndex, approve }),
     postAnnotation: (a) => post(API.annotations, a),
+    deleteAnnotation: async (id) => {
+      await post(`${API.annotations}/${encodeURIComponent(id)}/delete`);
+    },
     postCorrection: (c) => post(API.corrections, c),
     listCorrections: async () => unwrap<Correction[]>(await get(API.corrections), "corrections") ?? [],
     reviewCorrection: (id, approve, reviewer) => post<Correction>(API.correctionReview(id), { approve, reviewer }),

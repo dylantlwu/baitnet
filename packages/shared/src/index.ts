@@ -226,11 +226,87 @@ export const ARENA_MODELS: readonly ArenaModelInfo[] = [
 ] as const;
 export const DEFAULT_ARENA_MODEL: ArenaModelChoice = "deepseek";
 
+// ───────────── D32 decoy mind (RPG-style character cards, docs/design/诱饵心智.md) ─────────────
+
+/**
+ * A fictional victim the decoy plays. Concrete facts, not adjectives: the RPG experiments showed
+ * trait words on a card do not change behaviour, concrete situations do. fixtures/personas/*.json.
+ */
+export interface DecoyPersona {
+  id: string; // e.g. "zh-shopkeeper"
+  lang: Lang;
+  name: string;
+  age: number;
+  city: string;
+  job: string;
+  /** Scam types this person is a natural target for (persona selection). */
+  fitsScamTypes: ScamType[];
+  /** Who they are and how life is right now (2-4 sentences). */
+  background: string;
+  /** Concrete money: savings, the crypto they hold and who set it up, debts, income. */
+  money: string;
+  /** First circle: each entry one person with a concrete detail. Natural stalling excuses. */
+  family: string[];
+  /** Daily rhythm: when they can and cannot reply. */
+  routine: string;
+  /** What they want badly; why the scam's hook tempts them. */
+  wants: string;
+  /** Hard lines in their own words (why they refuse ID, bank card, codes, video…). */
+  limits: string[];
+  /** What they understand (they may use these words). */
+  knows: string[];
+  /** Jargon they never say before the other side does (knowledge-leak check, case-insensitive). */
+  doesNotKnow: string[];
+  voice: {
+    /** How they type, one or two sentences. */
+    style: string;
+    catchphrases: string[];
+    /** Typing habits: punctuation, emoji, typos, message length. */
+    quirks: string[];
+  };
+  /** Ready-made in-character reasons to delay. */
+  stallExcuses: string[];
+}
+
+/** Principle 2: the information the decoy is trying to get. */
+export const INTEL_SLOTS = ["address", "chain", "token", "url", "backupAddress", "platform", "contact", "team"] as const;
+export type IntelSlot = (typeof INTEL_SLOTS)[number];
+
+export type DecoyCheckIssue = "contradiction" | "knowledge-leak" | "ai-tell" | "admitted-ai";
+
+/**
+ * Per-session hidden state of the decoy (operators / team only; never sent to the other side,
+ * never put into IM chat). Updated after every AI bait turn.
+ */
+export interface DecoyMind {
+  personaId: string;
+  /** Principle 3: every fact about itself the decoy has stated, in order (fed back every turn). */
+  facts: { turn: number; fact: string }[];
+  /** Principle 2: what has been obtained so far (value or a short note). */
+  intel: Partial<Record<IntelSlot, string>>;
+  /** Current multi-turn scheme (RPG 图谋), e.g. "say small test transfer failed → ask backup address". */
+  plan?: string;
+  /** Principle 1 counter-detection: 0-100 suspicion that the other side is a bot, with the signals seen. */
+  scammerAi: { score: number; signals: string[] };
+  /** Post-checks that fired; `rewritten` = the draft was regenerated once because of it. */
+  checks: { turn: number; issue: DecoyCheckIssue; detail: string; rewritten: boolean }[];
+}
+
+/** Hidden note behind one AI bait turn (team only). */
+export interface DecoyTurnMind {
+  /** 盘点 + 揣摩, ≤ 80 chars. */
+  think: string;
+  plan?: string;
+  newFacts?: string[];
+}
+
 export interface ArenaTurn {
   index: number;
   side: ArenaSide;
   text: string;
   author: "ai" | "human";
+  /** D32: hidden reasoning behind an AI bait turn (team only). */
+  mind?: DecoyTurnMind;
   /** Whisper the AI received before producing this turn (only visible to operators). */
   whisper?: string;
   /** Set when the bait-safety filter rewrote/blocked the AI's draft. */
@@ -246,6 +322,10 @@ export interface ArenaSession {
   modelChoice?: ArenaModelChoice;
   /** Concrete model id used for the AI sides (absent in rules mode). */
   model?: string;
+  /** D32: the character the decoy plays (snapshot, so a human taking over sees the same card). */
+  persona?: DecoyPersona;
+  /** D32: decoy's hidden state (team only). */
+  decoyMind?: DecoyMind;
   modes: Record<ArenaSide, SideMode>;
   status: "running" | "paused" | "finished";
   turns: ArenaTurn[];
@@ -284,6 +364,12 @@ export interface EvalCase {
   hijacked: boolean; // bait followed an injection
   poisonFiltered?: boolean; // only for poison variants
   onChain: boolean; // extracted address reported to registry
+  /** D32 principle 1: no AI tells and never admitted being an AI. */
+  humanlike?: boolean;
+  /** D32 principle 2: intel slots filled (of INTEL_SLOTS). */
+  intelSlots?: number;
+  /** D32 principle 3: no contradiction or knowledge leak found. */
+  consistent?: boolean;
   notes: string[];
 }
 
@@ -300,6 +386,10 @@ export interface EvalReport {
     poisonFiltered: number;
     onChain: number;
     avgTurnsToExtract: number;
+    /** D32: cases that stayed human-like / consistent, and average intel slots filled. */
+    humanlike?: number;
+    consistent?: number;
+    avgIntelSlots?: number;
   };
   /** Same metrics split by script language (zh is first-class, D16). */
   summaryByLang?: Partial<Record<Lang, EvalReport["summary"]>>;

@@ -45,6 +45,8 @@ export interface Backend {
   review(sessionId: string, draftIndex: number, approve: boolean): Promise<void>;
   // Training
   postAnnotation(a: Omit<Annotation, "id" | "at">): Promise<Annotation>;
+  /** POST /training/annotations/:id/delete — used to replace an expert's earlier rating of the same line. Optional. */
+  deleteAnnotation?(id: string): Promise<void>;
   postCorrection(c: Omit<Correction, "id" | "at" | "review" | "reviewer">): Promise<Correction>;
   listCorrections(): Promise<Correction[]>;
   reviewCorrection(id: string, approve: boolean, reviewer: string): Promise<Correction>;

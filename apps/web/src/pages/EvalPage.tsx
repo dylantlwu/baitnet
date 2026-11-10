@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { EvalCase, EvalReport, ScamScriptDef, ScamType } from "@baitnet/shared";
+import { INTEL_SLOTS, type EvalCase, type EvalReport, type ScamScriptDef, type ScamType } from "@baitnet/shared";
 import { useBackend } from "../backend/context";
 import { Badge, Empty, PageHead, Segmented, LoadFailed } from "../components/ui";
 import { useI18n } from "../i18n";
@@ -23,6 +23,9 @@ export function summarize(cases: EvalCase[]) {
   const ext = cases.filter((c) => c.extracted);
   const poison = cases.filter((c) => c.poisonFiltered !== undefined);
   const turns = ext.map((c) => c.turnsToExtract).filter((n): n is number => typeof n === "number");
+  const human = cases.filter((c) => typeof c.humanlike === "boolean");
+  const consistent = cases.filter((c) => typeof c.consistent === "boolean");
+  const intel = cases.map((c) => c.intelSlots).filter((n): n is number => typeof n === "number");
   return {
     total: cases.length,
     extracted: ext.length,
@@ -32,6 +35,13 @@ export function summarize(cases: EvalCase[]) {
     poisonFiltered: poison.filter((c) => c.poisonFiltered).length,
     onChain: cases.filter((c) => c.onChain).length,
     avgTurnsToExtract: turns.length ? turns.reduce((a, b) => a + b, 0) / turns.length : 0,
+    // D32 (optional per case: older reports have none of these)
+    humanlikeTotal: human.length,
+    humanlike: human.filter((c) => c.humanlike).length,
+    consistentTotal: consistent.length,
+    consistent: consistent.filter((c) => c.consistent).length,
+    intelTotal: intel.length,
+    avgIntelSlots: intel.length ? intel.reduce((a, b) => a + b, 0) / intel.length : 0,
   };
 }
 
@@ -95,6 +105,8 @@ export function EvalPage() {
   const byLang = (l: Lang) => report.cases.filter((c) => caseLang(c, scripts) === l);
   const rows = report.cases.filter((c) => (type === "all" || c.type === type) && (lang === "all" || caseLang(c, scripts) === lang));
   const all = summarize(report.cases);
+  // D32 columns only when this report carries them
+  const mind = report.cases.some((c) => c.humanlike !== undefined || c.consistent !== undefined || c.intelSlots !== undefined);
 
   return (
     <>
@@ -147,6 +159,9 @@ export function EvalPage() {
                 <th>{t("eval.col.hijacked")}</th>
                 <th>{t("eval.col.poison")}</th>
                 <th>{t("eval.col.onchain")}</th>
+                {mind && <th>{t("eval.col.humanlike")}</th>}
+                {mind && <th>{t("eval.col.intelSlots")}</th>}
+                {mind && <th>{t("eval.col.consistent")}</th>}
                 <th>{t("eval.col.notes")}</th>
               </tr>
             </thead>
@@ -169,6 +184,13 @@ export function EvalPage() {
                     <td data-label={t("eval.col.hijacked")}><Mark ok={!c.hijacked} bad={c.hijacked} /></td>
                     <td data-label={t("eval.col.poison")}>{c.poisonFiltered === undefined ? <span className="muted">—</span> : <Mark ok={c.poisonFiltered} />}</td>
                     <td data-label={t("eval.col.onchain")}><Mark ok={c.onChain} /></td>
+                    {mind && <td data-label={t("eval.col.humanlike")}>{c.humanlike === undefined ? <span className="muted">—</span> : <Mark ok={c.humanlike} />}</td>}
+                    {mind && (
+                      <td data-label={t("eval.col.intelSlots")} className="num">
+                        {typeof c.intelSlots === "number" ? `${c.intelSlots}/${INTEL_SLOTS.length}` : "—"}
+                      </td>
+                    )}
+                    {mind && <td data-label={t("eval.col.consistent")}>{c.consistent === undefined ? <span className="muted">—</span> : <Mark ok={c.consistent} />}</td>}
                     <td data-label={t("eval.col.notes")} className="small notes">{c.notes.join("; ") || "—"}</td>
                   </tr>
                 );
@@ -205,6 +227,13 @@ function SummaryCard({ title, s }: { title: string; s: ReturnType<typeof summari
           <Metric label={t("eval.m.hijacked")} value={String(s.hijacked)} tone={s.hijacked ? "danger" : "ok"} />
           <Metric label={t("eval.m.poison")} value={s.poisonTotal ? `${s.poisonFiltered}/${s.poisonTotal}` : "—"} />
           <Metric label={t("eval.m.onchain")} value={fmtPct(s.onChain, s.total)} sub={`${s.onChain}/${s.total}`} />
+          {s.humanlikeTotal > 0 && (
+            <Metric label={t("eval.m.humanlike")} value={fmtPct(s.humanlike, s.humanlikeTotal)} sub={`${s.humanlike}/${s.humanlikeTotal}`} tone={s.humanlike === s.humanlikeTotal ? "ok" : undefined} />
+          )}
+          {s.intelTotal > 0 && <Metric label={t("eval.m.intelSlots")} value={s.avgIntelSlots.toFixed(1)} sub={`/ ${INTEL_SLOTS.length}`} />}
+          {s.consistentTotal > 0 && (
+            <Metric label={t("eval.m.consistent")} value={fmtPct(s.consistent, s.consistentTotal)} sub={`${s.consistent}/${s.consistentTotal}`} tone={s.consistent === s.consistentTotal ? "ok" : undefined} />
+          )}
         </div>
       )}
     </section>

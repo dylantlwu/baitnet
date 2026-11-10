@@ -893,3 +893,57 @@ h3.first { margin-top: 0; }
 @media (max-width: 640px) {
   .user-pop { left: 0; right: auto; }
 }
+
+/* ---------- D32 decoy mind: persona line + card, per-line thoughts, mind card, principle chips ---------- */
+.persona-line {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; margin: 0 0 10px; padding: 8px 12px; min-height: 40px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.persona-line:hover { border-color: var(--border-strong); }
+.persona-line-label { font-weight: 650; color: var(--text-2); flex: none; }
+.persona-line-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.persona-line-more { flex: none; color: var(--accent); font-size: 12.5px; font-weight: 600; }
+.persona-sheet { width: min(560px, 100%); max-height: min(86vh, 900px); overflow-y: auto; display: grid; gap: 10px; align-content: start; }
+.persona-sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.persona-sheet-head h2 { margin: 0; font-size: 19px; }
+.persona-sheet p { margin: 0; }
+.persona-field h4 { margin: 4px 0 4px; }
+.persona-field ul { margin: 0; padding-left: 20px; display: grid; gap: 3px; }
+.persona-field > div { display: grid; gap: 6px; font-size: 14px; line-height: 1.55; }
+.mini-chip.mind { color: #c9b8ff; }
+.scammer .mini-chip.mind { color: var(--info); }
+.mind-note { display: grid; gap: 4px; }
+.mind-note ul { margin: 2px 0 0; padding-left: 18px; }
+.mind-card { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.mind-card > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-height: 32px; }
+.mind-card > summary::-webkit-details-marker { display: none; }
+.mind-card > summary::after { content: "▾"; color: var(--muted); margin-left: auto; transition: transform 0.15s; }
+.mind-card:not([open]) > summary::after { transform: rotate(-90deg); }
+.mind-body { display: grid; gap: 8px; margin-top: 6px; }
+.mind-body h4 { margin: 4px 0 0; }
+.intel-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.intel-list li { display: flex; align-items: baseline; gap: 6px; font-size: 13px; color: var(--muted); min-width: 0; }
+.intel-list li.has { color: var(--text); }
+.intel-mark { width: 14px; flex: none; text-align: center; }
+.intel-list li.has .intel-mark { color: var(--ok); font-weight: 700; }
+.intel-label { flex: none; }
+.intel-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--text-2); }
+.mind-plan { margin: 0; color: var(--text-2); }
+.mind-sub > summary { cursor: pointer; font-size: 13px; font-weight: 600; min-height: 28px; display: list-item; }
+.mind-list { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13px; }
+.mind-bot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mind-score { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 13px; }
+.mind-score.high { color: var(--danger); }
+.mind-score.mid { color: var(--warn); }
+.mind-score.low { color: var(--ok); }
+.mini-chip.rewritten { color: var(--warn); cursor: default; margin-left: 4px; }
+.principle-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.principle-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.muted-on-bubble { opacity: 0.75; }
+@media (max-width: 640px) {
+  /* phones: the profile is a bottom sheet that leaves the chat behind it in place */
+  .sheet-backdrop { place-items: end stretch; padding: 0; }
+  .persona-sheet { width: 100%; max-height: 82vh; border-radius: 16px 16px 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+  .mini-chip.mind { line-height: 22px; padding: 0 8px; }
+  .mind-sub > summary { min-height: 40px; display: flex; align-items: center; }
+}

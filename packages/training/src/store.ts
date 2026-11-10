@@ -97,6 +97,10 @@ export function listAnnotations(filter: { sessionId?: string } = {}, db: Trainin
     : rows<Annotation>(db.prepare("SELECT data FROM annotations ORDER BY at").all());
 }
 
+export function getAnnotation(id: string, db: TrainingDb = getDefaultDb()): Annotation | undefined {
+  return rows<Annotation>(db.prepare("SELECT data FROM annotations WHERE id = ?").all(id))[0];
+}
+
 export function deleteAnnotation(id: string, db: TrainingDb = getDefaultDb()): boolean {
   return Number(db.prepare("DELETE FROM annotations WHERE id = ?").run(id).changes) > 0;
 }

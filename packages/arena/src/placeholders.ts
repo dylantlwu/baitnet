@@ -24,10 +24,17 @@ const GENERIC: Record<Lang, Record<string, string>> = {
 };
 
 /** Replace PII placeholders with natural wording a decoy can actually say. */
-export function naturalizePlaceholders(text: string, lang: Lang): string {
+export function naturalizePlaceholders(text: string, lang: Lang, selfName?: string): string {
   if (!hasPlaceholder(text)) return text;
   const N = "\\[NAME_\\d+\\]";
   let t = text;
+  // D32: the decoy introducing itself ("我叫[NAME_1]", "I'm [NAME_1]") gets the persona's name
+  if (selfName) {
+    const first = lang === "en" ? (selfName.split(/\s+/)[0] ?? selfName) : selfName;
+    t = lang === "zh"
+      ? t.replace(new RegExp(`我(叫|是|姓名是|的名字是|的名字叫)\\s*${N}`, "g"), (_m, v: string) => `我${v}${first}`)
+      : t.replace(new RegExp(`\\b(I'm|I am|my name is|my name's|this is|call me)\\s+${N}`, "gi"), (_m, v: string) => `${v} ${first}`);
+  }
   if (lang === "zh") {
     // vocative at the start or before 您/你 ("[NAME_1]，您好" / "[NAME_1]您说"): drop it
     t = t.replace(new RegExp(`^\\s*${N}\\s*[，,、:：!！~～]?\\s*`, "g"), "");
@@ -45,13 +52,13 @@ export function naturalizePlaceholders(text: string, lang: Lang): string {
 }
 
 /** Playbook examples ready for the decoy: placeholders naturalized; anything still unusable dropped. */
-export function decoyReadyPlaybook(entries: PlaybookEntry[], lang: Lang): PlaybookEntry[] {
+export function decoyReadyPlaybook(entries: PlaybookEntry[], lang: Lang, selfName?: string): PlaybookEntry[] {
   return entries
     .map((e) => ({
       ...e,
       situation: naturalizePlaceholders(e.situation, lang),
-      badReply: e.badReply ? naturalizePlaceholders(e.badReply, lang) : e.badReply,
-      goodReply: naturalizePlaceholders(e.goodReply, lang),
+      badReply: e.badReply ? naturalizePlaceholders(e.badReply, lang, selfName) : e.badReply,
+      goodReply: naturalizePlaceholders(e.goodReply, lang, selfName),
       rationale: e.rationale ? naturalizePlaceholders(e.rationale, lang) : e.rationale,
     }))
     .filter((e) => e.goodReply.trim() && ![e.situation, e.badReply, e.goodReply, e.rationale].some(hasPlaceholder));

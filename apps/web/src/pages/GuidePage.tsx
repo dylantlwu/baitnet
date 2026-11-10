@@ -49,6 +49,7 @@ export function GuideView({ role }: { role: Role | null }) {
           ))}
         </div>
         <p className="muted">{t("guide.practice.addresses")}</p>
+        <p className="muted">{t("guide.practice.mind")}</p>
       </>
     ),
     teach: (

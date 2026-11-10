@@ -295,6 +295,44 @@ describe("uploaded scripts", () => {
   });
 });
 
+describe("D32: export never carries the decoy's mind", () => {
+  it("turn.mind / decoyMind / persona stay out of SFT + preference; principle tags travel in meta", () => {
+    const s: ArenaSession = {
+      ...session,
+      id: "sess-mind-1",
+      turns: session.turns.map((t) => (t.side === "bait" ? { ...t, mind: { think: "MIND-THINK 揣摩", plan: "MIND-PLAN", newFacts: ["MIND-FACT"] } } : t)),
+      decoyMind: { personaId: "zh-shopkeeper", facts: [{ turn: 1, fact: "MIND-FACT" }], intel: { url: "MIND-INTEL" }, plan: "MIND-PLAN", scammerAi: { score: 10, signals: [] }, checks: [] },
+    };
+    saveSession(s, {}, db);
+    addAnnotation({ sessionId: s.id, turnIndex: 1, expertId: "e", rating: "good", tags: ["p1-human", "p3-logic"], note: "" }, db);
+    const { sft, preference } = buildExport(db);
+    const dump = JSON.stringify({ sft, preference });
+    expect(dump).not.toMatch(/MIND-/);
+    expect(sft.find((x) => x.meta.source === "annotation")!.meta.tags).toEqual(["p1-human", "p3-logic"]);
+  });
+});
+
+describe("annotation delete permissions (D32: replace a one-tap rating with rating + principle tags)", () => {
+  it("owner may delete their own annotation; other experts get 403; reviewers may delete any", async () => {
+    const router = createMiniRouter();
+    registerTrainingRoutes(router, { log: () => {}, dataPath: (...p) => join("/nonexistent", ...p), db, requireAuth: true });
+    const alice = { id: "u_alice", role: "expert" };
+    const bob = { id: "u_bob", role: "expert" };
+    const rev = { id: "u_rev", role: "reviewer" };
+    const add = async (u: typeof alice) => ((await router.dispatch("POST", "/training/annotations", { sessionId: "perm", turnIndex: 1, rating: "good", tags: ["p1-human"], note: "" }, u)).body as { id: string }).id;
+    const a1 = await add(alice);
+    expect((await router.dispatch("POST", `/training/annotations/${a1}/delete`, undefined, bob)).status).toBe(403);
+    expect((await router.dispatch("POST", `/training/annotations/${a1}/delete`)).status).toBe(401);
+    expect((await router.dispatch("POST", `/training/annotations/${a1}/delete`, undefined, alice)).status).toBe(200);
+    expect((await router.dispatch("POST", `/training/annotations/${a1}/delete`, undefined, alice)).status).toBe(404);
+    const a2 = await add(alice);
+    expect((await router.dispatch("POST", `/training/annotations/${a2}/delete`, undefined, rev)).status).toBe(200);
+    // the six D32 principle tags are stored as given
+    const a3 = await router.dispatch("POST", "/training/annotations", { sessionId: "perm", turnIndex: 1, rating: "bad", tags: ["p1-ai-tell", "p2-no-intel", "p3-contradiction"], note: "" }, bob);
+    expect((a3.body as { tags: string[] }).tags).toEqual(["p1-ai-tell", "p2-no-intel", "p3-contradiction"]);
+  });
+});
+
 describe("routes", () => {
   it("serves the training/* and eval/runs endpoints", async () => {
     const router = createMiniRouter();
@@ -355,7 +393,7 @@ describe("PII redaction on write / migration v2 / export", () => {
     d1.exec("PRAGMA user_version = 1"); // pretend this DB was written before v2
     d1.close();
     const d2 = openTrainingDb(p);
-    expect((d2.prepare("PRAGMA user_version").get() as { user_version: number }).user_version).toBe(2);
+    expect((d2.prepare("PRAGMA user_version").get() as { user_version: number }).user_version).toBe(3);
     const dump = JSON.stringify([listCorrections({}, d2), listAnnotations({}, d2)]);
     expect(dump).not.toContain("@chen_siyuan66");
     expect(dump).not.toContain("王小明");
@@ -437,5 +475,25 @@ describe("demonstration corrections (⭐ good line, no bad reply)", () => {
     expect("badReply" in r.entry!).toBe(false);
     expect(listRegressionCases(db)).toEqual([]);
     expect(buildExport(db).preference.some((x) => x.meta.id === c.id)).toBe(false);
+  });
+});
+
+describe("migration v3 (D32 seed refresh)", () => {
+  it("rewrites shipped seed entries and adds new ones in an already-seeded DB, leaving expert entries alone", async () => {
+    const { openTrainingDb } = await import("../src/db.js");
+    const path = dataPath("mig-v3.sqlite");
+    let db = openTrainingDb(path);
+    const old = JSON.parse((db.prepare("SELECT data FROM playbook WHERE id = 'seed-zh-small-test'").get() as { data: string }).data);
+    db.prepare("UPDATE playbook SET data = ? WHERE id = 'seed-zh-small-test'").run(JSON.stringify({ ...old, goodReply: "是 TRC20 还是 ERC20？" }));
+    db.prepare("DELETE FROM playbook WHERE data LIKE '%bot-question%'").run();
+    db.prepare("INSERT INTO playbook (id, version, scam_type, stage, source_correction_id, data) VALUES ('pb-expert', 5, 'any', 'any', 'c1', ?)").run(JSON.stringify({ id: "pb-expert", version: 5, scamType: "any", stage: "any", situation: "s", goodReply: "TRC20 吗", rationale: "r", tags: [] }));
+    db.exec("PRAGMA user_version = 2");
+    db.close();
+    db = openTrainingDb(path);
+    const reply = JSON.parse((db.prepare("SELECT data FROM playbook WHERE id = 'seed-zh-small-test'").get() as { data: string }).data).goodReply;
+    expect(reply).not.toMatch(/TRC20/);
+    expect((db.prepare("SELECT count(*) c FROM playbook WHERE data LIKE '%bot-question%'").get() as { c: number }).c).toBeGreaterThan(0);
+    expect(JSON.parse((db.prepare("SELECT data FROM playbook WHERE id = 'pb-expert'").get() as { data: string }).data).goodReply).toBe("TRC20 吗");
+    db.close();
   });
 });

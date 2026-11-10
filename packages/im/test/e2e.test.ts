@@ -356,3 +356,29 @@ describe("IM 训练台 · Telegram 端到端（假 Bot API）", () => {
     expect(readFileSync(h.stateFile, "utf8")).not.toContain(token.split(":")[1]);
   });
 });
+
+describe("D32 诱饵心智不进 IM 聊天", () => {
+  it("模型的 JSON 里只有 reply 发到 Telegram；think / plan / new_facts / 人物卡不出现在聊天里，但记在会话上", async () => {
+    const llm = {
+      name: "claude" as const,
+      model: "fake",
+      async complete(req: { system: string }) {
+        if (req.system.includes("SIMULATED scammer")) return "我们是正规平台，先充 100U 试试水。";
+        return JSON.stringify({ think: "SECRET-THINK 对方在铺垫", scammer_ai: { score: 40, signals: ["模板话术"] }, plan: "SECRET-PLAN 问网址", intel: {}, new_facts: ["SECRET-FACT 我女儿在广州"], reply: "听着不错，那要往哪个地址转？" });
+      },
+    };
+    h = await harness({ llm: llm as never });
+    const { fake } = h;
+    const sid = await newSession(h, EXPERT, "scammer");
+    const from = fake.sentTo(EXPERT.id).length;
+    fake.say(EXPERT, "你好，我是量子星辰资本的陈老师，带你做 AI 量化套利。");
+    const bait = await lastBaitMsg(h, EXPERT.id, from);
+    expect(bait.text).toContain("那要往哪个地址转");
+    const all = fake.sentTo(EXPERT.id).map((m) => m.text).join("\n");
+    expect(all).not.toMatch(/SECRET-(THINK|PLAN|FACT)|scammer_ai|"reply"/);
+    const s = h.arena.get(sid)!.session;
+    expect(all).not.toContain(s.persona!.background);
+    expect(s.turns.at(-1)!.mind).toMatchObject({ think: "SECRET-THINK 对方在铺垫", plan: "SECRET-PLAN 问网址" });
+    expect(s.decoyMind!.facts.map((f) => f.fact)).toContain("SECRET-FACT 我女儿在广州");
+  });
+});

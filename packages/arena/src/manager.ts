@@ -4,6 +4,7 @@ import { DEFAULT_ARENA_MODEL, type ArenaEvent, type ArenaModelChoice, type Arena
 import { MemoryRegistryClient, SampleAccountInfo, type RegistryClient } from "@baitnet/guard";
 import { AccountAgeCheck, KnownEntityFilter, RuntimeMissingError, dataPath, fixturePath, loadEnv, loadKnownEntities } from "@baitnet/agent";
 import { ArenaSessionEngine, validateRating, type SessionDeps } from "./session.js";
+import { resolvePersonaId } from "./personas.js";
 import type { SessionChannel, SessionRating } from "@baitnet/shared";
 import { arenaModelOptions, defaultRetriever, isArenaModelChoice, loadScripts, selectArenaEngine, selectArenaModel, training, type PlaybookRetriever, type TrainingModule } from "./deps.js";
 
@@ -149,17 +150,20 @@ export class ArenaManager {
   /**
    * `channel` records where the session lives (web / telegram / lark) and who owns it.
    * `modelChoice` (D30): deepseek | glm | sonnet, default DEFAULT_ARENA_MODEL; unknown → 400.
+   * `personaId` (D32, optional): play this character card (fixtures/personas); default = stable pick by session id.
    */
   async create(
     scriptId: string,
     modes: Partial<Record<ArenaSide, SideMode>> = {},
     channel?: SessionChannel,
     modelChoice: ArenaModelChoice = DEFAULT_ARENA_MODEL,
+    personaId?: string,
   ): Promise<ArenaSessionEngine> {
     if (!isArenaModelChoice(modelChoice)) throw Object.assign(new Error(`unknown model ${String(modelChoice)}`), { status: 400 });
     const script = (await this.scripts()).find((s) => s.id === scriptId);
     if (!script) throw Object.assign(new Error(`unknown script ${scriptId}`), { status: 404 });
-    const eng = new ArenaSessionEngine(script, { ...(await this.deps(modelChoice)), llmGate: this.gateFor(channel) }, { modes, channel });
+    const persona = personaId !== undefined ? resolvePersonaId(personaId, script.lang) : undefined;
+    const eng = new ArenaSessionEngine(script, { ...(await this.deps(modelChoice)), llmGate: this.gateFor(channel) }, { modes, channel, ...(persona ? { persona } : {}) });
     this.sessions.set(eng.session.id, eng);
     if (this.opts.persist !== false) saveSession(eng.session);
     return eng;

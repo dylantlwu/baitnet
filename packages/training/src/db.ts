@@ -47,6 +47,21 @@ const MIGRATIONS: Migration[] = [
   (db) => {
     redactStoredRows(db);
   },
+  // v3 (D32): refresh the shipped seed entries (ids "seed-…") in DBs seeded before D32: chain jargon
+  // ("TRC20 还是 ERC20") removed from replies, "are you a bot?" entries added. Expert entries are untouched.
+  (db) => {
+    if (!(db.prepare("SELECT value FROM meta WHERE key = 'seeded_from'").get() as { value: string } | undefined)) return;
+    if (!existsSync(seedPath())) return;
+    const seed = JSON.parse(readFileSync(seedPath(), "utf8")) as SeedFile;
+    const version = seed.playbookVersion ?? 1;
+    const ins = db.prepare("INSERT OR REPLACE INTO playbook (id, version, scam_type, stage, source_correction_id, data) VALUES (?, ?, ?, ?, ?, ?)");
+    for (const raw of seed.playbook) {
+      if (!raw.id.startsWith("seed-")) continue;
+      const old = db.prepare("SELECT version FROM playbook WHERE id = ?").get(raw.id) as { version: number } | undefined;
+      const e: PlaybookEntry = redactFields<PlaybookEntry>({ ...(raw as PlaybookEntry), version: old?.version ?? (raw as PlaybookEntry).version ?? version }, ["situation", "badReply", "goodReply", "rationale"]);
+      ins.run(e.id, e.version, e.scamType, String(e.stage), e.sourceCorrectionId ?? null, JSON.stringify(e));
+    }
+  },
 ];
 
 /** Re-runs the redactor over the free-text fields of every stored row. Idempotent (placeholders are left alone). */

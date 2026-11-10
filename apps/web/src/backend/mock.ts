@@ -316,6 +316,12 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
       annotations.push(full);
       return full;
     },
+    async deleteAnnotation(id) {
+      guard();
+      const i = annotations.findIndex((a) => a.id === id);
+      if (i < 0) throw new Error(`unknown annotation ${id}`);
+      annotations.splice(i, 1);
+    },
     async postCorrection(c) {
       guard();
       const full: Correction = { ...c, id: rid("cor"), at: new Date().toISOString(), review: "pending" };

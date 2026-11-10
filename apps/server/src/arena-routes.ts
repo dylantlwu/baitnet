@@ -53,7 +53,9 @@ export function registerArenaRoutes(router: Router, mgr: ArenaManager, o: { auth
     }
     const modelChoice = body?.modelChoice ?? undefined;
     if (modelChoice !== undefined && !isArenaModelChoice(modelChoice)) throw httpError(400, `modelChoice must be one of ${ARENA_MODEL_IDS.join("|")}`);
-    const eng = await mgr.create(scriptId, modes, { kind: "web", ownerId: user?.expertId ?? "local-expert" }, modelChoice);
+    const personaId = body?.personaId ?? undefined; // D32, optional (web has no picker yet)
+    if (personaId !== undefined && typeof personaId !== "string") throw httpError(400, "personaId must be a string");
+    const eng = await mgr.create(scriptId, modes, { kind: "web", ownerId: user?.expertId ?? "local-expert" }, modelChoice, personaId);
     return eng.session;
   });
 

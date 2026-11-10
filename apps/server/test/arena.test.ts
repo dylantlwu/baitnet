@@ -176,6 +176,29 @@ describe("Arena API", () => {
   });
 });
 
+describe("D32 decoy mind over the API", () => {
+  it("personaId optional on create (bad → 400); GET detail carries persona + decoyMind; /snapshot strips them", async () => {
+    const bad = await post("/arena/sessions", { scriptId: "fake-loan-02", personaId: "nobody" });
+    expect(bad.status).toBe(400);
+    expect((await post("/arena/sessions", { scriptId: "fake-loan-02", personaId: 7 })).status).toBe(400);
+    const s = (await post("/arena/sessions", { scriptId: "fake-loan-02", personaId: "zh-retired-teacher", scammer: "human", bait: "ai" })).body as ArenaSession;
+    expect(s.persona).toMatchObject({ id: "zh-retired-teacher", name: "周建国" });
+    const auto = (await post("/arena/sessions", { scriptId: "fake-loan-01" })).body as ArenaSession;
+    expect(auto.persona!.lang).toBe("en");
+    await post(`/arena/sessions/${s.id}/say`, { side: "scammer", text: "贷款批了，先交保证金到 0x602bb2c8cea0504ecf00523cf11f17886664ec82 ，网址 https://loan.example/x" });
+    await app.arena.get(s.id)!.lastAutoReply;
+    const d = (await get(`/arena/sessions/${s.id}`)) as ArenaSession;
+    expect(d.persona!.id).toBe("zh-retired-teacher");
+    expect(d.decoyMind).toMatchObject({ personaId: "zh-retired-teacher", intel: { address: "0x602bb2c8cea0504ecf00523cf11f17886664ec82", url: "https://loan.example/x" } });
+    const snap = (await get("/snapshot")) as DemoSnapshot;
+    const inSnap = snap.arenaSessions!.find((x) => x.id === s.id)!;
+    expect(inSnap.turns.length).toBe(2);
+    expect(inSnap.persona).toBeUndefined();
+    expect(inSnap.decoyMind).toBeUndefined();
+    expect(inSnap.turns.some((t) => t.mind)).toBe(false);
+  });
+});
+
 describe("frontend follow-ups", () => {
   it("rate: validates and stores session.rating", async () => {
     const s = (await post("/arena/sessions", { scriptId: "fake-loan-01" })).body as ArenaSession;

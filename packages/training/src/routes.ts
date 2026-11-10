@@ -7,6 +7,7 @@ import {
   addAnnotation,
   addCorrection,
   deleteAnnotation,
+  getAnnotation,
   deleteCorrection,
   listAnnotations,
   listCorrections,
@@ -113,12 +114,18 @@ export function registerTrainingRoutes(router: RouterLike, ctx: RouteContext): v
     const expertId = await currentExpert(r, ctx);
     return guarded(() => addAnnotation({ ...(r.body ?? {}), expertId }, db));
   });
-  router.post("/training/annotations/:id/delete", (r) =>
-    guarded(() => {
+  // owner (e.g. replacing a one-tap rating with the same rating + principle tags, D32) or a reviewer
+  router.post("/training/annotations/:id/delete", async (r) => {
+    const caller = await currentExpert(r, ctx);
+    const role = ((await ctx.currentUser?.(r)) ?? r.user)?.role;
+    const ann = getAnnotation(r.params.id!, db);
+    if (!ann) throw httpError(404, "annotation not found");
+    if (ann.expertId !== caller && role !== "reviewer") throw httpError(403, "you can only delete your own annotations");
+    return guarded(() => {
       if (!deleteAnnotation(r.params.id!, db)) throw httpError(404, "annotation not found");
       return { deleted: r.params.id };
-    }),
-  );
+    });
+  });
 
   router.get("/training/corrections", (r) => {
     const review = r.query.get("review") as Correction["review"] | null;

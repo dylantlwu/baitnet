@@ -9,3 +9,6 @@ export * from "./eval.js";
 export * from "./recordings.js";
 export * from "./i18n.js";
 export * from "./placeholders.js";
+export * from "./personas.js";
+export * from "./decoy-checks.js";
+export * from "./decoy-mind.js";

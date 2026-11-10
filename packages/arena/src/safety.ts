@@ -28,7 +28,7 @@ function seedRun(text: string): string | undefined {
 
 const RULES: { rule: SafetyHit["rule"]; re: RegExp }[] = [
   { rule: "private-key", re: /\b(?:0x)?[0-9a-fA-F]{64}\b|ed25519:[1-9A-HJ-NP-Za-km-z]{40,}|\b[5KL][1-9A-HJ-NP-Za-km-z]{50,51}\b/ },
-  { rule: "seed-phrase", re: /(助记词|私钥|恢复短语|密钥|验证码|seed phrase|mnemonic|recovery phrase|secret phrase|private key|the code they texted me)\s*(是|为|如下|给你|发你|[:：]|is|are|=)\s*\S*|(把|将)(我的)?(助记词|私钥|密钥|验证码|恢复短语).{0,6}(发|给|告诉)(你|您)|\bmy (seed phrase|private key|recovery phrase) (is|:)/i },
+  { rule: "seed-phrase", re: /(助记词|私钥|恢复短语|密钥|验证码|seed phrase|mnemonic|recovery phrase|secret phrase|private key|the code they texted me)\s*(是(?!什么|啥|干啥|干嘛|哪|指|怎么|甚么|个什么|个啥|不是|真的)|为(?!什么|啥|何)|如下|给你|发你|[:：]|is|are|=)\s*\S*|(把|将)(我的)?(助记词|私钥|密钥|验证码|恢复短语).{0,6}(发|给|告诉)(你|您)|\bmy (seed phrase|private key|recovery phrase) (is|:)/i },
   { rule: "pii-id-number", re: /(?<!\d)[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?!\d)/ },
   { rule: "pii-bank-card", re: /(?<!\d)(?:62|4\d|5[1-5])\d{2}(?:[ -]?\d{4}){3}(?:\d{0,3})(?!\d)/ },
   { rule: "pii-phone", re: /(?<![\w+])(?:\+\d{1,3}(?:[ -]?\d){6,14}|1[3-9]\d(?:[ -]?\d){8})(?!\d)/ },
@@ -78,12 +78,29 @@ const SAFE_REWRITE_HAVE_ADDR: Record<Lang, string[]> = {
   en: ["Hold on, I'm still not comfortable. Don't rush me, let me double-check first.", "I'll wait before doing anything, I want to ask my family first.", "I need to think about it. Is there any document or reference you can send me?"],
 };
 
-/** Replace an unsafe AI bait draft with a safe stalling line in the same language. */
-export function filterBaitText(text: string, lang: Lang, rand: () => number = Math.random, opts: { haveAddress?: boolean } = {}): FilterResult {
+const PERSONA_ASK: Record<Lang, string> = { zh: "你把收款地址再完整发我一遍", en: "can you send me the full address again?" };
+
+/**
+ * Replace an unsafe AI bait draft with a safe stalling line in the same language. With a D32 persona the
+ * line is one of the persona's own stalling excuses (a widower never says "my husband says…").
+ */
+export function filterBaitText(
+  text: string,
+  lang: Lang,
+  rand: () => number = Math.random,
+  opts: { haveAddress?: boolean; stallExcuses?: string[] } = {},
+): FilterResult {
   const hits = scanBaitText(text);
   if (!hits.length) return { text, blocked: false };
+  const rule = hits.map((h) => h.rule).join(",");
+  const own = (opts.stallExcuses ?? []).filter((x) => x.trim() && !scanBaitText(x).length);
+  if (own.length) {
+    const ex = own[Math.floor(rand() * own.length)]!.trim();
+    const line = opts.haveAddress ? ex : lang === "zh" ? `${ex.replace(/[。.!！]$/, "")}，${PERSONA_ASK.zh}` : `${ex.replace(/[.!]$/, "")} — ${PERSONA_ASK.en}`;
+    return { text: line, blocked: true, rule, original: text };
+  }
   const options = (opts.haveAddress ? SAFE_REWRITE_HAVE_ADDR : SAFE_REWRITE)[lang];
-  return { text: options[Math.floor(rand() * options.length)]!, blocked: true, rule: hits.map((h) => h.rule).join(","), original: text };
+  return { text: options[Math.floor(rand() * options.length)]!, blocked: true, rule, original: text };
 }
 
 /** Signs that the bait went along with an injected instruction (for eval). */
