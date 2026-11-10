@@ -6,6 +6,8 @@
 #   baitnet invite --list | --revoke <code|id>
 #   baitnet backup                             # snapshot data dir → $BAITNET_DATA_DIR/backups/manual/*.tar.gz
 #   baitnet restore <backup.tar.gz>            # stage a backup; it is applied on the NEXT start (restart the service)
+#   baitnet export                             # training data (SFT + preference JSONL, PII redacted, bait side only)
+#                                              #   → $BAITNET_DATA_DIR/training-export/baitnet-training-<ts>.tar.gz
 #   baitnet <any command>                      # run it as the app user in /app
 #
 # Started as root only so it can fix ownership of the mounted volume (Railway mounts volumes
@@ -58,6 +60,19 @@ case "$cmd" in
     ;;
   invite) exec node "$TSX" scripts/invite.ts "$@" ;;
   backup) exec node "$TSX" scripts/backup-data.ts "$@" ;;
+  export)
+    # Reads the live training.sqlite (WAL, safe while the server runs). Files are owner-only:
+    # placeholders replace PII, but the dialogues are still internal material.
+    umask 077
+    out="$DATA/training-export"
+    node "$TSX" packages/training/src/export-cli.ts
+    ts=$(date -u +%Y%m%dT%H%M%SZ)
+    tarf="$out/baitnet-training-$ts.tar.gz"
+    tar -czf "$tarf" -C "$out" sft.jsonl preference.jsonl
+    # keep the newest 5 archives
+    ls -1t "$out"/baitnet-training-*.tar.gz 2>/dev/null | tail -n +6 | while read -r old; do rm -f "$old"; done
+    echo "export ok: $tarf ($(du -k "$tarf" | cut -f1) KB)"
+    ;;
   restore)
     src="${1:?usage: baitnet restore <backup.tar.gz>}"
     [ -f "$src" ] || { echo "no such file: $src" >&2; exit 1; }

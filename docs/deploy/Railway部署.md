@@ -211,6 +211,30 @@ railway ssh -- baitnet restore /data/backups/manual/baitnet-20261110T....tar.gz
 
 然后在 Railway 网页上：服务 → **Deployments** → 当前部署右边的 **⋮ → Restart**。容器启动时，**在 server 打开数据库之前**就会把快照换进去，原来的文件会移到 `/data/backups/pre-restore-<时间>/`，**不会被删除**。日志里能看到 `restore applied (...)`。
 
+### 8.4 导出训练数据（给以后微调模型用）
+
+专家的「好」评分、审核通过的改写、话术库，可以导出成两份 JSONL：
+- `sft.jsonl`：示范样本，格式是 OpenAI 的 messages；
+- `preference.jsonl`：好回复和坏回复配对（chosen / rejected），用于 DPO。
+
+导出时，姓名、电话、地址等个人资料会被换成 `[NAME_1]` 这类占位符。只有诱饵一方的回复会作为学习目标，骗子的话只当上下文。
+
+```bash
+# 1) 在容器里导出并打包（Volume 里只保留最近 5 份）
+railway ssh -- baitnet export
+#    → [training:export] N SFT sample(s) … / M preference pair(s) …
+#    → export ok: /data/training-export/baitnet-training-20261111T....tar.gz (x KB)
+
+# 2) 下载到本机，方法和 8.2 节一样（把文件名换成上一步输出的那个）
+F=/data/training-export/baitnet-training-20261111T....tar.gz
+railway ssh -- base64 -w0 "$F" > training.b64
+tr -d '\r\n' < training.b64 | base64 -d > baitnet-training.tar.gz
+tar -tzf baitnet-training.tar.gz   # 能看到 sft.jsonl 和 preference.jsonl，就说明下载成功
+rm training.b64
+```
+
+导出的内容虽然已经去掉了个人资料，但仍然是内部对话素材，**不要提交到 Git 仓库，也不要公开**。可以放在仓库根目录的 `backups/` 里，那个目录已经被 Git 忽略。
+
 ## 9. 回滚代码版本
 
 服务 → **Deployments**，找到上一个正常的部署 → **⋮ → Redeploy**（有的界面叫 Rollback）。也可以在 GitHub 上 revert 这次提交再 push。
@@ -227,6 +251,7 @@ railway ssh -- baitnet restore /data/backups/manual/baitnet-20261110T....tar.gz
 | 发版本 | push 到 `main`，Railway 会自动构建和部署（大约 2~4 分钟） |
 | 重启 | Deployments → ⋮ → Restart |
 | 看资源用量和费用 | 项目 → **Metrics**；账户 → **Usage** |
+| 导出训练数据 | `railway ssh -- baitnet export`（见 8.4） |
 | 进容器排查问题 | `railway ssh`（用 `ls /data`、`baitnet invite --list` 等） |
 
 - Railway 的健康检查**只在部署时执行**，不会持续监控。需要监控的话，可以用 UptimeRobot 之类的免费服务每 5 分钟访问一次 `https://<域名>/health`。
