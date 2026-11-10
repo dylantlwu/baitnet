@@ -136,6 +136,17 @@ describe("loadInitial (mode degradation)", () => {
     expect((f as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))).not.toContain("/snapshot.json");
   });
 
+  it("logged out: network label comes from /health (testnet), not a 'sandbox' default", async () => {
+    const f = fakeFetch({
+      "/snapshot": { status: 401, body: "{}" },
+      "/alerts": { body: JSON.stringify(sample.alerts) },
+      "/health": { body: JSON.stringify({ ok: true, mode: "chain", network: "testnet", registry: "registry.x.testnet" }) },
+    });
+    const r = await loadInitial(cfg({ apiBase: "" }), f);
+    expect(r.snapshot.network).toBe("testnet");
+    expect(r.snapshot.registryContract).toBe("registry.x.testnet");
+  });
+
   it("401/403 everywhere still means live (empty until login), never snapshot", async () => {
     const f = fakeFetch({
       "/snapshot": { status: 403, body: "{}" },

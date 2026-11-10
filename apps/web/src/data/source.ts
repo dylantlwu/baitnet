@@ -138,9 +138,10 @@ export async function probeLive(
     }
     const alerts = normalizeAlerts(alertsRaw);
     const opt = (p: string) => fetchJson(fetchFn, apiBase + p, timeoutMs).catch(() => undefined);
-    const [resp, att, ...flowLists] = await Promise.all([
+    const [resp, att, health, ...flowLists] = await Promise.all([
       opt(API.responders),
       opt(API.attestation),
+      opt("/health"),
       ...alerts.map((a) => opt(API.flows(a.id))),
     ]);
     const flows: Record<number, FlowEdge[]> = {};
@@ -148,11 +149,15 @@ export async function probeLive(
       const f = flowLists[i];
       if (Array.isArray(f) && f.length) flows[a.id] = f as FlowEdge[];
     });
+    // /health is public and names the real network + registry (otherwise we'd mislabel testnet as sandbox)
+    const h = (health ?? {}) as { network?: unknown; registry?: unknown };
+    const network = h.network === "testnet" || h.network === "memory" || h.network === "sandbox" ? h.network : "sandbox";
+    const registryContract = typeof h.registry === "string" && h.network !== "memory" ? h.registry : "";
     const respObj = resp as { responders?: Responder[]; acks?: unknown[] } | Responder[] | undefined;
     const snapshot = parseSnapshot({
       generatedAt: new Date().toISOString(),
-      network: "sandbox",
-      registryContract: "",
+      network,
+      registryContract,
       alerts,
       conversations: [],
       events: [],
