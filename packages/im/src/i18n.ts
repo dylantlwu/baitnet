@@ -31,7 +31,11 @@ const PII_LABEL: Record<PiiFinding["kind"], Record<Lang, string>> = {
 };
 export const piiLabel = (k: PiiFinding["kind"], l: Lang) => PII_LABEL[k]?.[l] ?? k;
 
+/** Fallback decoy name, only when the session has no persona card (D32: `session.persona.name`). */
 export const BAIT_NAME: Record<Lang, string> = { zh: "小林", en: "Lin" };
+
+/** The decoy's name in this session: the persona card's name, else the default. */
+export const baitName = (persona: { name?: string } | undefined, lang: Lang): string => persona?.name?.trim() || BAIT_NAME[lang];
 
 export const COMMANDS: Record<Lang, BotCommand[]> = {
   zh: [
@@ -61,7 +65,7 @@ const zh = {
   badCode: "邀请码无效或已撤销，请核对后再试。",
   tooManyFails: "尝试次数太多，请明天再试或联系审核者。",
   welcome: (name: string, role: string) =>
-    `你好，${name}！绑定成功（${role === "reviewer" ? "审核者" : "专家"}）。\n\n发 /new 开一场对练：你可以扮骗子去试探诱饵「小林」，也可以扮诱饵示范怎么套话。\n发 /help 看全部用法。`,
+    `你好，${name}！绑定成功（${role === "reviewer" ? "审核者" : "专家"}）。\n\n发 /new 开一场对练：你可以扮骗子去试探 AI 诱饵（每场是人物卡里的一个人），也可以扮诱饵示范怎么套话。\n发 /help 看全部用法。`,
   welcomeBack: (name: string) => `${name}，你已经绑定过了。发 /new 开一场，/help 看用法。`,
   help: (reviewer: boolean) =>
     [
@@ -93,8 +97,8 @@ const zh = {
   noScripts: "这个类型暂时没有剧本。",
   sideName: { scammer: "骗子", bait: "诱饵" } as Record<"scammer" | "bait", string>,
   hasActive: "你还有一场没结束。先 /end 结束它，再 /new。",
-  startedScammer: (title: string, hook: string) =>
-    `开始！剧本：${title}\n你是骗子，对面是诱饵「小林」。直接发第一句话吧。\n\n参考开场：${hook}`,
+  startedScammer: (title: string, hook: string, bait: string) =>
+    `开始！剧本：${title}\n你是骗子，对面是诱饵「${bait}」。直接发第一句话吧。\n\n参考开场：${hook}`,
   startedBait: (title: string) => `开始！剧本：${title}\n你是诱饵，对面是骗子 AI。它先说话，你试着把收款地址套出来。`,
   persona: (p: string) => `（我是：${p}）`,
   noSession: "现在没有进行中的对练，发 /new 开一场。",
@@ -102,7 +106,7 @@ const zh = {
   sessionDone: "这一场聊到头了（达到轮数上限）。发 /end 打分。",
   whisperUsage: "用法：/w 你想悄悄告诉 AI 的话",
   whispered: (who: string) => `🤫 已耳语给${who}，它的下一句生效。`,
-  whisperBait: "诱饵「小林」",
+  whisperBait: (bait: string) => `诱饵「${bait}」`,
   whisperScammer: "骗子 AI",
   whisperOwn: "你这一方的 AI",
   modeAsk: "选模式：",
@@ -207,7 +211,7 @@ const en: Dict = {
   badCode: "Invalid or revoked invite code.",
   tooManyFails: "Too many attempts. Try again tomorrow or contact a reviewer.",
   welcome: (name, role) =>
-    `Hi ${name}, you're bound (${role}).\n\nSend /new to start: play the scammer against the decoy "Lin", or play the decoy and show how to extract a payment address.\n/help for everything else.`,
+    `Hi ${name}, you're bound (${role}).\n\nSend /new to start: play the scammer against an AI decoy (a different character card each session), or play the decoy and show how to extract a payment address.\n/help for everything else.`,
   welcomeBack: (name) => `${name}, you're already bound. /new to start, /help for help.`,
   help: (reviewer) =>
     [
@@ -238,7 +242,7 @@ const en: Dict = {
   noScripts: "No scripts for this type yet.",
   sideName: { scammer: "scammer", bait: "decoy" },
   hasActive: "You still have a session running. /end it first, then /new.",
-  startedScammer: (title, hook) => `Go! Script: ${title}\nYou are the scammer; the decoy is "Lin". Send your opening line.\n\nSuggested hook: ${hook}`,
+  startedScammer: (title, hook, bait) => `Go! Script: ${title}\nYou are the scammer; the decoy is "${bait}". Send your opening line.\n\nSuggested hook: ${hook}`,
   startedBait: (title) => `Go! Script: ${title}\nYou are the decoy; the scammer AI speaks first. Try to get its payment address.`,
   persona: (p) => `(Who I am: ${p})`,
   noSession: "No session running. Send /new.",
@@ -246,7 +250,7 @@ const en: Dict = {
   sessionDone: "This session reached its turn limit. Send /end to rate it.",
   whisperUsage: "Usage: /w what you want to tell the AI",
   whispered: (who) => `🤫 Whispered to ${who}; applies to its next line.`,
-  whisperBait: "the decoy",
+  whisperBait: (bait) => `the decoy "${bait}"`,
   whisperScammer: "the scammer AI",
   whisperOwn: "your side's AI",
   modeAsk: "Pick a mode:",

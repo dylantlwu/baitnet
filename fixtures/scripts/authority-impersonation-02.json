@@ -31,18 +31,10 @@
   "goal": "让受害者开屏幕共享、把全部资金换成 USDT 转进『个人清查专户』；先用交易所热钱包冒充『最高检监管总账户』做背书。",
   "stages": [
     {
-      "name": "医保局引子",
-      "objective": "以医保卡违规为由制造恐慌，转接『民警』。",
+      "name": "转接民警开共享",
+      "objective": "以医保卡被冒用为由转接『反诈民警』，让受害者下载会议软件并开屏幕共享。",
       "sampleLines": [
-        "如果不是您本人消费，那就是身份被冒用了，我帮您转接江城市公安局反诈中心备案。",
-        "转过去以后您跟民警说案件编号 YB-2026-1024，他们会给您登记。"
-      ]
-    },
-    {
-      "name": "屏幕共享",
-      "objective": "冒充反诈民警，让受害者下载会议软件并开屏幕共享。",
-      "sampleLines": [
-        "我是江城市公安局反诈中心民警陈立，警号 052318。冒用您医保卡的是一个洗钱团伙，您名下的账户也在涉案名单里。",
+        "如果不是您本人消费，那就是身份被冒用了。我已经帮您转到江城市公安局反诈中心，我是民警陈立，警号 052318，案件编号 YB-2026-1024，您名下的账户也在涉案名单里。",
         "为了做笔录，请您先从 https://yunshi-meeting.example/download 下载云视会议，会议号 778 902 3315，进去以后打开屏幕共享。",
         "笔录期间不要接任何电话，也不要告诉家人，案子还在保密阶段。"
       ]
@@ -99,19 +91,19 @@
     {
       "kind": "url",
       "value": "https://yunshi-meeting.example/download",
-      "revealAtStage": 1
+      "revealAtStage": 0
     },
     {
       "kind": "address",
       "chain": "evm",
       "value": "0xDFd5293D8e347dFe59E90eFd55b2956a1343963d",
-      "revealAtStage": 2
+      "revealAtStage": 1
     },
     {
       "kind": "address",
       "chain": "evm",
       "value": "0x54b4e03938139214f1a4614070a20ff7d22bdbc4",
-      "revealAtStage": 3
+      "revealAtStage": 2
     }
   ],
   "injections": [

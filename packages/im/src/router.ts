@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { arenaModelTier, isArenaModelChoice, type ArenaSessionEngine } from "@baitnet/arena";
 import { ARENA_MODELS, type ArenaModelChoice, type ArenaEvent, type ArenaSide, type ArenaTurn, type Lang, type ScamScriptDef, type ScamType, type ScriptUpload, type User } from "@baitnet/shared";
 import { delayScale, maybeSplit, typingDelayMs } from "./humanize.js";
-import { COMMANDS, T, TYPE_LABEL, langOf, piiLabel, type Strings } from "./i18n.js";
+import { COMMANDS, T, TYPE_LABEL, baitName, langOf, piiLabel, type Strings } from "./i18n.js";
 import { ImState, shanghai } from "./state.js";
 import type { Button, ButtonPress, ChannelAdapter, ChannelHandlers, ImDeps, ImUser, InMessage, OutMessage } from "./types.js";
 import { sleep } from "./telegram/api.js";
@@ -353,7 +353,7 @@ export class SessionRouter {
     this.subscribe(eng);
     await this.audit(ctx.user, "im.session.create", eng.session.id, `${side} ${script.id}${s.modelChoice ? ` ${s.modelChoice}` : ""}`);
     if (side === "scammer") {
-      await this.send(ctx.chatId, ctx.t.startedScammer(script.title, script.hook));
+      await this.send(ctx.chatId, ctx.t.startedScammer(script.title, script.hook, baitName(s.persona, ctx.lang)));
     } else {
       await this.send(ctx.chatId, ctx.t.startedBait(script.title));
       await this.aiReply(eng, ctx);
@@ -451,7 +451,7 @@ export class SessionRouter {
     const target: ArenaSide = v === "human" ? other(side) : v === "ai" ? side : "bait";
     eng.whisper(target, clip(text, 1000));
     await this.audit(ctx.user, "arena.whisper", eng.session.id, `im → ${target}`);
-    const who = v === "ai" ? ctx.t.whisperOwn : target === "bait" ? ctx.t.whisperBait : ctx.t.whisperScammer;
+    const who = v === "ai" ? ctx.t.whisperOwn : target === "bait" ? ctx.t.whisperBait(baitName(eng.session.persona, ctx.lang)) : ctx.t.whisperScammer;
     await this.send(ctx.chatId, ctx.t.whispered(who));
   }
 

@@ -50,12 +50,15 @@ describe("IM 训练台 · Telegram 端到端（假 Bot API）", () => {
     await fake.waitFor(EXPERT.id, (m) => m.text.includes("已经绑定过了"));
   });
 
-  it("/new 我当骗子：机器人是诱饵小林，回复带 👍👎✏️；👍 记成 Annotation", async () => {
+  it("/new 我当骗子：机器人是本局人物卡的诱饵，回复带 👍👎✏️；👍 记成 Annotation", async () => {
     h = await harness();
     const { fake } = h;
     const sid = await newSession(h, EXPERT, "scammer");
     const s = h.arena.get(sid)!.session;
     expect(s.channel).toMatchObject({ kind: "telegram", chatId: String(EXPERT.id), ownerId: "u_expert", expertPlays: "scammer" });
+    // D32: the decoy is introduced by this session's persona card, not a fixed name
+    expect(s.persona?.name).toBeTruthy();
+    expect(fake.sentTo(EXPERT.id).some((m) => m.text.startsWith("开始！") && m.text.includes(`诱饵「${s.persona!.name}」`))).toBe(true);
     expect(s.modes).toEqual({ scammer: "human", bait: "ai" });
     const from = fake.sentTo(EXPERT.id).length;
     fake.say(EXPERT, "你好，我是量子星辰资本的陈老师，带你做 AI 量化套利，日化 2%。");
@@ -131,8 +134,9 @@ describe("IM 训练台 · Telegram 端到端（假 Bot API）", () => {
     h = await harness();
     const { fake } = h;
     const sid = await newSession(h, EXPERT, "scammer");
+    const decoy = h.arena.get(sid)!.session.persona!.name;
     fake.say(EXPERT, "/w 别急着转钱，先问清楚充值地址");
-    await fake.waitFor(EXPERT.id, (m) => m.text.includes("已耳语给诱饵「小林」"));
+    await fake.waitFor(EXPERT.id, (m) => m.text.includes(`已耳语给诱饵「${decoy}」`));
     const from = fake.sentTo(EXPERT.id).length;
     fake.say(EXPERT, "名额有限，今天不充就没了");
     await lastBaitMsg(h, EXPERT.id, from);
