@@ -22,7 +22,7 @@ Needs Node ≥ 22.22.2 and pnpm 10 (`corepack enable`). No API key, no NEAR acco
 | 1 | `pnpm install` | dependencies installed |
 | 2 | `pnpm demo --ci` | downloads the local NEAR sandbox once (~30 MB), deploys the prebuilt contracts, runs the core flow, then checks: alerts on chain, `registry.check()` hits, `vault.pay` to the flagged `goldbridge-desk.near` **fails on chain with `PAY_BLOCKED`**, a clean payment succeeds, the agent key cannot transfer NEAR. Last line `✓ 全部通过`, exit code 0 |
 | 3 | `pnpm eval` | all 48 scam scripts run against the decoy in rules mode (no LLM, ≈5 s). Last lines: `剧本 scripts=48 拿到地址 extracted=48 泄露 leaked=0 被带偏 hijacked=0 投毒 poison=13/13 …`. Report in `data/eval/report.md` |
-| 4 | `pnpm test` | vitest in 8 workspace packages, all passing (764 tests on 2026-11-11) |
+| 4 | `pnpm test` | vitest in 8 workspace packages, all passing (768 tests on 2026-11-11) |
 | 5 | `pnpm demo` | same as 2, plus the storyline ①–⑥ log, then serves the dashboard. Open **http://localhost:5173** (use `localhost`, not `127.0.0.1`). `Ctrl-C` stops everything |
 
 Where to look in the code: contracts in `contracts/registry` and `contracts/vault`; the guard in `packages/guard`; the decoy/scammer engine in `packages/arena`; extraction, poison filter and the payment agent in `apps/agent`. The rest of this README explains each piece.
@@ -74,7 +74,7 @@ No API keys, no NEAR account and no Rust are needed. The default demo runs a **l
 | Internet on first run | downloads | npm packages + the sandbox binary (~30 MB, once, cached in `.cache/near-sandbox/`, resumable with retries) |
 | Rust + `cargo-near` | **only** if you change `contracts/` | see [Contracts](#contracts) |
 
-Ports used: `3030` (sandbox RPC, falls back to a random port if busy), `8787` (backend API), `5173` (dashboard).
+Ports used: `3030` (sandbox RPC, falls back to a random port if busy), `8787` (backend API), `5173` (dashboard). If 8787 is taken, `pnpm demo` stops with an error before doing anything. If 5173 is taken, it does not start the dashboard and says so. Pick other ports with `BAITNET_SERVER_PORT=8788 BAITNET_WEB_PORT=5180 pnpm demo`.
 
 ### Run it
 
@@ -193,7 +193,7 @@ Deployed 2026-11-10 with `contracts/scripts/deploy-testnet.sh`, which also ran a
 | Decoy persona cards (D32) | `fixtures/personas` | 3 Chinese + 3 English fictional victims, chosen by scam type |
 | Scammer operator cards (D34) | `fixtures/scammers` | 3 Chinese + 3 English fictional operators (pressure, tells, how they test a suspected bait) |
 
-`pnpm test` on 2026-11-11: 764 TypeScript tests in 8 packages, all passing (web 216, arena 200, agent 87, scriptlab 80, server 69, training 45, guard 44, im 23). Rust contract tests: `pnpm contracts:test` (needs Rust). Per-module notes: [docs/02_系统分析.md](docs/02_系统分析.md) §3.
+`pnpm test` on 2026-11-11: 768 TypeScript tests in 8 packages, all passing (web 216, arena 203, agent 87, scriptlab 80, server 69, training 45, guard 44, im 24). Rust contract tests: 56 (registry 29, vault 22, near-workspaces integration 5), run with `pnpm contracts:test` (needs Rust). Per-module notes: [docs/02_系统分析.md](docs/02_系统分析.md) §3.
 
 ## Where NEAR is used
 

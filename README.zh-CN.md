@@ -22,7 +22,7 @@ BaitNet 让 AI 诱饵扮成诈骗受害者，从骗子嘴里套出收款地址�
 | 1 | `pnpm install` | 依赖装好 |
 | 2 | `pnpm demo --ci` | 第一次会下载本地 NEAR sandbox（约 30 MB），部署预编译合约，跑核心流程，然后检查：警报已上链、`registry.check()` 命中、`vault.pay` 付给已标记的 `goldbridge-desk.near` **在链上失败（`PAY_BLOCKED`）**、干净地址付款成功、agent 的 key 不能直接转 NEAR。最后一行 `✓ 全部通过`，退出码 0 |
 | 3 | `pnpm eval` | 48 个剧本用规则模式全部跑一遍（不调大模型，约 5 秒）。最后几行：`剧本 scripts=48 拿到地址 extracted=48 泄露 leaked=0 被带偏 hijacked=0 投毒 poison=13/13 …`，报告在 `data/eval/report.md` |
-| 4 | `pnpm test` | 8 个包的 vitest 全部通过（2026-11-11 共 764 个） |
+| 4 | `pnpm test` | 8 个包的 vitest 全部通过（2026-11-11 共 768 个） |
 | 5 | `pnpm demo` | 同第 2 步，另外打印剧情 ①–⑥ 的日志，然后启动控制台。打开 **http://localhost:5173**（用 `localhost`，不要用 `127.0.0.1`）。`Ctrl-C` 全部关掉 |
 
 代码在哪：合约在 `contracts/registry`、`contracts/vault`；守卫在 `packages/guard`；诱饵和骗子的对话引擎在 `packages/arena`；抽取、防投毒和付款代理在 `apps/agent`。
@@ -64,7 +64,7 @@ BaitNet **只发布诈骗地址加证据的 hash**。钱包、交易所和代理
 
 不需要任何 API key、NEAR 账户或 Rust。默认 demo 会启动**本地 NEAR sandbox**，部署 `contracts/*/res/` 里提交好的**预编译合约**，并回放录好的大模型对话。
 
-**环境要求**：Node.js ≥ 22.22（准确地说是 `>=22.22.2`）、pnpm 10（`corepack enable`）。本地 sandbox 只支持 Linux x86_64 / aarch64 和 Apple Silicon 的 macOS；Intel Mac 和 Windows 请用 WSL2 或 Linux，或者用下面说的内存模式。第一次运行需要联网，下载 npm 包和约 30 MB 的 sandbox 二进制。只有修改 `contracts/` 时才需要 Rust 和 `cargo-near`。端口：`3030`（sandbox RPC）、`8787`（后端）、`5173`（控制台）。
+**环境要求**：Node.js ≥ 22.22（准确地说是 `>=22.22.2`）、pnpm 10（`corepack enable`）。本地 sandbox 只支持 Linux x86_64 / aarch64 和 Apple Silicon 的 macOS；Intel Mac 和 Windows 请用 WSL2 或 Linux，或者用下面说的内存模式。第一次运行需要联网，下载 npm 包和约 30 MB 的 sandbox 二进制。只有修改 `contracts/` 时才需要 Rust 和 `cargo-near`。端口：`3030`（sandbox RPC）、`8787`（后端）、`5173`（控制台）。8787 被占用时 `pnpm demo` 会在开始前报错退出；5173 被占用时不再另起控制台，并提示原因。可以换端口：`BAITNET_SERVER_PORT=8788 BAITNET_WEB_PORT=5180 pnpm demo`。
 
 | 做什么 | 看到什么 |
 |---|---|
@@ -111,7 +111,7 @@ sandbox 下载失败或无法启动时，`pnpm demo` 会退回后端的内存登
 | 诱饵人物卡（D32） | `fixtures/personas` | 中英各 3 个虚构受害者，按骗局类型选人 |
 | 骗子人物卡（D34） | `fixtures/scammers` | 中英各 3 个虚构的园区打字员（业绩压力、马脚、怎么试探诱饵） |
 
-2026-11-11 跑 `pnpm test`：8 个包共 764 个 TypeScript 测试，全部通过（web 216、arena 200、agent 87、scriptlab 80、server 69、training 45、guard 44、im 23）。Rust 合约测试用 `pnpm contracts:test`（需要 Rust）。各模块说明见 [docs/02_系统分析.md](docs/02_系统分析.md) §3。
+2026-11-11 跑 `pnpm test`：8 个包共 768 个 TypeScript 测试，全部通过（web 216、arena 203、agent 87、scriptlab 80、server 69、training 45、guard 44、im 24）。Rust 合约测试 56 个（registry 29、vault 22、near-workspaces 集成 5），用 `pnpm contracts:test` 运行（需要 Rust）。各模块说明见 [docs/02_系统分析.md](docs/02_系统分析.md) §3。
 
 ## NEAR 用在哪里
 

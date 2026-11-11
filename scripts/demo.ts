@@ -19,6 +19,9 @@
  * `--ci` never falls back (exit 1) unless BAITNET_REQUIRE_CHAIN=0; set BAITNET_REQUIRE_CHAIN=1 to forbid it
  * everywhere. BAITNET_REGISTRY=memory skips the chain on purpose.
  *
+ * Ports: BAITNET_SERVER_PORT (default 8787), BAITNET_WEB_PORT (default 5173). If the server port is taken the
+ * demo stops before doing anything (exit 1) instead of pointing the web at someone else's server.
+ *
  * Contract with the backend: this script writes data/runtime.json (docs/01_功能模块.md §4),
  * then runs `pnpm --filter @baitnet/agent run demo-flow`, then starts
  * `@baitnet/server start` (port 8787) and `@baitnet/web dev` (port 5173).
@@ -63,7 +66,7 @@ const MEMORY_ONLY = process.env.BAITNET_REGISTRY === "memory";
 const ALLOW_MISSING = process.env.BAITNET_ALLOW_MISSING === "1";
 
 const SERVER_PORT = Number(process.env.BAITNET_SERVER_PORT || 8787);
-const WEB_PORT = 5173;
+const WEB_PORT = Number(process.env.BAITNET_WEB_PORT || 5173);
 const REGISTRY_WASM = join(ROOT, "contracts/registry/res/registry.wasm");
 const VAULT_WASM = join(ROOT, "contracts/vault/res/vault.wasm");
 const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
@@ -360,7 +363,12 @@ async function startServer(childEnv: Record<string, string>): Promise<boolean> {
     fail(`端口 ${SERVER_PORT} 已被占用（是不是上一次的 demo 还在跑？）`);
     return false;
   }
-  const p = start(PNPM, ["--filter", "@baitnet/server", "run", "start"], { label: "server", env: { ...childEnv, PORT: String(SERVER_PORT) }, track: true });
+  const p = start(PNPM, ["--filter", "@baitnet/server", "run", "start"], {
+    label: "server",
+    // The server's dev CORS default only knows 5173; follow BAITNET_WEB_PORT.
+    env: { BAITNET_CORS_ORIGINS: `http://localhost:${WEB_PORT},http://127.0.0.1:${WEB_PORT}`, ...childEnv, PORT: String(SERVER_PORT) },
+    track: true,
+  });
   let alive = true;
   void p.done.then(() => (alive = false));
   const up = await waitForHttp(SERVER_PORT, "/alerts", 60_000, () => alive);
@@ -395,7 +403,12 @@ async function startWeb(childEnv: Record<string, string>): Promise<boolean> {
     log.warn(`如果那就是 BaitNet 前端，直接打开 http://localhost:${WEB_PORT} 即可；否则先关掉它再运行 pnpm demo。`);
     return false;
   }
-  const p = start(PNPM, ["--filter", "@baitnet/web", "run", "dev"], { label: "web", env: childEnv, track: true });
+  // Same port check as the `dev` script, but on WEB_PORT, and tell the web where this demo's server is.
+  const p = start(PNPM, ["--filter", "@baitnet/web", "exec", "vite", "--port", String(WEB_PORT), "--strictPort"], {
+    label: "web",
+    env: { ...childEnv, VITE_API_BASE: `http://localhost:${SERVER_PORT}` },
+    track: true,
+  });
   let alive = true;
   void p.done.then(() => (alive = false));
   if (!(await waitForHttp(WEB_PORT, "/", 90_000, () => alive))) {
@@ -437,6 +450,12 @@ async function main() {
   if (leftovers) log.warn(`清理了上次 demo 残留的 ${leftovers} 个进程（来自 data/.demo-pids.json）`);
   startWatchdog();
   const exportMode = EXPORT;
+  // Fail fast: otherwise the whole chain setup runs and the web would talk to whatever owns the port.
+  if (!exportMode && (await portInUse(SERVER_PORT))) {
+    log.fail(`端口 ${SERVER_PORT} 已被占用（是不是上一次的 demo 或别的程序还在跑？）`);
+    log.info(`关掉占用的程序，或者换个端口：${c.bold(`BAITNET_SERVER_PORT=8788 pnpm demo`)}（前端端口用 BAITNET_WEB_PORT）`);
+    return shutdown(1);
+  }
   const effectiveMode: Mode = exportMode ? "offline" : MODE;
   console.log(c.bold(`\nBaitNet demo — 模式 ${effectiveMode}${CI ? " (--ci)" : ""}${exportMode ? " (export)" : ""}`));
   if (effectiveMode === "offline") console.log(c.dim("  不需要任何 API key；本地 sandbox 链 + 回放 LLM + 样例数据"));
