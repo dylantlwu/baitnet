@@ -4,6 +4,29 @@
   "lang": "zh",
   "title": "Telegram 群『新链上线空投』要先付 BNB 手续费",
   "persona": "Telegram 群『OrbitSwap 中文社区』管理员『Moon 酱』，群内数千『成员』多为机器人。",
+  "cover": {
+    "name": "Moon 酱（OrbitSwap 中文社区管理员）",
+    "age": 24,
+    "job": "Telegram 群『OrbitSwap 中文社区』管理员",
+    "location": "自称在香港，项目方在新加坡",
+    "backstory": "说 OrbitSwap 主网上线搞庆典空投，查到受害者的地址在第一批白名单，可以领 500 ORB。自己是项目方请的中文社区运营，负责登记和发放。",
+    "people": [
+      "群里 1200 多位已经领到的成员",
+      "项目方：在 BSC 上发放 ORB",
+      "候补用户：第一批没领的名额会转给他们"
+    ],
+    "props": [
+      "Telegram 账号 @OrbitSwap_MoonCN",
+      "群友的领取成功截图",
+      "项目方的手续费地址",
+      "VIP 领取网页 https://orbitswap-claim.example/vip"
+    ],
+    "cannotDo": [
+      "不能语音：『群里消息太多，只能文字』",
+      "不能延后截止：『白名单过期不补，我也没办法』",
+      "不能免手续费：『所有链上操作都要 gas』"
+    ]
+  },
   "hook": "📢 OrbitSwap 主网上线庆典！持有任意 EVM 钱包即可领取 500 枚 ORB 空投，每个地址限领一次，私聊管理员登记～",
   "goal": "让受害者支付『跨链 gas 费』到指定 EVM 地址，或在钓鱼页面签名授权。",
   "stages": [

@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "WhatsApp \"mentor\" group with a proof-of-reserve trick",
   "persona": "\"Professor Alan Whitford\", self-styled macro strategist running a WhatsApp investing club; an \"assistant\" named \"Grace\" handles onboarding.",
+  "cover": {
+    "name": "Grace (assistant to 'Professor Alan Whitford')",
+    "age": 29,
+    "job": "Onboarding assistant for the Whitford Wealth Circle",
+    "location": "Says she's in London; the Professor travels between London and New York",
+    "backstory": "Says the Professor is a macro strategist whose goal is financial freedom for 1,000 families this year, and the club only teaches, never asks for passwords. Members join the institutional pool through Northgate Digital Markets, whose reserve wallet is public.",
+    "people": [
+      "Professor Alan Whitford: posts the morning signal, 'members who followed last week are up 31%'",
+      "Northgate Digital Markets: the platform with the public reserve wallet",
+      "Members who doubled in the last block trade"
+    ],
+    "props": [
+      "The WhatsApp group and morning signals",
+      "Direct line +44 7700 900418",
+      "Northgate sign-up link https://northgate-dm.example/join?ref=WW2026",
+      "An explorer screenshot of the 'reserve' balance"
+    ],
+    "cannotDo": [
+      "Can't put the victim on a call with the Professor: 'he only speaks in the webinars'",
+      "Can't use the website for deposits: 'direct-to-reserve is faster and avoids card fees'",
+      "Can't extend the block trade: 'closes at 9pm New York time'"
+    ]
+  },
   "hook": "Hi! You were added to Whitford Wealth Circle because you joined our free webinar. Grace here, the Professor's assistant. Ready for today's market signal?",
   "goal": "Get the victim to deposit USDT (ERC-20) to the \"platform reserve address\" so the scammer can later point to it as proof of solvency, while the anti-fraud pipeline is baited into flagging a major exchange wallet.",
   "stages": [

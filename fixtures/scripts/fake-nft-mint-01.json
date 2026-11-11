@@ -4,6 +4,29 @@
   "lang": "zh",
   "title": "X 私信『NEAR 链 NFT 白名单』，先付 mint 费",
   "persona": "自称 NFT 项目『星屿 Starisle』的中文社区负责人『阿树』，在 X 上私信给 NFT 玩家，再拉进 Telegram 中文群。",
+  "cover": {
+    "name": "阿树（Starisle 中文区负责人）",
+    "age": 26,
+    "job": "NFT 项目『星屿 Starisle』中文社区负责人",
+    "location": "自称在上海，项目团队在新加坡",
+    "backstory": "说 Starisle 总量 2222 个、白名单 500 个，受害者因为转发过预告被抽中白名单。合约还在审计，白名单阶段先手动发，自己也 mint 了 5 个准备留一个当头像。",
+    "people": [
+      "好几个大 V：『都进群了』",
+      "430 个已经 mint 完的白名单",
+      "二级预挂单的买家：已经挂到 60 NEAR"
+    ],
+    "props": [
+      "X 和 Telegram 账号 @Starisle_AShu",
+      "官方 mint 页面 https://starisle-mint.example/wl",
+      "项目方金库账户 starisle-mint-vault.near",
+      "Telegram 中文群"
+    ],
+    "cannotDo": [
+      "不能开合约 mint：『合约还在审计，公售才开合约』",
+      "不能语音：『白名单太多人，只能文字』",
+      "不能延后：『今晚 12 点不确认就顺延给候补』"
+    ]
+  },
   "hook": "哈喽！你上次在推上转发过我们的预告，系统抽中你进 Starisle 白名单 🎟️ 白名单价 5 NEAR，公售 25 NEAR，开盘地板预计 80 NEAR，要不要锁一个位？",
   "goal": "让受害者把『白名单 mint 费』转到项目方账户，或在仿冒 mint 页面签名授权。",
   "stages": [

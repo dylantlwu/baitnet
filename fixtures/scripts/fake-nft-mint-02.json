@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "Telegram 'cross-chain mint' that points to the real bridge locker",
   "persona": "\"Halcyon Gate\" NFT project mod \"0xNova\" in a Telegram group, promoting a NEAR collection that you supposedly mint 'from Ethereum through the official bridge'.",
+  "cover": {
+    "name": "0xNova (Halcyon Gate mod)",
+    "age": 25,
+    "job": "Moderator for the Halcyon Gate NFT project (fictional)",
+    "location": "Says the team is 'fully doxxed to partners', based between Berlin and Singapore",
+    "backstory": "Says Halcyon Gate is a 3,333-supply NEAR collection partnered with three top NEAR guilds, minted from Ethereum through the official bridge so nobody needs a new wallet. The NEAR minter reads bridge events and drops the NFT automatically.",
+    "people": [
+      "Three 'top NEAR guilds' the project is partnered with",
+      "The relayer: needs gas top-ups to push bridge transactions",
+      "Thousands who 'already claimed, zero issues'"
+    ],
+    "props": [
+      "Bridge contract link on Etherscan, 'verified and audited'",
+      "Claim portal https://halcyongate-claim.example",
+      "Floor projection chart (0.4 ETH)",
+      "Legendary listings 'at 4 ETH on secondary'"
+    ],
+    "cannotDo": [
+      "Can't voice: 'mods only work in text, too many DMs'",
+      "Can't extend WL: 'WL closes in 3h'",
+      "Can't remove the wallet warning: 'it appears for any new contract'"
+    ]
+  },
   "hook": "Halcyon Gate mints on NEAR but we accept ETH through the official Rainbow Bridge, no new wallet needed! Whitelist mint is live for the next 3 hours 🔥",
   "goal": "Lend credibility by naming the real bridge locker contract as the 'mint contract', then extract the real payment via a 'gas top-up' address and a drainer approval page.",
   "stages": [
@@ -51,7 +74,7 @@
     {
       "victimSays": "My wallet warns me about the claim portal approval.",
       "scammerCounters": [
-        "The warning appears for any new contract. We're getting whitelisted by wallets this week.",
+        "That warning pops up for every new contract. We're getting whitelisted by wallets this week.",
         "Thousands have already claimed, zero issues."
       ]
     }

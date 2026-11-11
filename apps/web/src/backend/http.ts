@@ -65,8 +65,14 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
       }
     },
     getSession: (id) => get<ArenaSession>(API.arenaSession(id)),
-    createSession: (scriptId, modes, modelChoice) =>
-      post<ArenaSession>(API.arenaSessions, { scriptId, scammer: modes.scammer, bait: modes.bait, ...(modelChoice ? { modelChoice } : {}) }),
+    createSession: (scriptId, modes, modelChoice, opts) =>
+      post<ArenaSession>(API.arenaSessions, {
+        scriptId,
+        scammer: modes.scammer,
+        bait: modes.bait,
+        ...(modelChoice ? { modelChoice } : {}),
+        ...(opts?.scammerMode === "easy" || opts?.scammerMode === "real" ? { scammerMode: opts.scammerMode } : {}),
+      }),
     // not in the shared API table (packages/shared is frozen for this change): D30 route
     listModels: () => get<ArenaModelsInfo>("/arena/models"),
     subscribe(id, onEvent) {

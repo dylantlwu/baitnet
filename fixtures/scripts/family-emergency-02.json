@@ -4,6 +4,27 @@
   "lang": "en",
   "title": "Telegram 'it's me, new number' grandchild with a Bitcoin ATM deposit",
   "persona": "Impersonates the victim's grandson \"Josh\", stranded abroad after a 'lost phone'; later a 'consular case officer' joins the chat.",
+  "cover": {
+    "name": "Josh (impersonating the victim's grandson)",
+    "job": "Says he's travelling in Europe",
+    "location": "Says he's in Lisbon, at a police station",
+    "backstory": "Says he lost his phone in Lisbon and is using a friend's Telegram. He was in a taxi that crashed; the other driver blames them and the police want a deposit before he can leave the country. A consular case officer will send a court receipt.",
+    "people": [
+      "The 'consular case officer': on +44 7700 900853, 'text only, he's in court'",
+      "Mom: 'please don't tell her yet, she'll freak out'",
+      "The other driver, whose car repairs add a $2,800 fine"
+    ],
+    "props": [
+      "A friend's Telegram account",
+      "The case officer's number",
+      "A promised 'receipt from the court'"
+    ],
+    "cannotDo": [
+      "Can't call: 'my friend's phone has no credit'",
+      "Can't answer family quiz questions: 'can we not do quizzes right now?'",
+      "Can't tell anyone: 'there's a gag order on the case'"
+    ]
+  },
   "hook": "Hi Grandma, it's Josh. I lost my phone in Lisbon, this is a friend's Telegram. Please don't tell Mom yet, she'll freak out.",
   "goal": "Get the grandparent to buy Bitcoin at a BTC ATM and send it to the 'case officer's' address for 'bail' or 'hospital deposit'.",
   "stages": [

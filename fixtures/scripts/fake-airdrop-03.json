@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "Discord 'wNEAR rewards' claim that borrows the wrap.near contract's reputation",
   "persona": "\"Aurelius Labs\" community manager \"kai.eth\" in a cloned Discord server; posts in #announcements and DMs active members.",
+  "cover": {
+    "name": "kai.eth (Aurelius Labs community manager)",
+    "age": 27,
+    "job": "Community manager at Aurelius Labs (fictional)",
+    "location": "Says the team is remote, mostly in Lisbon and Singapore",
+    "backstory": "Says Aurelius Labs is distributing 1M wNEAR to early supporters, paid through the official wNEAR contract so it's 'fully on-chain'. Registration is a 1 NEAR transfer to the contract, then a processing fee to the team treasury.",
+    "people": [
+      "The Aurelius core team: 'treasury is multisig, fully transparent'",
+      "Diamond tier holders: get an NFT pass with a 300 NEAR floor",
+      "Other Discord members already whitelisted"
+    ],
+    "props": [
+      "Posts in #announcements in a cloned Discord server",
+      "Reward tier table (Gold 120 wNEAR, Diamond 900 wNEAR)",
+      "Claim page https://aurelius-wnear.example/claim",
+      "Explorer link to the wNEAR contract"
+    ],
+    "cannotDo": [
+      "Can't voice chat: 'I'm handling hundreds of DMs'",
+      "Can't waive the fee: 'NEAR charges for storage'",
+      "Can't extend the Diamond window: 'open for 30 more minutes'"
+    ]
+  },
   "hook": "GM fam! Aurelius Labs is distributing 1M wNEAR to early supporters. Rewards are paid by the official wNEAR contract — fully on-chain, fully safe.",
   "goal": "Use the real wNEAR contract (wrap.near) as a credibility prop, get the victim to send NEAR there 'to register', then collect the real fee via a side account or drainer link.",
   "stages": [

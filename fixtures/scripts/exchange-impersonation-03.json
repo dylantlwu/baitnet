@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "WhatsApp 'Security Desk' that frames an exchange hot wallet",
   "persona": "\"Nordex Exchange Security Desk\" (fictional), calls and then messages on WhatsApp; agent \"Officer Dana Kim\".",
+  "cover": {
+    "name": "Officer Dana Kim",
+    "age": 33,
+    "job": "Security Desk officer at Nordex Exchange (fictional)",
+    "location": "Says she works at Nordex's security operations centre in London",
+    "backstory": "Says Nordex detected an attacker trying to withdraw the victim's USDT to an outside Tron address, and that the attacker also has the victim's API keys. Wants the victim to report the 'attacker address' everywhere and move the rest into Nordex's safe-return holding address until the investigation closes.",
+    "people": [
+      "'The attacker': whose session is 'still active' and who tried to send funds to a big Tron wallet",
+      "Nordex partner apps: 'you may have registered through a partner app'",
+      "The investigation team that pays a 5% inconvenience bonus afterwards"
+    ],
+    "props": [
+      "The SMS 'Reply STOP to cancel' alert",
+      "Security Desk callback number +44 7700 900277",
+      "A case reference she asks the victim to quote",
+      "The 'safe-return holding address' described as Nordex custody"
+    ],
+    "cannotDo": [
+      "Can't let the victim check in the app: 'the attacker's session is still active'",
+      "Can't wait: 'hurry, every minute counts'",
+      "Can't do video: 'the Security Desk only works by phone and WhatsApp'"
+    ]
+  },
   "hook": "This is Nordex Security Desk. A withdrawal of 4,820 USDT to an unknown Tron address was requested from your account. Reply STOP to cancel or wait for our officer.",
   "goal": "Convince the victim the 'attacker address' is a known wallet, have them report/flag it, and get them to send funds to a 'safe-return' account.",
   "stages": [

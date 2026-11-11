@@ -18,6 +18,10 @@ import { useIdentity } from "../auth/context";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { HttpError } from "../backend/http";
 import { DecoyMindCard, PersonaLine, PrincipleChips, TurnMindChip, TurnMindNote, hasTurnMind, mindUpTo, ALL_PRINCIPLE_TAGS, PRINCIPLE_TAGS } from "../arena/DecoyMind";
+import {
+  DEFAULT_SCAMMER_MODE, ScammerLine, ScammerMindCard, ScammerTurnMindChip, ScammerTurnMindNote, hasScammerTurnMind, scammerMindUpTo, scammerViewAllowed, sessionScammerMode,
+  type ScammerMode,
+} from "../arena/ScammerMind";
 
 export const TACTIC_TAGS = [
   "stalling", "ask-address", "ask-chain", "confirm-details", "play-dumb",
@@ -138,6 +142,7 @@ export function ScriptPicker({
   const [lang, setLang] = useState<"all" | "zh" | "en">("all");
   const [modes, setModes] = useState<Record<ArenaSide, SideMode>>({ scammer: "ai", bait: "ai" });
   const [model, setModel] = useState<ArenaModelChoice>(DEFAULT_ARENA_MODEL);
+  const [scammerMode, setScammerMode] = useState<ScammerMode>(DEFAULT_SCAMMER_MODE);
   const [modelInfo, setModelInfo] = useState<ArenaModelsInfo | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -185,7 +190,7 @@ export function ScriptPicker({
     }
     setBusy(true);
     try {
-      onStart(await backend.createSession(sel.id, modes, model), false);
+      onStart(await backend.createSession(sel.id, modes, model, { scammerMode }), false);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -265,6 +270,7 @@ export function ScriptPicker({
             </div>
           )}
           {!backend.readOnly && <ModelPicker value={model} onChange={setModel} info={modelInfo} />}
+          {!backend.readOnly && <ScammerModePicker value={scammerMode} onChange={setScammerMode} />}
           {err && <p className="err small">{t("common.actionFailed", { msg: err })}</p>}
           <button type="button" className="btn primary wide start-btn" onClick={start} disabled={busy} data-tour="arena-start">
             {backend.readOnly ? t("arena.replay") : busy ? t("common.working") : t("arena.start")}
@@ -348,6 +354,26 @@ function ModelPicker({ value, onChange, info }: { value: ArenaModelChoice; onCha
   );
 }
 
+/** D34: scammer difficulty on session creation. "real" (default) = the scammer can get suspicious, test and vanish. */
+export function ScammerModePicker({ value, onChange }: { value: ScammerMode; onChange: (m: ScammerMode) => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="row gap scammer-mode">
+      <span className="side-label">{t("arena.scammerMode")}</span>
+      <Segmented
+        label={t("arena.scammerMode")}
+        value={value}
+        onChange={onChange}
+        options={[
+          { value: "real", label: t("arena.scammerMode.real") },
+          { value: "easy", label: t("arena.scammerMode.easy") },
+        ]}
+      />
+      <span className="muted small">{t(value === "real" ? "arena.scammerMode.realHint" : "arena.scammerMode.easyHint")}</span>
+    </div>
+  );
+}
+
 function ModeSwitch({ value, onChange, disabled }: { value: SideMode; onChange: (m: SideMode) => void; disabled?: boolean }) {
   const { t } = useI18n();
   return (
@@ -410,13 +436,13 @@ function LiveSession({
   // D32: the stream has no event for the decoy's hidden state; re-read the session after new lines
   // (only when the server sends that state at all: old servers / rules-only builds are left alone).
   const turnCount = st.session?.turns.length ?? 0;
-  const hasMind = !!(initial.persona || initial.decoyMind);
+  const hasMind = !!(initial.persona || initial.decoyMind || initial.scammer || initial.scammerMind);
   useEffect(() => {
     if (!hasMind || turnCount === 0) return;
     let alive = true;
     const tm = setTimeout(() => {
       backend.getSession(initial.id).then(
-        (fresh) => alive && fresh && dispatch({ type: "mind", sessionId: initial.id, persona: fresh.persona, decoyMind: fresh.decoyMind, turns: fresh.turns }),
+        (fresh) => alive && fresh && dispatch({ type: "mind", sessionId: initial.id, persona: fresh.persona, decoyMind: fresh.decoyMind, scammer: fresh.scammer, scammerMind: fresh.scammerMind, turns: fresh.turns }),
         () => undefined,
       );
     }, 400);
@@ -497,6 +523,7 @@ function ReplaySession({ rec, script, snap, network }: { rec: ArenaSession; scri
     turns,
     status: shown >= total ? "finished" : playing ? "running" : "paused",
     decoyMind: mindUpTo(rec.decoyMind, turns.length ? turns[turns.length - 1].index : -1),
+    scammerMind: shown >= total ? rec.scammerMind : scammerMindUpTo(rec.scammerMind, turns),
     // A recorded draft becomes visible once the turn revealing its address has been replayed.
     drafts: rec.drafts.map((d) => (text.includes(d.address.toLowerCase()) ? d : { ...d, review: "hidden" as never })),
   };
@@ -529,7 +556,7 @@ function ReplaySession({ rec, script, snap, network }: { rec: ArenaSession; scri
 
 /* ───────────── shared layout ───────────── */
 
-interface LayoutProps {
+export interface LayoutProps {
   session: ArenaSession;
   script?: ScamScriptDef;
   snap: ViewSnapshot;
@@ -553,11 +580,14 @@ interface LayoutProps {
   onReview?: OnDraftReview;
 }
 
-function SessionLayout(p: LayoutProps) {
+export function SessionLayout(p: LayoutProps) {
   const { t } = useI18n();
   const s = p.session;
   const [expert, setExpert, expertEditable] = useExpert();
   const ro = !!p.readOnly;
+  // D34: no scammer god view for a human playing the decoy
+  const seeScammer = scammerViewAllowed(s.modes);
+  const scammerMode = sessionScammerMode(s);
 
   return (
     <div className="arena">
@@ -566,6 +596,7 @@ function SessionLayout(p: LayoutProps) {
         <div className="row gap push-md">
           <Badge tone={s.status === "running" ? "ok" : s.status === "finished" ? "muted" : "info"}>{t(`status.${s.status}`)}</Badge>
           <EngineBadge session={s} />
+          {scammerMode === "easy" && <Badge tone="muted">{t("arena.scammerEasyBadge")}</Badge>}
           <Switch checked={p.training} disabled={ro} title={ro ? t("arena.hostedHint") : undefined} onChange={(on) => p.setTraining?.(on)}>
             {t("training.mode")}
           </Switch>
@@ -584,6 +615,7 @@ function SessionLayout(p: LayoutProps) {
       )}
 
       <PersonaLine persona={s.persona} />
+      <ScammerLine scammer={s.scammer} allowed={seeScammer} turns={s.turns} />
 
       <div className="arena-grid">
         <section className="card chat2" aria-label={t("arena.conversation")}>
@@ -648,6 +680,7 @@ function SessionLayout(p: LayoutProps) {
           <DraftList session={s} network={p.network} txHashes={p.txHashes} readOnly={ro} onReview={p.onReview} />
           {p.safetyCount > 0 && <p className="note small">🛡 {t("arena.safetyCount", { n: p.safetyCount })}</p>}
           <DecoyMindCard mind={s.decoyMind} />
+          {seeScammer && <ScammerMindCard mind={s.scammerMind} />}
         </aside>
       </div>
     </div>
@@ -676,6 +709,8 @@ export function TurnRow({
   const [showSafety, setShowSafety] = useState(false);
   const [showMind, setShowMind] = useState(false);
   const mind = turn.side === "bait" && hasTurnMind(turn.mind) ? turn.mind : undefined;
+  // D34: the scammer's note only for AI scammer lines, and never while a human plays the decoy
+  const sMind = turn.side === "scammer" && turn.author === "ai" && scammerViewAllowed(session.modes) && hasScammerTurnMind(turn.scammerMind) ? turn.scammerMind : undefined;
   return (
     <div className={`turn-row ${turn.side}`}>
       <div className={`bubble2${turn.safety ? " flagged" : ""}`}>
@@ -693,12 +728,14 @@ export function TurnRow({
             </button>
           )}
           {mind && <TurnMindChip open={showMind} onToggle={() => setShowMind((v) => !v)} />}
+          {sMind && <ScammerTurnMindChip open={showMind} onToggle={() => setShowMind((v) => !v)} />}
           <time className="push">{fmtClock(turn.ts)}</time>
         </div>
         <div className="bubble-text">
           <RichText text={turn.text} alerts={snap.alerts} />
         </div>
         {showMind && mind && <TurnMindNote mind={mind} />}
+        {showMind && sMind && <ScammerTurnMindNote mind={sMind} />}
         {showWhisper && turn.whisper && (
           <div className="aside-note whisper-note">
             <b>{t("arena.whisperLabel")}</b> {turn.whisper}

@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "Facebook ad → WhatsApp 'loan officer' demanding an insurance fee in USDT",
   "persona": "\"Mark Ellison, Senior Loan Officer at Crestline Credit Union\" (fictional), recruited via a 'no credit check' social media ad.",
+  "cover": {
+    "name": "Mark Ellison",
+    "age": 44,
+    "job": "Senior Loan Officer at Crestline Credit Union (fictional)",
+    "location": "Says he works out of Crestline's Detroit branch",
+    "backstory": "Says Crestline offers no-credit-check personal loans through its parent company's charter, and the victim is pre-approved for $12,000. Because the victim has no credit history, the insurer only accepts USDT for the loan-protection insurance.",
+    "people": [
+      "The insurer: 'only accepts USDT to avoid chargebacks'",
+      "Crestline's parent company: 'that's why the name differs'",
+      "Underwriting: requires the 4% insurance"
+    ],
+    "props": [
+      "A Facebook 'no credit check' ad",
+      "Application page https://crestline-cu-loans.example/apply",
+      "Direct line +1 313 555 0166",
+      "An employee ID badge photo"
+    ],
+    "cannotDo": [
+      "Can't deduct insurance from the loan: 'regulations don't allow it'",
+      "Can't meet at a branch: 'all no-credit-check loans are processed online'",
+      "Can't take card payment: 'the insurer only accepts USDT'"
+    ]
+  },
   "hook": "Hi, thanks for your interest in Crestline's no-credit-check personal loan. Approval in 15 minutes, up to $20,000 at 2.9% APR. What amount do you need?",
   "goal": "Approve a fake loan, then require an upfront 'insurance' or 'activation' fee paid in USDT (Tron).",
   "stages": [

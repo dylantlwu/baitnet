@@ -1,5 +1,5 @@
 import type { ArenaSession, ArenaSide, SideMode } from "@baitnet/shared";
-import { ArenaManager, ARENA_MODEL_IDS, type ArenaTypingEvent, isArenaModelChoice, langFromAcceptLanguage, readLatestReport } from "@baitnet/arena";
+import { ArenaManager, ARENA_MODEL_IDS, type ArenaTypingEvent, isArenaModelChoice, isScammerMode, langFromAcceptLanguage, readLatestReport } from "@baitnet/arena";
 import { HANDLED, httpError, type Router } from "./router.js";
 import { SSE_HEADERS } from "./static.js";
 
@@ -55,7 +55,9 @@ export function registerArenaRoutes(router: Router, mgr: ArenaManager, o: { auth
     if (modelChoice !== undefined && !isArenaModelChoice(modelChoice)) throw httpError(400, `modelChoice must be one of ${ARENA_MODEL_IDS.join("|")}`);
     const personaId = body?.personaId ?? undefined; // D32, optional (web has no picker yet)
     if (personaId !== undefined && typeof personaId !== "string") throw httpError(400, "personaId must be a string");
-    const eng = await mgr.create(scriptId, modes, { kind: "web", ownerId: user?.expertId ?? "local-expert" }, modelChoice, personaId);
+    const scammerMode = body?.scammerMode ?? undefined; // D34, optional: easy | real (default real)
+    if (scammerMode !== undefined && !isScammerMode(scammerMode)) throw httpError(400, "scammerMode must be easy|real");
+    const eng = await mgr.create(scriptId, modes, { kind: "web", ownerId: user?.expertId ?? "local-expert" }, modelChoice, personaId, scammerMode);
     return eng.session;
   });
 

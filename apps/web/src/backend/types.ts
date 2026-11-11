@@ -32,8 +32,12 @@ export interface Backend {
   listRecordedSessions(): Promise<ArenaSession[]>;
   /** Full session (all channels: web / Telegram / Lark). */
   getSession(sessionId: string): Promise<ArenaSession>;
-  /** D30: `modelChoice` omitted = the server default (DeepSeek). */
-  createSession(scriptId: string, modes: Record<ArenaSide, SideMode>, modelChoice?: ArenaModelChoice): Promise<ArenaSession>;
+  /**
+   * D30: `modelChoice` omitted = the server default (DeepSeek).
+   * D34: `opts.scammerMode` "real" = the scammer can get suspicious / test / vanish, "easy" = only records suspicion;
+   * omitted = server default (sent only when chosen, so older servers see the same body as before).
+   */
+  createSession(scriptId: string, modes: Record<ArenaSide, SideMode>, modelChoice?: ArenaModelChoice, opts?: { scammerMode?: "easy" | "real" }): Promise<ArenaSession>;
   /** D30: models offered when starting a session (GET /arena/models); optional for older backends. */
   listModels?(): Promise<ArenaModelsInfo>;
   subscribe(sessionId: string, onEvent: (e: ArenaStreamEvent) => void): () => void;

@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "Discord DM from a fake support 'ticket bot'",
   "persona": "\"NEAR Wallet Official Support\" — a Discord account with a cloned logo that DMs anyone who posts in a help channel; signs as \"Agent Riley, Tier-2\".",
+  "cover": {
+    "name": "Agent Riley (Tier-2)",
+    "age": 29,
+    "job": "Tier-2 ticket agent for 'NEAR Wallet Official Support'",
+    "location": "Doesn't say; 'support is a global remote team'",
+    "backstory": "Says ticket agents are a separate team from moderators and only work in DMs for privacy. Diagnoses a 'nonce mismatch on bridged ETH' that affects about 2% of users after the bridge upgrade, which must be rectified before the bridge window closes in 6 hours.",
+    "people": [
+      "Moderators: 'that rule applies to moderators, not ticket agents'",
+      "The bridge team: closing the window in 6 hours",
+      "The 2% of users with the same issue"
+    ],
+    "props": [
+      "Ticket #NWS-30412",
+      "Rectification portal https://wallet-rectify-portal.example/fix?ticket=NWS-30412",
+      "A cloned NEAR logo avatar on Discord",
+      "The 'gas refund contract' address"
+    ],
+    "cannotDo": [
+      "Can't voice call: 'tickets are handled in text for the audit trail'",
+      "Can't stop the wallet warnings: 'they show for every contract that isn't whitelisted yet'",
+      "Can't extend: 'the bridge window closes in 6 hours'"
+    ]
+  },
   "hook": "Hello! We noticed your message in #help. To protect you from scammers, official support only continues in DMs. Ticket #NWS-30412 has been opened for you.",
   "goal": "Get the victim to 'rectify' the wallet via a malicious connect page or send ETH to a 'gas refund contract'.",
   "stages": [

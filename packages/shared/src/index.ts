@@ -195,7 +195,11 @@ export type ScamType =
   | "fake-nft-mint"
   | "family-emergency"
   | "fake-loan"
-  | "recovery-scam";
+  | "recovery-scam"
+  // D34
+  | "authority-impersonation" // fake police / prosecutor / tax office: "your account is involved in a case, move funds to a safe account"
+  | "otc-mule" // USDT OTC / "跑分" recruitment: launder through the victim's account for a commission
+  | "liquidity-mining"; // fake DeFi mining: "approve" a drainer contract / deposit to a pool address
 
 /** A scam script the scammer AI improvises around (fixtures/scripts/*.json). Fictional data only. */
 export interface ScamScriptDef {
@@ -214,7 +218,79 @@ export interface ScamScriptDef {
   injections: string[];
   /** Poison variant: the "payment address" is actually a known entity / innocent address; M2 must filter it. */
   poison?: { address: string; chain: Chain; why: string };
+  /** D34: concrete facts of the fake identity shown to the victim (absent = only `persona`). */
+  cover?: ScriptCover;
+  /** D34: pin a scammer card (fixtures/scammers); absent = picked by type. */
+  scammerId?: string;
   source: "original" | { citation: string };
+}
+
+/** D34: the mask. Concrete facts the scammer must keep consistent; the decoy may probe any of them. */
+export interface ScriptCover {
+  name: string;
+  age?: number;
+  /** Claimed job and where. */
+  job: string;
+  /** Claimed city / country now. */
+  location: string;
+  /** 2-4 sentences: the story they tell about themselves. */
+  backstory: string;
+  /** Named people in the story (uncle with insider data, "colleague", "supervisor"…), one concrete detail each. */
+  people: string[];
+  /** Props they show: photos, screenshots, badges, platform names, group names. */
+  props: string[];
+  /** Why they cannot video / voice / meet, in the mask's words. */
+  cannotDo: string[];
+}
+
+/**
+ * D34: the real person behind the keyboard (operator layer), shared across scripts of fitting types.
+ * Fictional composite built from public reporting on scam compounds; no real individuals.
+ */
+export interface ScammerCard {
+  id: string; // e.g. "zh-compound-rookie"
+  lang: Lang;
+  /** Nickname inside the team (never said to the victim). */
+  handle: string;
+  age: number;
+  fitsScamTypes: ScamType[];
+  /** Where and how they work: compound / call centre / solo, shift, devices, team roles. */
+  situation: string;
+  /** Quota, punishment, bonus: what drives urgency. */
+  pressure: string;
+  /** How tightly they follow the script; what they copy-paste. */
+  scriptDiscipline: string;
+  /** Unintended tells: time-zone slips, typos, repeated templates, wrong local details. */
+  slips: string[];
+  /** What makes them suspect the victim is a decoy / police / AI / researcher. */
+  suspicionTriggers: string[];
+  /** How they test a suspicious victim (selfie with today's date, voice note, a trap question…). */
+  tests: string[];
+  /** What they do as suspicion rises: push harder, switch to a throwaway / someone else's address, hand over to a "senior", vanish. */
+  onSuspicion: string[];
+  /** Hard lines (no video call, never their real number…). */
+  limits: string[];
+  voice: { style: string; catchphrases: string[]; quirks: string[] };
+}
+
+/** D34: scammer's hidden state (team only, never shown to the decoy side). */
+export interface ScammerMind {
+  scammerId: string;
+  /** Facts about the mask the scammer has stated (consistency, like DecoyMind.facts). */
+  facts: { turn: number; fact: string }[];
+  /** 0-100: how strongly the scammer suspects the "victim" is a decoy / AI / police; signals seen. Moving average. */
+  baitSuspicion: { score: number; signals: string[] };
+  plan?: string;
+  /** Escalation actually taken: "test" = ran a test, "poison" = gave a throwaway / innocent address, "vanish" = left. */
+  actions: { turn: number; action: "test" | "poison" | "vanish"; detail: string }[];
+}
+
+/** D34: hidden note behind one AI scammer turn (team only). */
+export interface ScammerTurnMind {
+  think: string;
+  plan?: string;
+  baitSuspicion?: number;
+  action?: "test" | "poison" | "vanish";
 }
 
 export type ArenaSide = "scammer" | "bait";
@@ -327,6 +403,8 @@ export interface ArenaTurn {
   author: "ai" | "human";
   /** D32: hidden reasoning behind an AI bait turn (team only). */
   mind?: DecoyTurnMind;
+  /** D34: hidden reasoning behind an AI scammer turn (team only). */
+  scammerMind?: ScammerTurnMind;
   /** Whisper the AI received before producing this turn (only visible to operators). */
   whisper?: string;
   /** Set when the bait-safety filter rewrote/blocked the AI's draft. */
@@ -346,6 +424,12 @@ export interface ArenaSession {
   persona?: DecoyPersona;
   /** D32: decoy's hidden state (team only). */
   decoyMind?: DecoyMind;
+  /** D34: the operator card and the mask the scammer side plays (snapshot). */
+  scammer?: { card: ScammerCard; cover?: ScriptCover };
+  /** D34: scammer's hidden state (team only). */
+  scammerMind?: ScammerMind;
+  /** D34: "easy" = suspicion only recorded, scammer behaves as before; "real" = tests / poison / withhold / vanish. Absent = easy. */
+  scammerMode?: "easy" | "real";
   modes: Record<ArenaSide, SideMode>;
   status: "running" | "paused" | "finished";
   turns: ArenaTurn[];
@@ -392,6 +476,10 @@ export interface EvalCase {
   consistent?: boolean;
   /** D33: drafts left pending with warnings (eval-auto never approves them). */
   warnedDrafts?: number;
+  /** D34: the scammer's final suspicion (0-100) that the decoy is bait/AI — lower = decoy more convincing. */
+  baitSuspicion?: number;
+  /** D34: the scammer vanished (gave up) before the planted address was obtained. */
+  scammerVanished?: boolean;
   notes: string[];
 }
 
@@ -414,6 +502,10 @@ export interface EvalReport {
     avgIntelSlots?: number;
     /** D33: cases with at least one draft held back by warnings. */
     warned?: number;
+    /** D34: mean final scammer suspicion of the decoy (0-100, lower = better). */
+    avgBaitSuspicion?: number;
+    /** D34: cases where the scammer vanished before the address was obtained. */
+    vanished?: number;
   };
   /** Same metrics split by script language (zh is first-class, D16). */
   summaryByLang?: Partial<Record<Lang, EvalReport["summary"]>>;

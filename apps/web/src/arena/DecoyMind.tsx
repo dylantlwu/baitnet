@@ -144,10 +144,10 @@ function chips(xs: string[] | undefined) {
 /** "心里话" chip for the turn's meta line: true when this turn has something to show. */
 export const hasTurnMind = (m?: DecoyTurnMind) => !!m && !!(m.think?.trim() || m.plan?.trim() || arr(m.newFacts).length);
 
-export function TurnMindChip({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+export function TurnMindChip({ open, onToggle, title }: { open: boolean; onToggle: () => void; title?: string }) {
   const { t } = useI18n();
   return (
-    <button type="button" className="mini-chip mind" aria-expanded={open} onClick={onToggle} title={t("mind.turnHint")}>
+    <button type="button" className="mini-chip mind" aria-expanded={open} onClick={onToggle} title={title ?? t("mind.turnHint")}>
       💭 {t("mind.turn")}
     </button>
   );

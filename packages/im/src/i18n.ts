@@ -15,6 +15,9 @@ export const TYPE_LABEL: Record<ScamType, Record<Lang, string>> = {
   "family-emergency": { zh: "冒充亲友急用钱", en: "Family emergency" },
   "fake-loan": { zh: "网贷诈骗", en: "Fake loan" },
   "recovery-scam": { zh: "追损诈骗", en: "Recovery scam" },
+  "authority-impersonation": { zh: "冒充公检法", en: "Authority impersonation" },
+  "otc-mule": { zh: "跑分洗钱", en: "OTC / money mule" },
+  "liquidity-mining": { zh: "假挖矿授权", en: "Fake liquidity mining" },
 };
 
 const PII_LABEL: Record<PiiFinding["kind"], Record<Lang, string>> = {

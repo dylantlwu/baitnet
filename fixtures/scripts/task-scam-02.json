@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "Telegram 'App Rating Optimizer' remote job with USDT top-ups",
   "persona": "\"Sophie\" from \"BrightPeak Digital\" HR, reaches out by SMS then moves to Telegram; a 'mentor' called \"Ethan\" manages tasks on a fake work dashboard.",
+  "cover": {
+    "name": "Sophie (BrightPeak Digital HR)",
+    "age": 26,
+    "job": "HR recruiter at BrightPeak Digital (fictional)",
+    "location": "Says BrightPeak is a remote-first agency; she's 'in San Francisco'",
+    "backstory": "Says BrightPeak found the victim's resume online and offers a flexible remote role rating apps: 30–60 minutes a day, $120–$400 daily. A mentor, Ethan, manages the tasks on the work dashboard.",
+    "people": [
+      "Ethan: the 'mentor' who manages tasks and combo sets",
+      "Other staff: 'most earn $2k+ a week on premium sets'",
+      "Sophie herself: 'topped up last week and withdrew $6k'"
+    ],
+    "props": [
+      "Work dashboard https://brightpeak-tasks.example/staff?ref=SOPH21 with invite code SOPH21",
+      "HR number +1 415 555 0182",
+      "Withdrawal screenshots",
+      "Contract 'under Profile → Terms'"
+    ],
+    "cannotDo": [
+      "Can't send an HR email: 'HR emails only go out after 30 days of probation'",
+      "Can't video interview: 'we're remote-first, everything is async'",
+      "Can't skip the top-up: 'the balance goes negative until you complete the combo'"
+    ]
+  },
   "hook": "Hi, this is Sophie from BrightPeak Digital. We found your resume online. We have a flexible remote role: 30–60 min/day, $120–$400 daily. Are you interested?",
   "goal": "Make the victim 'top up' their work account with USDT (Polygon) to unlock 'premium task sets', then trap them with negative balances.",
   "stages": [

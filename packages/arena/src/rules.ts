@@ -114,13 +114,18 @@ export class RulesScammer {
     return tpl.replace("{v}", a.value).replace("{chain}", CHAIN_NAME[lang][a.chain ?? "evm"] ?? a.chain ?? "");
   }
 
-  /** Produce the next scammer message; `lastBait` drives objection handling. */
-  next(lastBait?: string): { text: string; plan: ScammerPlan } {
+  /**
+   * Produce the next scammer message; `lastBait` drives objection handling.
+   * D34: `opts.plan` replaces this.plan() (real-mode stance: withheld addresses removed, poison swapped in);
+   * `opts.say` (a test from the operator card) replaces the stage line. Only `plan.reveal` is ever appended.
+   */
+  next(lastBait?: string, opts: { plan?: ScammerPlan; say?: string } = {}): { text: string; plan: ScammerPlan } {
     const lang = this.script.lang;
-    const p = this.plan();
+    const p = opts.plan ?? this.plan();
     const parts: string[] = [];
     const objection = lastBait ? this.matchObjection(lastBait) : undefined;
     if (this.scammerTurns === 0) parts.push(this.script.hook);
+    else if (opts.say) parts.push(opts.say);
     else if (objection) parts.push(pick(objection, this.rand, this.used));
     else if (this.finished || this.scammerTurns >= this.script.stages.length * this.linesPerStage) parts.push(pick(CLOSE[lang], this.rand, this.used));
     else {

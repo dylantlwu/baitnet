@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "Dating-app romance turning into a 'gold arbitrage' pitch",
   "persona": "\"Daniel Moreau\", 38, claims to be a French-Canadian wine importer living in Singapore; met on the dating app \"Kindred Hearts\", moves chat to Telegram after a week.",
+  "cover": {
+    "name": "Daniel Moreau",
+    "age": 38,
+    "job": "Wine importer",
+    "location": "Lives in Singapore; originally from Quebec",
+    "backstory": "Says he's a French-Canadian wine importer living in Singapore who travels a lot for tastings and shipments. His late mother taught him to 'find someone who listens'. His uncle works at a commodities desk and tips him off when gold moves.",
+    "people": [
+      "His uncle: works at a commodities desk, gives gold-move signals",
+      "His late mother: 'always said, find someone who listens'",
+      "The platform's support team: handles the 18% 'Singapore tax'"
+    ],
+    "props": [
+      "Photos of meals and travel",
+      "Telegram handle @daniel_moreau_sg",
+      "Platform link https://aurumlink-trade.example/signup?inv=DMRX",
+      "Profit screenshots ('made 12k this week')"
+    ],
+    "cannotDo": [
+      "Can't video call: 'my camera broke and I'm on a shipyard visit with terrible signal'",
+      "Can't meet yet: 'we'll go to Lisbon together once the trade pays out'",
+      "Can't use a bank: 'banks charge 3% and give you nothing'"
+    ]
+  },
   "hook": "Good morning sunshine ☀️ I just landed in Singapore, the first thing I wanted to do was tell you. How did you sleep?",
   "goal": "After weeks of romance, get the victim to fund a 'gold-futures account' by sending BTC to the platform address, then extract more via fake taxes.",
   "stages": [

@@ -312,6 +312,25 @@ describe("D32: export never carries the decoy's mind", () => {
   });
 });
 
+describe("D34: export never carries the scammer's card or mind", () => {
+  it("scammer card / cover / scammerMind / turn.scammerMind stay out of SFT + preference", () => {
+    const s = {
+      ...session,
+      id: "sess-scammer-mind-1",
+      turns: session.turns.map((t) => (t.side === "scammer" ? { ...t, scammerMind: { think: "SMIND-THINK", plan: "SMIND-PLAN", baitSuspicion: 70, action: "test" as const } } : t)),
+      scammer: {
+        card: { id: "zh-x", lang: "zh", handle: "SMIND-HANDLE", age: 25, fitsScamTypes: ["investment"], situation: "SMIND-SITUATION", pressure: "SMIND-PRESSURE", scriptDiscipline: "d", slips: [], suspicionTriggers: [], tests: ["SMIND-TEST"], onSuspicion: [], limits: [], voice: { style: "s", catchphrases: [], quirks: [] } },
+        cover: { name: "SMIND-COVER", job: "j", location: "l", backstory: "SMIND-STORY", people: [], props: [], cannotDo: [] },
+      },
+      scammerMind: { scammerId: "zh-x", facts: [{ turn: 0, fact: "SMIND-FACT" }], baitSuspicion: { score: 70, signals: ["SMIND-SIGNAL"] }, plan: "SMIND-PLAN", actions: [{ turn: 0, action: "test", detail: "SMIND-TEST" }] },
+    } as ArenaSession;
+    saveSession(s, {}, db);
+    addAnnotation({ sessionId: s.id, turnIndex: 1, expertId: "e", rating: "good", tags: ["p1-human"], note: "" }, db);
+    const dump = JSON.stringify(buildExport(db));
+    expect(dump).not.toMatch(/SMIND-/);
+  });
+});
+
 describe("annotation delete permissions (D32: replace a one-tap rating with rating + principle tags)", () => {
   it("owner may delete their own annotation; other experts get 403; reviewers may delete any", async () => {
     const router = createMiniRouter();

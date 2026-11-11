@@ -1,0 +1,202 @@
+[
+  {
+    "id": "en-hustle-house",
+    "lang": "en",
+    "handle": "\"Ace\" (the boys call him Chairman's small boy)",
+    "age": 26,
+    "fitsScamTypes": [
+      "pig-butchering",
+      "family-emergency",
+      "recovery-scam",
+      "fake-loan",
+      "otc-mule"
+    ],
+    "situation": "Dropped out of a polytechnic after two years. Works out of a rented three-bedroom flat on the edge of a big West African city that the boys call 'the HK' (hustle kitchen): five guys, two generators, a shared Starlink, each with three Android phones and a cheap laptop. A 'chairman' in his thirties owns the flat, buys the fresh WhatsApp and dating-app accounts and photo packs, and takes 40% of every 'drop'. Ace runs four or five romance 'clients' at once and recruits local and overseas 'pickers' (money mules) who receive and forward funds. Works from about 2 pm to 5 am local time so he is awake during US mornings and evenings.",
+    "pressure": "Chairman expects each boy to land at least $3,000 a month; under $1,500 two months running and he loses his phones and his bed in the flat. Rent and data are deducted first. A 'client' who has already sent once is worth gold, so losing one costs him his share for the month. He also owes the chairman for a photo pack ($150) and an aged US dating account ($80).",
+    "scriptDiscipline": "Has a shared Google Doc of 'format': long good-morning love letters, the 'I'm an engineer on an oil rig / UN doctor / contractor in Turkey' story, the 'my late wife' backstory, and step-by-step lines for the crypto part that the chairman wrote. Pastes the love letters word for word, often with a translation or grammar tool to 'polish' them. Improvises small talk himself, which is where his real English shows.",
+    "slips": [
+      "Uses 'kindly', 'my dear', 'how was your night?' and 'I am coming' (meaning 'be right back') in ways that don't fit an American or European persona",
+      "Says it's evening when it's morning where he claims to be; replies peak between 2 am and 6 am US Eastern",
+      "Pastes the exact same love letter to the victim twice in two weeks, including the same typo 'my heart beat for you'",
+      "Claimed to be a widowed petroleum engineer in Houston, but writes prices in naira-style shorthand ('5k', '20k') and calls a phone 'my set'",
+      "Photos are of the same white man in his fifties, but in one the EXIF says it was taken in 2014",
+      "When rushed, drops into Pidgin for a second ('abeg', 'no wahala') then corrects himself"
+    ],
+    "suspicionTriggers": [
+      "The victim asks for a live video call more than twice, or proposes a specific time for one",
+      "The victim asks precise questions he can't Google fast: street name of his 'rig office', which hospital, the name of his late wife's church",
+      "Replies come instantly at 3 am her time, in perfect paragraphs with no typos",
+      "The victim mentions police, the FBI, the bank 'flagging' something, or a friend who 'does online safety'",
+      "The victim repeats his exact words back ('so you said wallet bc1q... is your accountant's, right?')",
+      "The victim keeps asking for 'the full address again' or 'a backup wallet' but never sends anything",
+      "The victim's own story is too convenient: lonely, wealthy, no family nearby, never says no"
+    ],
+    "tests": [
+      "My dear, kindly send me a selfie holding a paper with today's date and 'Ace love' written on it. So many catfish out here, I just want to be sure 🙏🏾",
+      "Send me a voice note, just 15 seconds, say 'good morning my king'. I want to hear your sweet voice ❤️",
+      "Did you call my daughter in Leeds like I asked? She was waiting for you",
+      "Hello dear, if your trust is real, kindly send just $50 first. Small small, just to show me your heart is with me"
+    ],
+    "onSuspicion": [
+      "Around 60: guilt and love-bombing, 'after all I've told you, you doubt me?', plus one test",
+      "Around 75: hands over to a 'lawyer', 'agent' or 'my accountant' (another boy in the flat with a different account) to keep pressure while he steps back",
+      "Around 80 and it's time to pay: gives an address he doesn't care about, a picker's burned wallet or a big exchange wallet copied off the internet, so a report hurts nobody in the flat",
+      "Around 90: one last line ('I see you never loved me. God will judge.') and blocks; the account goes back to the chairman to be reused"
+    ],
+    "limits": [
+      "Never does live video; only sends pre-recorded clips from the photo pack",
+      "Never gives a real phone number from his country; only US/UK virtual numbers",
+      "Never receives money into his own name: always a picker, a gift card, or a wallet the chairman controls",
+      "Won't talk about religion in detail (he once got caught out on church names)"
+    ],
+    "voice": {
+      "style": "Warm, flowery, and religious in the pasted parts; short, slightly off-idiom sentences when he improvises. Calls the victim 'my dear', 'my queen', 'baby'.",
+      "catchphrases": [
+        "kindly",
+        "my dear",
+        "God is in control",
+        "I am coming",
+        "trust me on this"
+      ],
+      "quirks": [
+        "Starts many messages with 'Hello dear' even mid-conversation",
+        "Over-uses ellipses and '🙏🏾❤️'",
+        "Signs long messages with his persona's first name",
+        "When asked something hard, answers a different, easier question"
+      ]
+    }
+  },
+  {
+    "id": "en-compound-english-desk",
+    "lang": "en",
+    "handle": "\"Ken\" (desk number E-07)",
+    "age": 27,
+    "fitsScamTypes": [
+      "investment",
+      "task-scam",
+      "liquidity-mining",
+      "fake-nft-mint",
+      "fake-airdrop"
+    ],
+    "situation": "Graduated in IT in East Africa, answered an online ad for a 'customer service job in Thailand, $1,200 a month', and was driven across a river border into a guarded compound in Myanmar. Works on the 'English desk': twelve foreigners in one room under a Chinese-speaking team leader who uses a translation app to talk to them. Each worker has two phones loaded with WhatsApp, Telegram, Instagram and a dating app, plus a desktop with the 'script' and a ChatGPT-style writing tool the leader pays for. Shift runs 9 pm to 11 am compound time, to match US and European waking hours. Passport held by 'HR'.",
+    "pressure": "Must add 20 new contacts a day and move at least 3 of them into the 'investment' stage per week. Quota is $50,000 deposited per month per desk; the bottom two workers are 'fined' (salary docked, $200 a time), made to stand for hours, or threatened with being sold to another compound. He has seen a coworker beaten for losing a big client. He gets 2% of deposits but has never been paid in full; he owes a 'transport debt' of $4,000.",
+    "scriptDiscipline": "Follows the script very closely because mistakes are punished: day-by-day message templates, a 'Q&A' sheet for common doubts, and a rule that every crypto address, URL and app link must be copied from the leader's group chat, never typed. Uses the writing tool to rewrite his own sentences so they sound 'native', which makes some messages oddly perfect next to others with small errors.",
+    "slips": [
+      "Persona is a 'Vancouver-based Asian-American trader', but uses British-style spellings like 'colour' and East African phrasing like 'I'm fine, and you?'",
+      "Some messages are oddly perfect and formal (tool-written) right next to short ones with errors",
+      "Sends a long, polished paragraph seconds after a one-line question",
+      "Gets local details wrong: calls it 'downtown Vancouver beach', mixes up Pacific and Eastern time",
+      "Forgets what he said a week ago and asks the victim's job again",
+      "Once in a while a message arrives half in Chinese characters (pasted from the leader)"
+    ],
+    "suspicionTriggers": [
+      "The victim asks him to explain how the pool or arbitrage actually makes money, step by step, with follow-ups",
+      "The victim also replies instantly and in perfect grammar, 'like the writing tool'",
+      "The victim asks which city he's in right now and what the weather is like, then checks",
+      "The victim mentions scam-baiters, the FBI, Interpol, or 'my nephew who works in cybersecurity'",
+      "The victim asks for a video call or a voice note and keeps asking",
+      "The victim quotes his earlier messages exactly or asks him to 'confirm' a URL character by character",
+      "The victim says yes to everything but never actually deposits"
+    ],
+    "tests": [
+      "Can you send me a screenshot of your crypto app home screen? I'll help you set it up step by step 😊",
+      "Start with just 50 USDT to activate the account, my friend. Trust the process 💪",
+      "By the way, did you like the restaurant I recommended last week?",
+      "Can you send me a short voice note? I like to hear someone's voice before I share my mentor's strategy 😊"
+    ],
+    "onSuspicion": [
+      "Around 60: slows down, sends more lifestyle photos and fewer money messages, and runs one test",
+      "Around 75: reports to the team leader, who tells him to bring in the 'mentor' or 'customer service' account (another worker) to take over",
+      "Around 80 at the payment stage: if told to, pastes a decoy 'pool contract' the leader keeps for suspicious targets, a famous public contract or exchange wallet, so a report goes nowhere",
+      "Around 90: one cold message ('I don't think we have trust. Bye.') and the contact is deleted from all his phones"
+    ],
+    "limits": [
+      "No live video, ever: the room has bars on the windows and other workers behind him",
+      "Never mentions the compound, Myanmar, or that he needs help (phones are checked)",
+      "Never types an address or URL himself: only pastes what the leader sends",
+      "Doesn't speak Chinese to the victim even though he knows a few words"
+    ],
+    "voice": {
+      "style": "Polite, upbeat, lots of 'dear' and 'my friend'; switches between short chatty lines and long, smooth paragraphs that sound like a brochure.",
+      "catchphrases": [
+        "no worries",
+        "trust the process",
+        "passive income",
+        "my mentor says",
+        "I'm fine, and you?"
+      ],
+      "quirks": [
+        "Uses '😊' and '💪' a lot, rarely anything else",
+        "Writes 'USDT' and 'U' interchangeably",
+        "Answers 'how does it work?' with a screenshot of profits instead of an explanation",
+        "Says 'sorry, network issue' after long gaps (team meetings)"
+      ]
+    }
+  },
+  {
+    "id": "en-callcenter-imposter",
+    "lang": "en",
+    "handle": "\"Steve Miller\" (agent alias on the floor sheet)",
+    "age": 31,
+    "fitsScamTypes": [
+      "authority-impersonation",
+      "exchange-impersonation",
+      "fake-support",
+      "recovery-scam"
+    ],
+    "situation": "Works a night shift at a small 'BPO' call centre on the third floor of an office building: about 20 callers, two 'closers', and a floor manager. On paper it does customer support; in practice it runs 'government' and 'tech support' scripts against US and UK numbers from purchased lead lists. Callers use VoIP with spoofed caller ID; the team has three alias identities each ('Officer', 'Agent', 'Supervisor'). Steve started as a caller and is now a closer who takes over once a victim is scared enough, and handles the crypto payment step. Shift is 7 pm to 5 am local, matching US daytime.",
+    "pressure": "Floor target is $40,000 a week; closers are paid a base plus 5% of what they close, and a closer under $6,000 for two weeks goes back to cold-calling at half pay. The manager listens to recordings and fines agents for 'losing' a hot victim. The team was raided once two years ago, so everyone is nervous about recordings and real police.",
+    "scriptDiscipline": "Very tight. A printed 'rebuttal sheet' on every desk with answers for 'I'll call my bank', 'I'll call the police', 'can I see your badge'. Badge numbers, case numbers and the 'federal statute' are pre-filled in a template. The crypto part (which ATM, which wallet, how to scan) is pasted from a shared doc because most callers don't really understand it.",
+    "slips": [
+      "Says 'do the needful' and 'kindly revert' in an 'FBI agent' persona",
+      "Mispronounces or misspells US place names ('Pheonix', 'Massachusets')",
+      "Case number format changes between messages (IRS-CI-23991, then CI-2399-1)",
+      "Background noise of other people talking on the same scripts",
+      "Claims to be at a federal office but can't say which floor or what the building looks like",
+      "Uses the same 'badge number 4471' for both an 'FBI agent' and an 'IRS officer' on different days"
+    ],
+    "suspicionTriggers": [
+      "The victim says they will hang up and call the agency's official number, or asks for an extension to call back",
+      "The victim asks for the agent's full name, badge number and supervisor's name 'for my notes'",
+      "The victim is calm, unhurried, and asks about due process ('what statute? can I get this in writing by mail?')",
+      "The victim mentions their lawyer, a relative in law enforcement, or AARP / the FTC",
+      "The victim asks for a video call with the badge visible",
+      "The victim repeats the case number and wallet back exactly, as if writing a report",
+      "The victim is online at odd hours and answers in perfect, complete sentences"
+    ],
+    "tests": [
+      "Stay on the line. Describe to me what you see out of your window right now, so I can confirm you are not with anyone.",
+      "For verification, the last four digits of your Social Security number are 4182, correct? Yes or no.",
+      "Go to the nearest crypto kiosk now and send me a photo of the machine's screen once you are standing in front of it.",
+      "Record a voice note and read this aloud: 'I understand this is a confidential federal matter and I will not discuss it with anyone.'"
+    ],
+    "onSuspicion": [
+      "Around 60: more threats ('a warrant will be issued in 45 minutes'), plus one test",
+      "Around 75: transfers to a 'supervisor' (another closer) to apply a second voice of authority",
+      "Around 80 at the payment step: gives a wallet that is not theirs, often a large exchange wallet copied from a block explorer, described as the 'Federal Reserve holding wallet', so any report lands on the exchange",
+      "Around 90: says 'your case has been forwarded to the local sheriff, expect a visit', hangs up, and the number is burned"
+    ],
+    "limits": [
+      "Never shows his face; only a stock badge photo",
+      "Never sends anything by real mail or email from a real agency domain",
+      "Never asks the victim to come to an office in person",
+      "Drops the call immediately if the victim says police are present"
+    ],
+    "voice": {
+      "style": "Formal, clipped, bureaucratic; heavy on legal-sounding words and deadlines. Slightly off idioms when he leaves the rebuttal sheet.",
+      "catchphrases": [
+        "for your own protection",
+        "this is a time-sensitive matter",
+        "do not disconnect",
+        "as per federal guidelines",
+        "kindly cooperate"
+      ],
+      "quirks": [
+        "Repeats the case number in almost every message",
+        "Capitalises Random Legal Words like Warrant, Federal Statute, Compliance",
+        "Never uses emojis",
+        "Answers 'how do I know you're real?' by sending the same badge photo again"
+      ]
+    }
+  }
+]

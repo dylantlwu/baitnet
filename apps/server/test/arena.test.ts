@@ -217,6 +217,22 @@ describe("D32 decoy mind over the API", () => {
   });
 });
 
+describe("D34 scammerMode over the API", () => {
+  it("optional scammerMode (default real, bad → 400); /snapshot strips scammer card + mind", async () => {
+    expect((await post("/arena/sessions", { scriptId: "fake-loan-02", scammerMode: "hard" })).status).toBe(400);
+    const def = (await post("/arena/sessions", { scriptId: "fake-loan-02" })).body as ArenaSession;
+    expect(def.scammerMode).toBe("real");
+    const easy = (await post("/arena/sessions", { scriptId: "fake-loan-02", scammerMode: "easy" })).body as ArenaSession;
+    expect(easy.scammerMode).toBe("easy");
+    const snap = (await get("/snapshot")) as DemoSnapshot;
+    for (const x of snap.arenaSessions!) {
+      expect(x.scammer).toBeUndefined();
+      expect(x.scammerMind).toBeUndefined();
+      expect(x.turns.some((t) => t.scammerMind)).toBe(false);
+    }
+  });
+});
+
 describe("frontend follow-ups", () => {
   it("rate: validates and stores session.rating", async () => {
     const s = (await post("/arena/sessions", { scriptId: "fake-loan-01" })).body as ArenaSession;

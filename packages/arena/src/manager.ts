@@ -5,6 +5,7 @@ import { MemoryRegistryClient, SampleAccountInfo, type RegistryClient } from "@b
 import { AccountAgeCheck, KnownEntityFilter, RuntimeMissingError, dataPath, fixturePath, loadEnv, loadKnownEntities, onchainLookupFromEnv } from "@baitnet/agent";
 import { ArenaSessionEngine, validateRating, type SessionDeps } from "./session.js";
 import { resolvePersonaId } from "./personas.js";
+import type { ScammerMode } from "./scammer-mind.js";
 import type { SessionChannel, SessionRating } from "@baitnet/shared";
 import { arenaModelOptions, defaultRetriever, isArenaModelChoice, loadScripts, selectArenaEngine, selectArenaModel, training, type PlaybookRetriever, type TrainingModule } from "./deps.js";
 
@@ -48,7 +49,12 @@ export interface ManagerOptions extends Partial<Omit<SessionDeps, "persist" | "l
   llmQuota?: (ownerId: string) => boolean | Promise<boolean>;
   /** env for the model selection (tests); default process.env */
   env?: NodeJS.ProcessEnv;
+  /** D34 default for new sessions: "real" (web / IM: experts train against a real opponent); eval passes "easy". */
+  scammerMode?: ScammerMode;
 }
+
+export const SCAMMER_MODES: readonly ScammerMode[] = ["easy", "real"];
+export const isScammerMode = (x: unknown): x is ScammerMode => x === "easy" || x === "real";
 
 /** Holds live sessions for the server (and eval). */
 export class ArenaManager {
@@ -153,6 +159,7 @@ export class ArenaManager {
    * `channel` records where the session lives (web / telegram / lark) and who owns it.
    * `modelChoice` (D30): deepseek | glm | sonnet, default DEFAULT_ARENA_MODEL; unknown → 400.
    * `personaId` (D32, optional): play this character card (fixtures/personas); default = stable pick by session id.
+   * `scammerMode` (D34, optional): "easy" | "real"; default ManagerOptions.scammerMode ?? "real"; unknown → 400.
    */
   async create(
     scriptId: string,
@@ -160,12 +167,14 @@ export class ArenaManager {
     channel?: SessionChannel,
     modelChoice: ArenaModelChoice = DEFAULT_ARENA_MODEL,
     personaId?: string,
+    scammerMode: ScammerMode = this.opts.scammerMode ?? "real",
   ): Promise<ArenaSessionEngine> {
     if (!isArenaModelChoice(modelChoice)) throw Object.assign(new Error(`unknown model ${String(modelChoice)}`), { status: 400 });
+    if (!isScammerMode(scammerMode)) throw Object.assign(new Error(`scammerMode must be easy|real`), { status: 400 });
     const script = (await this.scripts()).find((s) => s.id === scriptId);
     if (!script) throw Object.assign(new Error(`unknown script ${scriptId}`), { status: 404 });
     const persona = personaId !== undefined ? resolvePersonaId(personaId, script.lang) : undefined;
-    const eng = new ArenaSessionEngine(script, { ...(await this.deps(modelChoice)), llmGate: this.gateFor(channel) }, { modes, channel, ...(persona ? { persona } : {}) });
+    const eng = new ArenaSessionEngine(script, { ...(await this.deps(modelChoice)), llmGate: this.gateFor(channel) }, { modes, channel, scammerMode, ...(persona ? { persona } : {}) });
     this.sessions.set(eng.session.id, eng);
     if (this.opts.persist !== false) saveSession(eng.session);
     return eng;

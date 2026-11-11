@@ -56,6 +56,19 @@ export const TYPE_LEXICON: Record<ScamType, [RegExp, number][]> = {
     [/追回|挽回损失|帮你(要回|追回|找回)|追款|维权|被骗的(钱|资金)|黑客(帮|技术)|律师(团队|事务所)/, 3],
     [/recover (your|the|lost)|recovery (service|team|expert)|lost funds|get your money back|\bhacker\b|asset recovery|trace (your|the) funds|chargeback|scam victims?/i, 3],
   ],
+  // D34
+  "authority-impersonation": [
+    [/公安(局)?|检察院|法院|警官|民警|刑警|经侦|通缉|逮捕令|涉嫌|洗钱案|立案|案件|配合调查|资金(核查|清查)|安全账户|保密|税务(局)?|补缴|税款/, 2.5],
+    [/\bpolice\b|\bfbi\b|\birs\b|\bofficer\b|\bagent\b|arrest warrant|money laundering (case|investigation)|under investigation|\bsubpoena\b|back taxes|tax (fraud|evasion)|safe account|\bconfidential\b/i, 2.5],
+  ],
+  "otc-mule": [
+    [/跑分|承兑|码商|收U|出U|换汇|代收|代付|走账|过账|借(用)?(你的)?(卡|账户)|佣金|日赚/, 2.5],
+    [/\botc\b|money mule|cash ?out|receive (and|&) forward|use your (bank )?account|payment agent|\bcommission\b|p2p (merchant|trading)/i, 2.5],
+  ],
+  "liquidity-mining": [
+    [/流动性挖矿|挖矿|矿池|质押|授权|合约地址|收益(池|率)|日化|DeFi|defi|USDT ?理财/, 2.5],
+    [/liquidity (mining|pool)|\bmining pool\b|\bstak(e|ing)\b|\bapprove\b|smart contract|\bdefi\b|\byield\b|\bapy\b/i, 2.5],
+  ],
 };
 
 export const TYPE_LABEL: Record<ScamType, Record<Lang, string>> = {
@@ -69,6 +82,9 @@ export const TYPE_LABEL: Record<ScamType, Record<Lang, string>> = {
   "family-emergency": { zh: "冒充亲友急用钱", en: "Family emergency" },
   "fake-loan": { zh: "假贷款", en: "Fake loan" },
   "recovery-scam": { zh: "恢复资金骗局", en: "Recovery scam" },
+  "authority-impersonation": { zh: "冒充公检法/税务", en: "Authority impersonation" },
+  "otc-mule": { zh: "跑分/U 承兑洗钱", en: "OTC / money mule" },
+  "liquidity-mining": { zh: "假挖矿/授权盗币", en: "Fake liquidity mining" },
 };
 
 export const TYPE_GOAL: Record<ScamType, Record<Lang, string>> = {
@@ -82,6 +98,9 @@ export const TYPE_GOAL: Record<ScamType, Record<Lang, string>> = {
   "family-emergency": { zh: "冒充亲友称出事急用钱，催促立即转账", en: "Impersonate a relative in trouble and push for an immediate transfer" },
   "fake-loan": { zh: "以放款为诱饵，先收保证金/手续费/解冻费", en: "Promise a loan, then collect deposits / fees before 'disbursement'" },
   "recovery-scam": { zh: "冒充能追回损失的律师/黑客，收取“追款费用”", en: "Pose as recovery experts and charge fees to 'get the money back'" },
+  "authority-impersonation": { zh: "冒充公检法或税务，称账户涉案，要求把资金转到“安全账户”核查", en: "Pose as police / tax officials, claim the account is under investigation and move funds to a 'safe account'" },
+  "otc-mule": { zh: "招募“跑分”或 U 承兑，借受害者账户走账洗钱，或骗取保证金", en: "Recruit the victim for 'OTC' work: launder money through their account or take a deposit" },
+  "liquidity-mining": { zh: "以高收益挖矿为饵，诱导授权“矿池合约”或充值到矿池地址", en: "Lure with mining yields, get an approval to a 'pool contract' or a deposit to a pool address" },
 };
 
 /** Scam stages for the rules engine (ordered). */

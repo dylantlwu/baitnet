@@ -7,6 +7,7 @@ import { fmtPct, fmtTime } from "../lib/format";
 import { href } from "../lib/router";
 import { SCAM_TYPES } from "../scriptlab/analyze";
 import { useIdentity } from "../auth/context";
+import { scoreTone } from "../arena/ScammerMind";
 
 type Lang = "zh" | "en";
 
@@ -26,6 +27,8 @@ export function summarize(cases: EvalCase[]) {
   const human = cases.filter((c) => typeof c.humanlike === "boolean");
   const consistent = cases.filter((c) => typeof c.consistent === "boolean");
   const intel = cases.map((c) => c.intelSlots).filter((n): n is number => typeof n === "number");
+  const susp = cases.map((c) => c.baitSuspicion).filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+  const vanishKnown = cases.filter((c) => typeof c.scammerVanished === "boolean" || typeof c.baitSuspicion === "number");
   return {
     total: cases.length,
     extracted: ext.length,
@@ -42,6 +45,11 @@ export function summarize(cases: EvalCase[]) {
     consistent: consistent.filter((c) => c.consistent).length,
     intelTotal: intel.length,
     avgIntelSlots: intel.length ? intel.reduce((a, b) => a + b, 0) / intel.length : 0,
+    // D34 (optional per case)
+    suspicionTotal: susp.length,
+    avgBaitSuspicion: susp.length ? susp.reduce((a, b) => a + b, 0) / susp.length : 0,
+    vanishTotal: vanishKnown.length,
+    vanished: cases.filter((c) => c.scammerVanished === true).length,
   };
 }
 
@@ -107,6 +115,8 @@ export function EvalPage() {
   const all = summarize(report.cases);
   // D32 columns only when this report carries them
   const mind = report.cases.some((c) => c.humanlike !== undefined || c.consistent !== undefined || c.intelSlots !== undefined);
+  // D34 columns only when this report carries them
+  const smind = report.cases.some((c) => c.baitSuspicion !== undefined || c.scammerVanished !== undefined);
 
   return (
     <>
@@ -162,6 +172,8 @@ export function EvalPage() {
                 {mind && <th>{t("eval.col.humanlike")}</th>}
                 {mind && <th>{t("eval.col.intelSlots")}</th>}
                 {mind && <th>{t("eval.col.consistent")}</th>}
+                {smind && <th>{t("eval.col.baitSuspicion")}</th>}
+                {smind && <th>{t("eval.col.vanished")}</th>}
                 <th>{t("eval.col.notes")}</th>
               </tr>
             </thead>
@@ -191,6 +203,12 @@ export function EvalPage() {
                       </td>
                     )}
                     {mind && <td data-label={t("eval.col.consistent")}>{c.consistent === undefined ? <span className="muted">—</span> : <Mark ok={c.consistent} />}</td>}
+                    {smind && (
+                      <td data-label={t("eval.col.baitSuspicion")} className="num">
+                        {typeof c.baitSuspicion === "number" ? <span className={`mind-score ${scoreTone(c.baitSuspicion)}`}>{Math.round(c.baitSuspicion)}/100</span> : "—"}
+                      </td>
+                    )}
+                    {smind && <td data-label={t("eval.col.vanished")}>{c.scammerVanished === undefined ? <span className="muted">—</span> : <Mark ok={!c.scammerVanished} bad={c.scammerVanished} />}</td>}
                     <td data-label={t("eval.col.notes")} className="small notes">{c.notes.join("; ") || "—"}</td>
                   </tr>
                 );
@@ -234,6 +252,10 @@ function SummaryCard({ title, s }: { title: string; s: ReturnType<typeof summari
           {s.consistentTotal > 0 && (
             <Metric label={t("eval.m.consistent")} value={fmtPct(s.consistent, s.consistentTotal)} sub={`${s.consistent}/${s.consistentTotal}`} tone={s.consistent === s.consistentTotal ? "ok" : undefined} />
           )}
+          {s.suspicionTotal > 0 && (
+            <Metric label={t("eval.m.baitSuspicion")} value={s.avgBaitSuspicion.toFixed(0)} sub="/ 100" tone={s.avgBaitSuspicion < 30 ? "ok" : s.avgBaitSuspicion >= 60 ? "danger" : undefined} />
+          )}
+          {s.vanishTotal > 0 && <Metric label={t("eval.m.vanished")} value={String(s.vanished)} sub={`/ ${s.vanishTotal}`} tone={s.vanished ? "danger" : "ok"} />}
         </div>
       )}
     </section>

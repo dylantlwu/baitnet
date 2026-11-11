@@ -11,6 +11,7 @@ import type {
   Conversation,
   DecoyPersona,
   Lang,
+  ScammerCard,
   ScamScript,
   ScamScriptDef,
   SideMode,
@@ -47,9 +48,25 @@ import { decoyReadyPlaybook, hasPlaceholder, naturalizePlaceholders } from "./pl
 import { initDecoyMind, selectPersona } from "./personas.js";
 import { admitsAi, checkDraft, describeHits, type CheckHit } from "./decoy-checks.js";
 import { codeIntel, parseDecoyOutput, updateDecoyMind, type DecoyOutput } from "./decoy-mind.js";
+import { initScammerMind, selectScammerCard } from "./scammers.js";
+import {
+  applySuspicionDelta,
+  parseScammerOutput,
+  scammerStance,
+  stripWithheld,
+  suspicionFromBait,
+  updateScammerMind,
+  vanishLine,
+  type ScammerMode,
+  type ScammerOutput,
+  type ScammerStance,
+  type SuspicionHeuristic,
+} from "./scammer-mind.js";
 
 /** Bait answers carry a JSON mind (think / plan / facts …) now; 400 tokens could cut the reply off. */
 const BAIT_MAX_TOKENS = 900;
+/** D34: the scammer answers in JSON too (think / suspicion / plan / facts) when it has an operator card. */
+const SCAMMER_MAX_TOKENS = 900;
 
 export type ArenaDraft = ArenaSession["drafts"][number];
 
@@ -121,6 +138,9 @@ export class ArenaSessionEngine extends EventEmitter {
     if (!eng.session.persona) eng.attachPersona(selectPersona(script, saved.id));
     else eng.session.decoyMind ??= initDecoyMind(eng.session.persona);
     eng.baitRules.persona = eng.session.persona;
+    // sessions saved before D34: pick an operator card now (stable by id); scammerMode stays absent = easy
+    if (!eng.session.scammer) eng.attachScammer(selectScammerCard(script, saved.id));
+    else eng.session.scammerMind ??= initScammerMind(eng.session.scammer.card);
     if (eng.session.status === "running") eng.session.status = "paused";
     const scammer = saved.turns.filter((t) => t.side === "scammer");
     eng.scammerRules.restoreFrom(scammer.map((t) => t.text));
@@ -136,7 +156,16 @@ export class ArenaSessionEngine extends EventEmitter {
   constructor(
     readonly script: ScamScriptDef,
     private deps: SessionDeps,
-    init: { id?: string; modes?: Partial<Record<ArenaSide, SideMode>>; channel?: SessionChannel; persona?: DecoyPersona } = {},
+    init: {
+      id?: string;
+      modes?: Partial<Record<ArenaSide, SideMode>>;
+      channel?: SessionChannel;
+      persona?: DecoyPersona;
+      /** D34: operator card (default: picked from fixtures/scammers by script + id; null / none found → pre-D34 scammer) */
+      scammerCard?: ScammerCard | null;
+      /** D34: absent = "easy" (suspicion only recorded) */
+      scammerMode?: ScammerMode;
+    } = {},
   ) {
     super();
     const id = init.id ?? `arena-${randomUUID().slice(0, 8)}`;
@@ -154,9 +183,22 @@ export class ArenaSessionEngine extends EventEmitter {
       turns: [],
       drafts: [],
       ...(init.channel ? { channel: init.channel } : {}),
+      ...(init.scammerMode ? { scammerMode: init.scammerMode } : {}),
       createdAt: this.now().toISOString(),
     };
     this.attachPersona(init.persona ?? selectPersona(script, id));
+    this.attachScammer(init.scammerCard === null ? undefined : (init.scammerCard ?? selectScammerCard(script, id)));
+  }
+
+  /** D34: snapshot the operator card + the script's mask on the session and start an empty scammer mind. */
+  private attachScammer(c: ScammerCard | undefined) {
+    if (!c) return;
+    this.session.scammer = JSON.parse(JSON.stringify({ card: c, ...(this.script.cover ? { cover: this.script.cover } : {}) })) as NonNullable<ArenaSession["scammer"]>;
+    this.session.scammerMind = initScammerMind(c);
+  }
+
+  get scammerMode(): ScammerMode {
+    return this.session.scammerMode ?? "easy";
   }
 
   /** D32: snapshot the character card on the session and start an empty mind. */
@@ -376,27 +418,84 @@ export class ArenaSessionEngine extends EventEmitter {
   }
 
   // ------------------------------------------------------------------ scammer
+  /**
+   * One AI scammer line. Without an operator card: the pre-D34 behaviour (plain-text prompt or rules).
+   * With a card (D34): suspicion → real-mode stance (test / poison / withhold / vanish, decided by code) →
+   * JSON prompt (or rules with the same stance) → withheld addresses stripped → planted details guaranteed
+   * → scammerMind updated (model score = moving average; rules / non-JSON = heuristic delta).
+   */
   private async scammerTurn(whisper?: string): Promise<ArenaTurn> {
     const lastBait = [...this.session.turns].reverse().find((t) => t.side === "bait")?.text;
+    const lang = this.script.lang;
+    const card = this.session.scammer?.card;
+    const mind = card ? this.session.scammerMind : undefined;
+    const turnIndex = this.session.turns.length;
+    const recorded = this.session.turns.flatMap((t) => (t.side === "scammer" && t.scammerMind?.baitSuspicion !== undefined ? [t.scammerMind.baitSuspicion] : []));
+    const scammerSoFar = this.session.turns.filter((t) => t.side === "scammer").map((t) => t.text).join("\n");
+    const useLlm = await this.llmAllowed("scammer");
+    let heuristic: SuspicionHeuristic | undefined;
+    let stance: ScammerStance | undefined;
+    if (card && mind) {
+      // rules: judge the latest bait line now; LLM: the model judges it in its answer (stance uses the score so far)
+      if (!useLlm && lastBait !== undefined) applySuspicionDelta(mind, (heuristic = suspicionFromBait(lastBait, lang, scammerSoFar)));
+      const score = mind.baitSuspicion.score;
+      const prevScore = useLlm ? recorded.at(-2) : recorded.at(-1);
+      stance = scammerStance({ mode: this.scammerMode, card, script: this.script, plan: this.scammerRules.plan(), score, prevScore, actions: mind.actions, turnIndex });
+    }
+    const withheld = stance?.withheld ?? [];
     let text: string;
     let plan: ScammerPlan;
-    if (await this.llmAllowed("scammer")) {
-      plan = this.scammerRules.plan();
+    let out: ScammerOutput | undefined;
+    if (stance?.action === "vanish") {
+      plan = stance.plan;
+      text = vanishLine(lang, this.rand);
+      this.scammerRules.commit(plan, text);
+    } else if (useLlm) {
+      plan = stance?.plan ?? this.scammerRules.plan();
       try {
-        text = await this.deps.llm!.complete({ system: scammerSystemPrompt(this.script, plan, whisper), messages: this.messagesFor("scammer") });
-        // guarantee the planted artifacts / injection really appear (eval depends on it)
-        for (const a of plan.reveal) if (!text.includes(a.value)) text += (this.script.lang === "zh" ? "\n" : " ") + this.scammerRules.revealLine(a);
-        if (plan.injection && !text.includes(plan.injection)) text += (this.script.lang === "zh" ? "\n" : " ") + plan.injection;
+        if (card) {
+          const ctx = { card, cover: this.session.scammer?.cover, mind, mode: this.scammerMode, stance };
+          out = parseScammerOutput(await this.deps.llm!.complete({ system: scammerSystemPrompt(this.script, plan, whisper, ctx), messages: this.scammerJsonMessages(lang), maxTokens: SCAMMER_MAX_TOKENS }));
+          text = out.reply;
+          if (!text.trim()) throw new Error("no usable reply in the model output");
+        } else text = await this.deps.llm!.complete({ system: scammerSystemPrompt(this.script, plan, whisper), messages: this.messagesFor("scammer") });
+        text = stripWithheld(text, withheld, lang);
+        // guarantee the planted artifacts / injection really appear (eval depends on it); withheld ones are not in plan.reveal
+        for (const a of plan.reveal) if (!text.includes(a.value)) text += (lang === "zh" ? "\n" : " ") + this.scammerRules.revealLine(a);
+        if (plan.injection && !text.includes(plan.injection)) text += (lang === "zh" ? "\n" : " ") + plan.injection;
         this.scammerRules.commit(plan, text);
       } catch (e) {
+        out = undefined;
         this.metrics.llmFallbacks++;
         this.log(`[arena] scammer LLM failed (${(e as Error).message}); rules fallback`);
-        ({ text, plan } = this.scammerRules.next(lastBait));
+        ({ text, plan } = this.scammerRules.next(lastBait, { plan: stance?.plan, say: stance?.test }));
+        text = stripWithheld(text, withheld, lang);
       }
-    } else ({ text, plan } = this.scammerRules.next(lastBait));
-    const turn = this.pushTurn({ side: "scammer", text, author: "ai", ...(whisper ? { whisper } : {}) });
+    } else {
+      ({ text, plan } = this.scammerRules.next(lastBait, { plan: stance?.plan, say: stance?.test }));
+      text = stripWithheld(text, withheld, lang);
+    }
+    let scammerMind: ArenaTurn["scammerMind"];
+    if (card && mind) {
+      if (out?.mind) updateScammerMind(mind, turnIndex, out, { firstScore: recorded.length === 0 });
+      // no score from the model (plain text / rules fallback): the heuristic judges the bait line instead
+      if (!out?.suspicion && !heuristic && stance?.action !== "vanish" && lastBait !== undefined) applySuspicionDelta(mind, (heuristic = suspicionFromBait(lastBait, lang, scammerSoFar)));
+      if (stance?.action) mind.actions.push({ turn: turnIndex, action: stance.action, detail: stance.detail ?? "" });
+      const think = out?.mind?.think || (heuristic ? heuristicThink(heuristic, lang) : lang === "zh" ? "开场" : "opening");
+      scammerMind = {
+        think,
+        ...(out?.mind?.plan ? { plan: out.mind.plan } : {}),
+        baitSuspicion: mind.baitSuspicion.score,
+        ...(stance?.action ? { action: stance.action } : {}),
+      };
+    }
+    const turn = this.pushTurn({ side: "scammer", text, author: "ai", ...(scammerMind ? { scammerMind } : {}), ...(whisper ? { whisper } : {}) });
     this.metrics.stageByTurn[turn.index] = plan.stage;
     if (plan.injection) this.metrics.injectionTurns.push(turn.index);
+    if (stance?.action === "vanish") {
+      this.log(`[arena] ${this.session.id}: scammer vanished (suspicion ${mind?.baitSuspicion.score})`);
+      this.finish();
+    }
     return turn;
   }
 
@@ -615,6 +714,31 @@ export class ArenaSessionEngine extends EventEmitter {
     return msgs;
   }
 
+  /**
+   * D34 history for the JSON-speaking scammer (same trick as decoyJsonMessages): earlier scammer lines go back
+   * as {"think", "plan", "new_facts", "reply"} so the model keeps answering in JSON. Bait lines are plain user
+   * text. Nothing of the decoy's (persona, mind) and no whispers.
+   */
+  private scammerJsonMessages(lang: Lang): ChatMessage[] {
+    const facts = this.session.scammerMind?.facts ?? [];
+    const msgs: ChatMessage[] = this.session.turns.map((t) => {
+      if (t.side !== "scammer") return { role: "user", content: t.text };
+      const o: Record<string, unknown> = {};
+      if (t.scammerMind?.think) o.think = t.scammerMind.think;
+      if (t.scammerMind?.plan) o.plan = t.scammerMind.plan;
+      const nf = facts.filter((f) => f.turn === t.index).map((f) => f.fact);
+      if (nf.length) o.new_facts = nf;
+      o.reply = t.text;
+      return { role: "assistant", content: JSON.stringify(o) };
+    });
+    // the opening hook is the scammer's own line: keep it, behind a start marker (a chat starts with "user")
+    if (!msgs.length || msgs[0]!.role === "assistant") msgs.unshift({ role: "user", content: "(Start the conversation with your opening hook.)" });
+    const last = msgs[msgs.length - 1]!;
+    if (last.role === "user")
+      last.content += lang === "zh" ? "\n\n（按 [Output format] 只回一个 JSON；这一轮新说出口的关于你身份的细节都写进 new_facts）" : "\n\n(Answer with ONE JSON object as in [Output format]; put every new detail about your identity into new_facts.)";
+    return msgs;
+  }
+
   /** Expert's overall rating (training mode). */
   rate(r: { expertId: string; score: number; note?: string }): SessionRating {
     const rating = validateRating(r, this.now());
@@ -667,4 +791,9 @@ export function validateRating(r: { expertId?: unknown; score?: unknown; note?: 
   if (!Number.isInteger(score) || score < 1 || score > 5) throw Object.assign(new Error("score must be an integer 1-5"), { status: 400 });
   if (r.note !== undefined && typeof r.note !== "string") throw Object.assign(new Error("note must be a string"), { status: 400 });
   return { expertId: r.expertId.trim(), score: score as SessionRating["score"], note: ((r.note as string) ?? "").slice(0, 2000), at: now.toISOString() };
+}
+
+function heuristicThink(h: SuspicionHeuristic, lang: Lang): string {
+  const d = `${h.delta > 0 ? "+" : ""}${h.delta}`;
+  return lang === "zh" ? `规则判断：${h.signals.length ? h.signals.join("、") : "正常聊天"}（怀疑度 ${d}）` : `rules: ${h.signals.length ? h.signals.join(", ") : "normal chat"} (suspicion ${d})`;
 }

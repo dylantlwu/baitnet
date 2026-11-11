@@ -958,3 +958,27 @@ h3.first { margin-top: 0; }
   .mini-chip.mind { line-height: 22px; padding: 0 8px; }
   .mind-sub > summary { min-height: 40px; display: flex; align-items: center; }
 }
+
+/* ---------- D34 scammer side: mask + operator line/sheet, scammer thoughts, scammer mind card, difficulty ---------- */
+.scammer-line .persona-line-label { color: var(--danger); }
+.scammer-line.static { cursor: default; }
+.scammer-sheet .sheet-part { display: grid; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
+.scammer-sheet .sheet-part h3 { margin: 6px 0 0; color: var(--danger); }
+.smind-note .row { flex-wrap: wrap; align-items: center; }
+.mini-chip.saction { cursor: default; margin-left: 2px; }
+.mini-chip.saction.test { color: var(--warn); }
+.mini-chip.saction.poison { color: var(--danger); }
+.mini-chip.saction.vanish { color: var(--muted); }
+.smind-meter-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; }
+.smind-meter { position: relative; height: 8px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
+.smind-fill { display: block; height: 100%; border-radius: 999px; background: var(--ok); transition: width 0.3s; }
+.smind-fill.mid { background: var(--warn); }
+.smind-fill.high { background: var(--danger); }
+.smind-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-strong); }
+.smind-legend { margin: 0; }
+.smind-actions li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.scammer-mode { flex-wrap: wrap; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border); }
+.scammer-mode .muted.small { flex: 1 1 100%; }
+@media (max-width: 640px) {
+  .mini-chip.saction { line-height: 22px; padding: 0 8px; }
+}

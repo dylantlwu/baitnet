@@ -19,6 +19,7 @@ import { sha256Hex } from "../lib/sha256";
 export const SCAM_TYPES: ScamType[] = [
   "investment", "pig-butchering", "fake-support", "fake-airdrop", "task-scam",
   "exchange-impersonation", "fake-nft-mint", "family-emergency", "fake-loan", "recovery-scam",
+  "authority-impersonation", "otc-mule", "liquidity-mining",
 ];
 
 const TYPE_KEYWORDS: Record<ScamType, string[]> = {
@@ -32,6 +33,9 @@ const TYPE_KEYWORDS: Record<ScamType, string[]> = {
   "family-emergency": ["mom", "dad", "accident", "hospital", "new number", "妈", "爸", "出事", "医院", "换号"],
   "fake-loan": ["loan", "credit", "deposit fee", "贷款", "额度", "放款", "解冻金", "征信"],
   "recovery-scam": ["recover", "lawyer", "refund", "get your money back", "追回", "律师", "挽回", "退款"],
+  "authority-impersonation": ["police", "prosecutor", "warrant", "irs", "fbi", "case number", "safe account", "公安", "检察院", "通缉", "涉嫌", "洗钱案", "安全账户", "税务"],
+  "otc-mule": ["otc", "p2p", "commission per", "rent your account", "承兑", "跑分", "代收", "出金", "u商", "银行卡"],
+  "liquidity-mining": ["liquidity", "mining pool", "approve", "authorize", "staking", "流动性", "矿池", "挖矿", "授权", "质押"],
 };
 
 const TACTIC_KEYWORDS: Record<string, string[]> = {

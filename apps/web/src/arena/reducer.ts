@@ -1,4 +1,4 @@
-import type { ArenaSession, ArenaSide, ArenaTurn, DecoyMind, DecoyPersona } from "@baitnet/shared";
+import type { ArenaSession, ArenaSide, ArenaTurn, DecoyMind, DecoyPersona, ScammerMind } from "@baitnet/shared";
 import type { ArenaStreamEvent } from "../backend/types";
 
 /** A human line shown immediately (optimistic) until the server's "turn" event replaces it. */
@@ -30,7 +30,16 @@ export type ArenaAction =
   | { type: "sayRetry"; localId: string }
   | { type: "sayDiscard"; localId: string }
   /** D32: fresh hidden decoy state from a session re-read (absent fields leave the current value alone). */
-  | { type: "mind"; sessionId: string; persona?: DecoyPersona; decoyMind?: DecoyMind; turns?: ArenaTurn[] };
+  | {
+      type: "mind";
+      sessionId: string;
+      persona?: DecoyPersona;
+      decoyMind?: DecoyMind;
+      /** D34: scammer card / mask and hidden scammer state */
+      scammer?: ArenaSession["scammer"];
+      scammerMind?: ScammerMind;
+      turns?: ArenaTurn[];
+    };
 
 export const initialArena: ArenaState = { session: null, txHashes: {}, safetyLog: [], pending: [], typing: null };
 
@@ -62,11 +71,28 @@ export function arenaReducer(state: ArenaState, action: ArenaAction): ArenaState
       const s = state.session;
       if (!s || s.id !== action.sessionId) return state;
       // a line's hidden note may only be on the re-read copy: fill it in where the streamed turn has none
-      const minds = new Map((action.turns ?? []).filter((x) => x && x.mind).map((x) => [x.index, x.mind!]));
-      const turns = minds.size ? s.turns.map((x) => (!x.mind && minds.has(x.index) ? { ...x, mind: minds.get(x.index) } : x)) : s.turns;
+      const fresh = (action.turns ?? []).filter((x) => x && typeof x.index === "number");
+      const minds = new Map(fresh.filter((x) => x.mind).map((x) => [x.index, x.mind!]));
+      const sMinds = new Map(fresh.filter((x) => x.scammerMind).map((x) => [x.index, x.scammerMind!]));
+      const turns =
+        minds.size || sMinds.size
+          ? s.turns.map((x) => {
+              let y = x;
+              if (!y.mind && minds.has(y.index)) y = { ...y, mind: minds.get(y.index) };
+              if (!y.scammerMind && sMinds.has(y.index)) y = { ...y, scammerMind: sMinds.get(y.index) };
+              return y;
+            })
+          : s.turns;
       return {
         ...state,
-        session: { ...s, turns, persona: action.persona ?? s.persona, decoyMind: action.decoyMind ?? s.decoyMind },
+        session: {
+          ...s,
+          turns,
+          persona: action.persona ?? s.persona,
+          decoyMind: action.decoyMind ?? s.decoyMind,
+          scammer: action.scammer ?? s.scammer,
+          scammerMind: action.scammerMind ?? s.scammerMind,
+        },
       };
     }
   }

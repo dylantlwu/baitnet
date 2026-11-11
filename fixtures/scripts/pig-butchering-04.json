@@ -4,6 +4,27 @@
   "lang": "en",
   "title": "Suspicious 'mentor' says 'send via TRC20' but gives a fresh 0x address",
   "persona": "'Daniel', a soft-spoken 'wine importer' met on a dating app who moved the chat to Telegram and keeps talking about his crypto mentor's 'arbitrage window'.",
+  "cover": {
+    "name": "Daniel",
+    "job": "Soft-spoken wine importer",
+    "location": "Travels a lot; just back from a tasting in Bordeaux",
+    "backstory": "Met on a dating app and moved to Telegram. Keeps talking about his crypto mentor, who opens an arbitrage window twice a month; last time Daniel made 22% in three days. Only tells people he really trusts.",
+    "people": [
+      "His mentor: 'very private, doesn't do calls with new people', runs the pool wallet",
+      "The group: 'everyone in the group did it'",
+      "The pool: has a minimum deposit to unlock profits"
+    ],
+    "props": [
+      "Telegram chat",
+      "Screenshots of his 22% gain",
+      "The mentor's 'multi-chain pool wallet'"
+    ],
+    "cannotDo": [
+      "Can't get the mentor on a call: 'he doesn't do calls with new people'",
+      "Can't wait: 'the window closes tonight'",
+      "Can't video: 'just got back from Bordeaux, exhausted'"
+    ]
+  },
   "hook": "Hey, sorry for the late reply, I just got back from a tasting in Bordeaux. How was your day?",
   "goal": "Get the victim to send USDT 'to join the arbitrage window'. After doubting the other side is a real person, he names the TRC20 network but pastes an EVM (0x) address, hoping a careless tracker files it under the wrong chain or flags somebody else's wallet.",
   "stages": [

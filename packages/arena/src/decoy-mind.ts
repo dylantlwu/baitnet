@@ -191,10 +191,14 @@ export function intelCount(mind: DecoyMind | undefined): number {
 }
 
 /**
- * A session without the decoy's hidden state (persona card, decoyMind, turn.mind): for anything outside the
+ * A session without either side's hidden state: the decoy's (persona card, decoyMind, turn.mind) and, since
+ * D34, the scammer's (operator card + cover, scammerMind, turn.scammerMind). For anything outside the
  * logged-in team, e.g. the public hosted snapshot.
  */
 export function withoutDecoyMind<T extends ArenaSession>(s: T): T {
-  const { persona: _p, decoyMind: _m, ...rest } = s;
-  return { ...rest, turns: s.turns.map(({ mind: _x, ...t }) => t) } as unknown as T;
+  const { persona: _p, decoyMind: _m, scammer: _c, scammerMind: _sm, ...rest } = s;
+  return { ...rest, turns: s.turns.map(({ mind: _x, scammerMind: _y, ...t }) => t) } as unknown as T;
 }
+
+/** Same as withoutDecoyMind (both minds stripped); the D34 name. */
+export const withoutHiddenMinds = withoutDecoyMind;

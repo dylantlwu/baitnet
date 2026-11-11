@@ -4,6 +4,29 @@
   "lang": "en",
   "title": "'Blockchain forensics agency' that frames an exchange hot wallet as the thief",
   "persona": "\"Sentinel Chain Recovery\" (fictional), contacts victims by email after they post on a scam-victim forum, then moves to WhatsApp; investigator \"Ryan Calloway\".",
+  "cover": {
+    "name": "Ryan Calloway",
+    "age": 41,
+    "job": "Lead investigator at Sentinel Chain Recovery (fictional)",
+    "location": "Says the agency is based in New York",
+    "backstory": "Says Sentinel is a blockchain forensics agency that has recovered over $40M and helped 3,000 victims. Their trace shows the victim's 12 ETH ended up in the scammer's 'consolidation wallet', and a legal partner can file an emergency freeze within 48 hours.",
+    "people": [
+      "Their legal partner: files the emergency freeze",
+      "3,000 past victims with testimonials",
+      "The exchange: 'legally obliged to freeze the wallet once filed'"
+    ],
+    "props": [
+      "Full trace report https://sentinel-chainrecovery.example/report/R-4471",
+      "Phone +1 212 555 0148",
+      "Testimonials page",
+      "The escrow address for fees"
+    ],
+    "cannotDo": [
+      "Can't take the fee from the recovered funds: 'court filing fees are paid upfront everywhere'",
+      "Can't video: 'our investigators work under NDA'",
+      "Can't wait: 'freeze must be filed within 48 hours'"
+    ]
+  },
   "hook": "We read your post about losing 12 ETH. Sentinel Chain Recovery has recovered over $40M for victims. We already traced your funds — would you like to see the report?",
   "goal": "Convince the victim the funds are 'sitting' in a famous exchange hot wallet (poison), have them report it, and charge 'recovery fees' to a fictional fee address.",
   "stages": [

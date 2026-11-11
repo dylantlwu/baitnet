@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { loadScripts, readLatestReport, readSessions, training, withoutDecoyMind, type ArenaManager } from "@baitnet/arena";
+import { loadScripts, readLatestReport, readSessions, training, withoutHiddenMinds, type ArenaManager } from "@baitnet/arena";
 import type { Ack, AlertView, AttestationResult, DemoSnapshot, EvidenceResponse, FlowEdge, Responder } from "@baitnet/shared";
 import {
   CachedRegistryClient,
@@ -236,7 +236,7 @@ export class DataSource {
       ...(attestation ? { attestation } : {}),
       arenaScripts: (arena ? await arena.scripts() : await loadScripts()).map(({ id, type, lang, title }) => ({ id, type, lang, title })),
       // public static snapshot: the decoy's persona / mind are team-only (D32)
-      arenaSessions: (arena ? arena.list() : readSessions()).map(withoutDecoyMind),
+      arenaSessions: (arena ? arena.list() : readSessions()).map(withoutHiddenMinds),
       ...(evalReport ? { eval: evalReport } : {}),
       ...(evalRuns ? { evalRuns } : {}),
       ...(playbook ? { playbook } : {}),

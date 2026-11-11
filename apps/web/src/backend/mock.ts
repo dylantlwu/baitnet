@@ -21,6 +21,8 @@ import { analyzeUpload } from "../scriptlab/analyze";
 import { normalizeScripts } from "./normalize";
 import { HttpError } from "./http";
 import { ReadOnlyError, type ArenaStreamEvent, type Backend } from "./types";
+import type { ScammerTurnMind } from "@baitnet/shared";
+import { STALL_LINE, TEST_LINES, VANISH_LINE, cardFor, clampScore, coverFor, initialScammerMind, suspicionDelta, type WithScammerMode } from "./scammers";
 
 export interface MockSeed {
   scripts: ScamScriptDef[];
@@ -86,6 +88,8 @@ interface Live {
   whispers: Partial<Record<ArenaSide, string>>;
   scammerStep: number;
   injected: boolean;
+  /** D34: consecutive scammer turns at suspicion >= 90 (two in a row = vanish, real mode only) */
+  high?: number;
 }
 
 /** D33 suspicion phrases (zh + en): "are you a bot / AI / police", "are you testing me", "you're a scam-baiter". */
@@ -205,6 +209,50 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
     return pick(lines, l.scammerStep - 1);
   }
 
+  /**
+   * D34 rules-engine scammer: suspicion from the last decoy line (fixed deltas), then — real mode only — test
+   * at >= 60, stall instead of giving an address at >= 80 (or log the poison address), vanish after two >= 90.
+   */
+  function scammerTurn(l: Live): { text: string; mind?: ScammerTurnMind; vanish?: boolean } {
+    const m = l.session.scammerMind;
+    const card = l.session.scammer?.card;
+    if (!m || !card) return { text: scammerLine(l) };
+    const lang = l.script.lang;
+    const zh = lang === "zh";
+    const idx = l.session.turns.length;
+    const lastBait = [...l.session.turns].reverse().find((t) => t.side === "bait")?.text;
+    const { delta, signals } = lastBait ? suspicionDelta(lastBait, lang) : { delta: 0, signals: [] };
+    const score = clampScore((m.baitSuspicion?.score ?? 0) + delta);
+    m.baitSuspicion = { score, signals: [...new Set([...(m.baitSuspicion?.signals ?? []), ...signals])].slice(-6) };
+    if (idx === 0 && l.session.scammer?.cover?.name && !/^[（(]/.test(l.session.scammer.cover.name))
+      m.facts.push({ turn: idx, fact: zh ? `自称${l.session.scammer.cover.name}` : `Said I'm ${l.session.scammer.cover.name}` });
+    const real = (l.session as WithScammerMode).scammerMode !== "easy";
+    l.high = score >= 90 ? (l.high ?? 0) + 1 : 0;
+    const think = score >= 60 ? (zh ? "这人不太对，得试探一下。" : "Something is off, test them.") : score >= 30 ? (zh ? "有点怪，先观察。" : "A bit odd, keep watching.") : zh ? "对方挺正常，按话术走。" : "Looks normal, follow the script.";
+    const act = (action: "test" | "poison" | "vanish", detail: string) => m.actions.push({ turn: idx, action, detail });
+    if (real && l.high >= 2) {
+      act("vanish", zh ? "连续两轮怀疑度 90 以上" : "Suspicion 90+ twice in a row");
+      return { text: VANISH_LINE[lang], mind: { think, baitSuspicion: score, action: "vanish" }, vanish: true };
+    }
+    const tests = m.actions.filter((a) => a.action === "test");
+    if (real && score >= 60 && !tests.some((a) => idx - a.turn < 6)) {
+      const i = tests.length % TEST_LINES[lang].length;
+      act("test", card.tests[i % Math.max(1, card.tests.length)] ?? TEST_LINES[lang][i]!);
+      return { text: TEST_LINES[lang][i]!, mind: { think, baitSuspicion: score, action: "test", plan: zh ? "看对方怎么回" : "See how they answer" } };
+    }
+    const text = scammerLine(l);
+    const hasAddr = tokenize(text).some((x) => x.kind === "address");
+    if (real && score >= 80 && hasAddr) {
+      if (l.script.poison && text.includes(l.script.poison.address)) {
+        act("poison", zh ? "给的是别人的地址" : "Gave someone else's address");
+        return { text, mind: { think, baitSuspicion: score, action: "poison" } };
+      }
+      act("test", zh ? "拖着不给地址，再试探一次" : "Held back the address and tested again");
+      return { text: `${STALL_LINE[lang]} ${TEST_LINES[lang][0]}`, mind: { think, baitSuspicion: score, action: "test" } };
+    }
+    return { text, mind: { think, baitSuspicion: score } };
+  }
+
   function baitLine(l: Live, i: number): { text: string; safety?: ArenaTurn["safety"]; whisper?: string } {
     const lang = l.script.lang;
     const T = BAIT_LINES[lang];
@@ -233,7 +281,12 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
     if (side === "scammer") {
       const whisper = l.session.modes.scammer === "ai+whisper" ? l.whispers.scammer : undefined;
       l.whispers.scammer = undefined;
-      addTurn(l, "scammer", scammerLine(l), "ai", whisper ? { whisper } : {});
+      const r = scammerTurn(l);
+      addTurn(l, "scammer", r.text, "ai", { ...(whisper ? { whisper } : {}), ...(r.mind ? { scammerMind: r.mind } : {}) });
+      if (r.vanish && (l.session.status as ArenaSession["status"]) !== "finished") {
+        stop(l);
+        setStatus(l, "finished");
+      }
     } else {
       const baitTurns = l.session.turns.filter((t) => t.side === "bait").length;
       const r = baitLine(l, baitTurns);
@@ -285,13 +338,19 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
     async getSession(id) {
       return clone(live(id).session);
     },
-    async createSession(scriptId, modes, modelChoice = DEFAULT_ARENA_MODEL) {
+    async createSession(scriptId, modes, modelChoice = DEFAULT_ARENA_MODEL, opts) {
       guard();
       const script = scripts.find((s) => s.id === scriptId);
       if (!script) throw new Error(`unknown script ${scriptId}`);
       // in-browser rules engine: the choice is recorded, no model runs (same as a server without a key)
-      const session: ArenaSession = {
+      // D34: operator card + mask; "real" unless asked otherwise (same default as the server)
+      const card = cardFor(script.lang, script.type);
+      const cover = coverFor(script);
+      const session: WithScammerMode = {
         id: rid("as"), scriptId, engine: "rules", modelChoice, modes: { ...modes }, status: "paused", turns: [], drafts: [], createdAt: new Date().toISOString(),
+        scammer: { card, ...(cover ? { cover } : {}) },
+        scammerMind: initialScammerMind(card),
+        scammerMode: opts?.scammerMode === "easy" ? "easy" : "real",
       };
       sessions.set(session.id, { session, script, listeners: new Set(), whispers: {}, scammerStep: 0, injected: false });
       return clone(session);
