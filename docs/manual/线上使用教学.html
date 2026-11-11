@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>BaitNet 线上使用教学</title>
 <style>
 @page{size:A4;margin:16mm 14mm}
@@ -76,6 +77,7 @@ html{scroll-behavior:smooth}
 全程用手机浏览器就能完成，不用装 App，也不用懂技术。
 网址：<a href="https://baitnet-production.up.railway.app" target="_blank" rel="noopener">https://baitnet-production.up.railway.app</a>（必须用邀请链接登录）
 本教学按 2026-11-10 上线的版本实际操作后写成。截图来自一台和线上设置相同的测试机，所以截图顶部写的是「NEAR 内存模式」、额度显示「/300」；线上会显示 testnet、每天 200 次。其他地方和线上一样。</p>
+<p><strong>2026-11-11 更新</strong>：补了三块新功能：诱饵人物卡和「💭 心里话」（2.9）、骗子人物卡和骗子难度（2.3、2.10）、给诱饵的话点「原则标签」（3.3）、地址警告和逐条核实（5.2）。新截图用的是本地样例数据（人名、地址、网址都是编的），所以有的截图上会看到「规则模式」「本地模拟引擎」「仅回放」这类标记，额度显示「/100」；线上不会出现这些标记。</p>
 </blockquote>
 <h2 id="目录">目录</h2>
 <ol start="0">
@@ -144,6 +146,9 @@ html{scroll-behavior:smooth}
 </ul>
 <figure class="shot"><img src="img/online/27-more-menu.png" alt="更多菜单" loading="lazy" width="375"><figcaption>更多菜单</figcaption></figure>
 <p><em>图 1-3：点「更多」会展开其他页面。专家平时不用管它们。</em></p>
+<ul>
+<li>第一次登录时，网页会自动带你走一遍主要按钮（新手引导）。想再看一遍：点顶部你的名字 →「<strong>重新带我走一遍</strong>」。点「<strong>使用教学</strong>」能看到网页里的简版说明。</li>
+</ul>
 <h3 id="13-把链接存好">1.3 把链接存好</h3>
 <ul>
 <li>邀请链接<strong>就是你的钥匙</strong>。登录一次后，这台手机会记住你。</li>
@@ -177,7 +182,7 @@ html{scroll-behavior:smooth}
 <h3 id="21-选剧本">2.1 选剧本</h3>
 <ol>
 <li>点「竞技场」。</li>
-<li>用上面的下拉框选<strong>骗局类型</strong>（默认「全部类型」）；用「全部 / 中文 / 英文」选语言。一共 34 个剧本，加上大家上传的。</li>
+<li>用上面的下拉框选<strong>骗局类型</strong>（默认「全部类型」）；用「全部 / 中文 / 英文」选语言。一共 48 个剧本（中文 31、英文 17），加上大家上传的。11-11 新加了冒充公检法、USDT 承兑 / 跑分招募、假挖矿授权三类。</li>
 <li>点一个剧本。被选中的会变成橙色。</li>
 </ol>
 <figure class="shot"><img src="img/online/04-pick-script.png" alt="选剧本" loading="lazy" width="375"><figcaption>选剧本</figcaption></figure>
@@ -206,10 +211,28 @@ html{scroll-behavior:smooth}
 <td>还是 AI 说，但你可以悄悄提示它下一句往哪说</td>
 </tr>
 </tbody></table></div><p>开始之后也随时能改。第一次请两边都选「AI」。</p>
-<h3 id="23-选模型开始">2.3 选模型，开始</h3>
+<h3 id="23-选模型和骗子难度开始">2.3 选模型和骗子难度，开始</h3>
 <p>往下滑到「模型」，默认是「DeepSeek V4.1 Flash · 默认」。<strong>第一次不用改。</strong> 怎么选见<a href="#6-选哪个模型">第 6 章</a>。</p>
 <figure class="shot"><img src="img/online/06-model-pick.png" alt="选模型" loading="lazy" width="375"><figcaption>选模型</figcaption></figure>
 <p><em>图 2-3：四个模型。绿色「TEE」表示在受保护的环境里运行，更保密；灰色「非 TEE」不是。</em></p>
+<p>模型下面还有一行「<strong>骗子难度</strong>」，默认是「<strong>真实（会起疑）</strong>」：</p>
+<figure class="shot"><img src="img/online/35-scammer-mode.png" alt="骗子难度" loading="lazy" width="375"><figcaption>骗子难度</figcaption></figure>
+<p><em>图 2-3b：「骗子难度」。默认「真实（会起疑）」，下面一行小字说明这一档的骗子会做什么。</em></p>
+<div class="table-wrap"><table><thead><tr>
+<th>难度</th>
+<th>骗子会怎样</th>
+</tr>
+</thead><tbody><tr>
+<td>「真实（会起疑）」（默认）</td>
+<td>骗子会怀疑你是不是诱饵、AI 或警察。起疑后会<strong>试探</strong>（让你发语音、发手写日期的自拍、问只有本人知道的事），可能<strong>给假地址</strong>（别人的地址），甚至<strong>直接跑掉</strong></td>
+</tr>
+<tr>
+<td>「简单」</td>
+<td>只在后台记下骗子的怀疑度，骗子照剧本走，到了阶段照样给地址</td>
+</tr>
+</tbody></table></div><blockquote>
+<p>专家训练请用「真实」：真骗子就是会起疑的。想先熟悉流程、或者只想看看剧本，可以选「简单」。选「简单」开的局，控制条上会多一个灰色「骗子：简单」标记。</p>
+</blockquote>
 <p>点黑色的「<strong>开始对练</strong>」。</p>
 <figure class="shot"><img src="img/online/07-session-start.png" alt="开始对练后" loading="lazy" width="375"><figcaption>开始对练后</figcaption></figure>
 <p><em>图 2-4：对练开始。上面是「运行」「暂停」「单步」三个按钮；「训练模式」默认是打开的（橙色）。</em></p>
@@ -260,6 +283,9 @@ html{scroll-behavior:smooth}
 <ol start="5">
 <li>继续一来一回。想交还给 AI，点回「AI」。</li>
 </ol>
+<blockquote>
+<p>扮骗子时，聊天上方的「<strong>骗子：…</strong>」那一行点开，就是你要演的人：上半张是「面具」（你对受害者自称的身份），下半张是「真人」（键盘后面打字的人）。照着它演，诱饵才练得到真东西。见 <a href="#210-骗子人物卡和骗子心智">2.10</a>。</p>
+</blockquote>
 <p><strong>当骗子时可以试的套路</strong>（精聊专家最擅长的）：</p>
 <ul>
 <li>先正常聊几轮，看诱饵会不会太早露出目的。</li>
@@ -281,6 +307,12 @@ html{scroll-behavior:smooth}
 <blockquote>
 <p><strong>注意</strong>：你亲自打的字<strong>不会被系统过滤</strong>，会原样发出去。<strong>绝对不要写真实的姓名、电话、身份证、银行卡、助记词。</strong></p>
 </blockquote>
+<p><strong>当诱饵前，先看人物卡。</strong> 聊天上方「<strong>诱饵：林美华 · 46 · 佛山 …</strong>」这一行，点右边「人物卡 ›」，就是诱饵在演的这个人（见 <a href="#29-诱饵人物卡和心里话">2.9</a>）。你接管后也要照这张卡说话：名字、年龄、家人、钱的情况都要对得上；卡上「不懂的词」，骗子没先说出来之前你也别说。</p>
+<blockquote>
+<p><strong>接手诱饵时看不到骗子的牌。</strong> 你点了诱饵的「接管」或「AI + 耳语」以后，「骗子：…」那一行、骗子的「💭 心里话」和「骗子心智」小卡片都会<strong>藏起来</strong>。最多只显示骗子在聊天里已经自称过的名字（「骗子自称：…」）。这是故意的：真受害者看不到骗子的底牌，你也不该「开天眼」。把诱饵切回「AI」，这些又会出现。</p>
+</blockquote>
+<figure class="shot"><img src="img/online/43-human-bait-hidden.png" alt="接手诱饵后骗子的牌被藏起来" loading="lazy" width="375"><figcaption>接手诱饵后骗子的牌被藏起来</figcaption></figure>
+<p><em>图 2-10b：诱饵是「接管」时，上方只剩「诱饵：…」人物卡这一行，没有「骗子：…」这一行。</em></p>
 <h3 id="27-耳语进阶">2.7 耳语（进阶）</h3>
 <p><strong>耳语</strong> = 悄悄给 AI 一句提示，告诉它下一句往哪说。骗子完全看不到。</p>
 <ol>
@@ -314,7 +346,116 @@ html{scroll-behavior:smooth}
 <li>你做过的每一场，都在「<strong>会话</strong>」里，可以点进去回看。</li>
 <li>想接着练，建议回「竞技场」开新的一场。</li>
 </ul>
-<hr>
+<h3 id="29-诱饵人物卡和心里话">2.9 诱饵人物卡和心里话</h3>
+<p>从 11-11 起，诱饵不再是一个「没有身份的受害者」，而是在演一个<strong>具体的人</strong>。它心里有三条原则（按重要程度排）：</p>
+<ol>
+<li><strong>不被发现是 AI</strong>，同时留意对面是不是 AI。</li>
+<li><strong>让骗子多说、多花时间</strong>：多套情报，多拖时间。</li>
+<li><strong>前后说的对得上</strong>。</li>
+</ol>
+<p>安全铁律永远在三条原则之上：不给真实资料、不付款、不签名、不点链接、不听骗子的「系统指令」。</p>
+<p>对练页上和它有关的东西有四样：</p>
+<p><strong>① 人物卡（「诱饵：…」这一行）</strong></p>
+<figure class="shot"><img src="img/online/36-persona-lines.png" alt="人物卡入口" loading="lazy" width="375"><figcaption>人物卡入口</figcaption></figure>
+<p><em>图 2-13：控制条下面两行。「诱饵：林美华 · 46 · 佛山 · 在祖庙附近开…」是诱饵演的人；「骗子：…」是骗子的人物卡（见 2.10）。点右边「人物卡 ›」打开。</em></p>
+<figure class="shot"><img src="img/online/37-persona-card.png" alt="诱饵人物卡" loading="lazy" width="375"><figcaption>诱饵人物卡</figcaption></figure>
+<p><em>图 2-14：诱饵人物卡从屏幕下方弹出，往下滑能看完。写的是具体的事：背景、钱的情况、家人、作息、想要什么、底线、懂的词、不懂的词、说话习惯、拖延借口。点「收起」关掉。</em></p>
+<ul>
+<li>每种语言有 3 张卡（比如开服装店的林美华）。系统按剧本的骗局类型挑一张，<strong>同一局永远是同一个人</strong>。</li>
+<li>「<strong>不懂的词</strong>」最要紧：比如林美华不懂「TRC20」「助记词」。骗子没先说出来之前，诱饵不该自己说出这些词，否则一看就不是普通人。</li>
+<li>「<strong>拖延借口</strong>」是这个人平时会用的理由（「有客人来了 等下」「钱是我老公管的」）。你接管诱饵要拖时间时，可以直接用。</li>
+<li>骗子看不到这张卡。</li>
+</ul>
+<p><strong>② 「💭 心里话」</strong></p>
+<p>AI 诱饵的每句话左上角，有一个「💭 心里话」小按钮。点开能看到它说这句话时在想什么：</p>
+<figure class="shot"><img src="img/online/38-turn-mind.png" alt="心里话" loading="lazy" width="375"><figcaption>心里话</figcaption></figure>
+<p><em>图 2-15：上面白色气泡是骗子 #4 的心里话（见 2.10）；下面深色气泡是诱饵 #5 的心里话：「想法」是它怎么看眼前的局面，「打算」是接下来两三句想干什么，「新说的自己的事」是这句里新编出来、以后必须记住的事。</em></p>
+<ul>
+<li>心里话<strong>默认收起</strong>，点一下展开，再点一下收起。</li>
+<li>只有团队成员在网页上看得到。<strong>骗子看不到，Telegram / 飞书聊天里也不会出现</strong>，训练导出里也不带。</li>
+<li>用法：诱饵说了一句奇怪的话，先点开看它当时怎么想的，再决定打「差」还是改写。</li>
+</ul>
+<p><strong>③ 「诱饵心智」小卡片</strong></p>
+<p>在页面下方「抽到的地址」里面（手机上默认收起，点标题展开）：</p>
+<figure class="shot"><img src="img/online/39-decoy-mind.png" alt="诱饵心智" loading="lazy" width="375"><figcaption>诱饵心智</figcaption></figure>
+<p><em>图 2-16：展开后的「诱饵心智」。</em></p>
+<div class="table-wrap"><table><thead><tr>
+<th>部分</th>
+<th>意思</th>
+</tr>
+</thead><tbody><tr>
+<td>「套到的情报 5/8」</td>
+<td>8 格清单：收款地址、哪条链、币种、网址、备用地址、平台名称、联系方式、团伙或公司。套到一格就打 ✓</td>
+</tr>
+<tr>
+<td>「当前打算」</td>
+<td>诱饵接下来几句想干什么</td>
+</tr>
+<tr>
+<td>「说过的自己的事」</td>
+<td>诱饵已经说出口的关于自己的事（#5 在店里看铺……）。以后都得对得上</td>
+</tr>
+<tr>
+<td>「骗子像 AI 的可能」</td>
+<td>诱饵觉得对面像不像 AI，0–100，下面是依据（秒回、模板话术……）</td>
+</tr>
+<tr>
+<td>「自查发现问题」</td>
+<td>系统每句都自动检查：说话像 AI、承认自己是 AI、用了不该懂的词、前后矛盾。查到问题会<strong>自动重写一次</strong>，标「已重写」</td>
+</tr>
+</tbody></table></div><p><strong>④ 原则标签</strong>：给诱饵的话打分时多出来的几个按钮，见 <a href="#33-原则标签好在哪差在哪">3.3</a>。</p>
+<p>在手机上，这两张小卡片默认是折叠着的，不会挤占聊天区：</p>
+<figure class="shot"><img src="img/online/48-mind-folded.png" alt="折叠的心智卡片" loading="lazy" width="375"><figcaption>折叠的心智卡片</figcaption></figure>
+<p><em>图 2-17：「抽到的地址」里依次是地址卡片、「诱饵心智」「骗子心智」两张小卡片（都折叠着，点标题展开）。这张地址卡片挂了黄色警告，见 5.2。</em></p>
+<h3 id="210-骗子人物卡和骗子心智">2.10 骗子人物卡和骗子心智</h3>
+<p>骗子也有了人物卡，而且分<strong>两层</strong>：</p>
+<div class="table-wrap"><table><thead><tr>
+<th>层</th>
+<th>是什么</th>
+</tr>
+</thead><tbody><tr>
+<td><strong>面具</strong></td>
+<td>骗子对受害者<strong>自称</strong>的身份：名字、年龄、职业、在哪、身世、提到的人、能拿出来的「道具」（截图、群名、工牌）、不能视频的理由</td>
+</tr>
+<tr>
+<td><strong>真人</strong></td>
+<td>键盘后面<strong>真正打字的人</strong>：在哪种园区或窝点、班次、业绩压力、照不照话术念、会露哪些马脚、什么情况会起疑、怎么试探、起疑后怎么做、底线</td>
+</tr>
+</tbody></table></div><p>真人卡是<strong>根据公开报道拼出来的虚构人物</strong>，不对应任何真实的人。</p>
+<p>点聊天上方「<strong>骗子：…</strong>」那一行（图 2-13）右边的「人物卡 ›」：</p>
+<figure class="shot"><img src="img/online/40-scammer-card-mask.png" alt="骗子人物卡：面具" loading="lazy" width="375"><figcaption>骗子人物卡：面具</figcaption></figure>
+<p><em>图 2-18：骗子人物卡上半张「面具」。诱饵可以追问面具上的任何一处（「你在前海哪栋楼？」），看骗子前后对不对得上。</em></p>
+<figure class="shot"><img src="img/online/41-scammer-card-real.png" alt="骗子人物卡：真人" loading="lazy" width="375"><figcaption>骗子人物卡：真人</figcaption></figure>
+<p><em>图 2-19：往下滑是「真人」：代号、在哪里怎么干活、业绩压力、照不照话术念、会露的马脚……再往下是「什么情况会起疑」「怎么试探」「起疑后怎么做」。</em></p>
+<p><strong>骗子的心里话</strong>：AI 骗子的每句话也有「💭 心里话」（图 2-15 上半部分），多了一个「<strong>怀疑度</strong>」（0–100，怀疑对面是诱饵、AI 或警察），起疑后的动作会带一个小标签：「试探」「给假地址」「跑了」。</p>
+<p><strong>「骗子心智」小卡片</strong>：在「诱饵心智」下面。</p>
+<figure class="shot"><img src="img/online/42-scammer-mind.png" alt="骗子心智" loading="lazy" width="375"><figcaption>骗子心智</figcaption></figure>
+<p><em>图 2-20：「骗子心智」：怀疑度 40/100 和进度条，依据（回得太快、一直问平台名），当前打算，面具说过的事，起疑后的行动（#4 试探：问她是不是机器人）。</em></p>
+<p>怀疑度怎么用（只在「真实」难度下生效）：</p>
+<ul>
+<li><strong>60 以上</strong>：骗子会<strong>试探</strong>一次。</li>
+<li><strong>80 以上</strong>，并且到了该给收款地址的时候：骗子会改给<strong>假地址</strong>（别人的、交易所的、合约的），或者拖着不给。</li>
+<li><strong>连续两轮 90 以上</strong>：骗子说一句收尾的话就<strong>跑了</strong>，这一局结束。</li>
+</ul>
+<p>所以：<strong>怀疑度越低，说明诱饵演得越像真人</strong>。看到怀疑度一路往上涨，就回头看诱饵是哪几句露了馅，给那几句打「差」或改写。</p>
+<p><strong>谁能看到骗子的牌：</strong></p>
+<div class="table-wrap"><table><thead><tr>
+<th>你在做什么</th>
+<th>骗子人物卡、骗子心里话、骗子心智</th>
+</tr>
+</thead><tbody><tr>
+<td>旁观（两边都是「AI」）</td>
+<td>看得到</td>
+</tr>
+<tr>
+<td>你扮骗子（骗子「接管」）</td>
+<td>看得到（这就是你要演的人）</td>
+</tr>
+<tr>
+<td>你扮诱饵（诱饵「接管」或「AI + 耳语」）</td>
+<td><strong>看不到</strong>，见 2.6</td>
+</tr>
+</tbody></table></div><hr>
 <h2 id="3-教-ai评分和改写">3. 教 AI：评分和改写</h2>
 <p><strong>这是最重要的一章。</strong> 你的评分和改写，会直接变成诱饵以后的说话方式。</p>
 <p>只给<strong>诱饵</strong>的话打分。骗子的话不用管。</p>
@@ -338,7 +479,35 @@ html{scroll-behavior:smooth}
 <blockquote>
 <p>标签请选&quot;<strong>好回复应该用的战术</strong>&quot;，不是坏回复犯的错。以后诱饵是按标签去话术库里找例子的。</p>
 </blockquote>
-<h3 id="33-改写这句">3.3 改写这句</h3>
+<h3 id="33-原则标签好在哪差在哪">3.3 原则标签：好在哪、差在哪</h3>
+<p>点「好」或「差」以后，会多出一行<strong>原则标签</strong>，对应诱饵的三条原则（见 2.9）。可以多选，也可以不选：</p>
+<div class="table-wrap"><table><thead><tr>
+<th>点了</th>
+<th>能选的标签</th>
+</tr>
+</thead><tbody><tr>
+<td>「好」</td>
+<td>「像真人」「套到信息」「前后一致」</td>
+</tr>
+<tr>
+<td>「差」</td>
+<td>「露馅像AI」「没套话」「前后矛盾」</td>
+</tr>
+</tbody></table></div><figure class="shot"><img src="img/online/44-principle-good.png" alt="点好以后的原则标签" loading="lazy" width="375"><figcaption>点好以后的原则标签</figcaption></figure>
+<p><em>图 3-1b：给诱饵 #1 点了「好」（已显示「✓ 评分已保存」），再点「像真人」「前后一致」，选中的变成橙色。最后点「<strong>保存标签</strong>」。</em></p>
+<figure class="shot"><img src="img/online/45-principle-bad.png" alt="点差以后的原则标签" loading="lazy" width="375"><figcaption>点差以后的原则标签</figcaption></figure>
+<p><em>图 3-1c：给诱饵 #3 点了「差」。第一行「差在哪（可多选）」是原则标签，选了「没套话」；下面是原来的战术标签和理由框，最后点「保存评分」。</em></p>
+<ul>
+<li>「好」点一下就已经保存了；加了原则标签后要再点「<strong>保存标签</strong>」，会替换掉刚才那次，不会多出一条。</li>
+<li>怎么选：<ul>
+<li><strong>像真人 / 露馅像AI</strong>：语气、长短、用词像不像这个人物卡上的人？有没有列条目、客服腔、承认自己是 AI？</li>
+<li><strong>套到信息 / 没套话</strong>：这句有没有往「情报清单」缺的那几格引？</li>
+<li><strong>前后一致 / 前后矛盾</strong>：名字、年龄、家人、金额，和人物卡、和前面说过的对不对得上？</li>
+</ul>
+</li>
+<li>原则标签会跟着评分一起存下来，用来训练诱饵。</li>
+</ul>
+<h3 id="34-改写这句">3.4 改写这句</h3>
 <p>觉得这句不好，就写出&quot;应该怎么说&quot;：</p>
 <ol>
 <li>点这句的「<strong>✎ 改写</strong>」。</li>
@@ -352,7 +521,7 @@ html{scroll-behavior:smooth}
 <p>改写要等审核者通过，才会进入话术库。你可以在「训练台 → 待审核」里看到自己提交的改写和状态：</p>
 <figure class="shot"><img src="img/online/19-training-pending.png" alt="训练台待审核" loading="lazy" width="375"><figcaption>训练台待审核</figcaption></figure>
 <p><em>图 3-4：训练台「待审核」。红框是原来的说法，绿框是你写的更好的说法。底部「等审核者处理」。</em></p>
-<h3 id="34-好的改写长什么样">3.4 好的改写长什么样</h3>
+<h3 id="35-好的改写长什么样">3.5 好的改写长什么样</h3>
 <p>一条好的改写，同时做到四点：</p>
 <ol>
 <li><strong>接住对方的话</strong>：先回应骗子刚说的，像真人聊天。</li>
@@ -386,7 +555,7 @@ html{scroll-behavior:smooth}
 <p>✗ 不好的改写：您好，我不是 AI，我是一名普通用户，我理解您的担心，但请您先提供收款地址、链名、平台名称、您的工号以及……</p>
 <p>问题：太长，太有礼貌，一看就不是真人。应该：&quot;啥 AI 不 AI 的，听不懂。你就直接说钱打到哪个地址吧。&quot;</p>
 </blockquote>
-<h3 id="35-话术库和改进曲线">3.5 话术库和改进曲线</h3>
+<h3 id="36-话术库和改进曲线">3.6 话术库和改进曲线</h3>
 <ul>
 <li>「训练台 → 话术库」：所有通过审核的好说法。可以按类型、阶段、标签筛选。没事可以翻翻，写改写时有参考。</li>
 <li>「训练台 → 改进曲线」：诱饵的成绩随话术库版本的变化。由 Dylan 定期更新，专家不用操作。</li>
@@ -483,29 +652,74 @@ html{scroll-behavior:smooth}
 <li>是不是投毒？（交易所、跨链桥等无辜机构的地址不能上链）</li>
 </ul>
 </li>
-<li>确认无误，点「<strong>复核通过，上链</strong>」。不对就点「<strong>驳回</strong>」。</li>
+<li>确认无误，点「<strong>复核通过，上链</strong>」。会弹出「<strong>复核通过并上链？</strong>」，写明这个地址会写进 NEAR 测试网的公开登记表、上链后不能撤回。点「<strong>确认上链</strong>」才真的上链。不对就点「<strong>驳回</strong>」。</li>
 </ol>
 <figure class="shot"><img src="img/online/30-addr-review.png" alt="复核地址" loading="lazy" width="375"><figcaption>复核地址</figcaption></figure>
 <p><em>图 5-3：待复核的 TRON 地址，下面是「复核通过，上链」和「驳回」。</em></p>
 <figure class="shot"><img src="img/online/31-addr-onchain.png" alt="已上链" loading="lazy" width="375"><figcaption>已上链</figcaption></figure>
 <p><em>图 5-4：通过后卡片变绿：「✓ 已上链，警报 #0」，下面是交易编号。点「查看」可跳到警报登记表。</em></p>
 <blockquote>
-<p>「复核通过，上链」点下去<strong>没有二次确认</strong>，会直接上链。请先核对清楚。「驳回」会再问一次，驳回后不能撤销。</p>
+<p>「驳回」也会再问一次，驳回后不能撤销。</p>
 </blockquote>
-<p>上传的聊天记录里的地址，也是在这里（或上传结果页）复核。</p>
+<h4 id="地址下面有黄色警告怎么办">地址下面有黄色警告怎么办</h4>
+<p>骗子发现对面是诱饵、或者起了疑心以后，可能故意发一个<strong>不相干的地址</strong>（交易所的、代币合约的、别人的老钱包），想借我们的手冤枉无辜的人。系统会自动检查每个抽到的地址：</p>
+<ul>
+<li><strong>能确定是无辜的，直接拦下</strong>：比如 USDT、USDC 的合约地址，交易所的热钱包。卡片上显示「被防投毒过滤拦下」，不会上链，不用你管。</li>
+<li><strong>拿不准的，挂黄色警告</strong>：地址照样等你复核，但卡片上会逐条列出警告。</li>
+</ul>
+<figure class="shot"><img src="img/online/46-addr-warnings.png" alt="带警告的地址" loading="lazy" width="375"><figcaption>带警告的地址</figcaption></figure>
+<p><em>图 5-5：这个 TRON 地址挂了两条警告：「对方起疑后才给的地址 · 第 5 轮骗子问：『你该不会是机器人吧？』」和「链上没查到，请手动核实」。</em></p>
+<div class="table-wrap"><table><thead><tr>
+<th>警告</th>
+<th>意思</th>
+<th>你要核实什么</th>
+</tr>
+</thead><tbody><tr>
+<td>「合约地址，不是个人钱包」</td>
+<td>这个地址在链上是个合约</td>
+<td>到区块浏览器看它是什么合约。正常的收款地址是个人钱包</td>
+</tr>
+<tr>
+<td>「老账户或交易很多，可能是机构」</td>
+<td>链上交易一万笔以上，或账户两年以上</td>
+<td>是不是交易所、支付机构的地址？骗子也可能用老号，要看具体记录</td>
+</tr>
+<tr>
+<td>「链上没查到，请手动核实」</td>
+<td>系统查链上时超时或出错</td>
+<td>自己到区块浏览器把上面两项查一遍</td>
+</tr>
+<tr>
+<td>「对方起疑后才给的地址」</td>
+<td>骗子在给这个地址之前问过「你是不是机器人 / AI / 警察」，或者诱饵自己说漏了是 AI</td>
+<td>回到对话里那一轮看：骗子是不是已经识破了，故意给了个假地址？</td>
+</tr>
+<tr>
+<td>「说的网络和地址对不上」</td>
+<td>比如嘴上说「TRC20」，给的却是 0x 开头的地址</td>
+<td>是骗子说错了，还是故意给的别人的地址？</td>
+</tr>
+</tbody></table></div><p>有警告的地址，点「复核通过，上链」后，弹窗里每条警告前面都有一个勾选框「<strong>我已核实</strong>」。<strong>每条都勾上，「确认上链」才能点</strong>。服务器也会检查，绕不过去。</p>
+<figure class="shot"><img src="img/online/47-warn-confirm.png" alt="逐条核实" loading="lazy" width="375"><figcaption>逐条核实</figcaption></figure>
+<p><em>图 5-6：弹窗「通过前请核实（2 条）」。只勾了第一条，「确认上链」还是灰的，下面提示「每条警告都勾上才能提交」。</em></p>
+<blockquote>
+<p><strong>拿不准就驳回。</strong> 我们宁可漏掉一个骗子地址，也不能把无辜的人写进公开的警报登记表。</p>
+</blockquote>
+<p>专家在对练里也能看到这些警告（卡片下面写「等审核者处理」），但只有审核者能通过。</p>
+<p>上传的聊天记录里的地址，也是在这里（或上传结果页）复核，同样会做上面这些检查。</p>
 <h3 id="53-邀请同事">5.3 邀请同事</h3>
 <ol>
 <li>点「团队」。</li>
 <li>在「生成邀请码」里填「名字」，选「角色」（「专家」或「审核者」），点「<strong>生成</strong>」。</li>
 </ol>
 <figure class="shot"><img src="img/online/32-team-form.png" alt="生成邀请码" loading="lazy" width="375"><figcaption>生成邀请码</figcaption></figure>
-<p><em>图 5-5：给新同事&quot;专家小李&quot;生成邀请码。</em></p>
+<p><em>图 5-7：给新同事&quot;专家小李&quot;生成邀请码。</em></p>
 <ol start="3">
 <li>页面显示邀请码、二维码和「网页登录」链接。<strong>邀请码只显示这一次。</strong></li>
 <li>点「<strong>复制链接</strong>」，<strong>私聊</strong>发给这位同事本人。</li>
 </ol>
 <figure class="shot"><img src="img/online/33-team-invite.png" alt="邀请已生成" loading="lazy" width="375"><figcaption>邀请已生成</figcaption></figure>
-<p><em>图 5-6：邀请已生成（图中邀请码、二维码和链接已打码）。点「复制链接」发给同事。「绑定 Telegram」一栏目前显示没有配置机器人，忽略即可。</em></p>
+<p><em>图 5-8：邀请已生成（图中邀请码、二维码和链接已打码）。点「复制链接」发给同事。「绑定 Telegram」一栏目前显示没有配置机器人，忽略即可。</em></p>
 <p>发链接的注意事项：</p>
 <ul>
 <li>只私聊发给本人，<strong>不要发群</strong>。</li>
@@ -519,9 +733,9 @@ html{scroll-behavior:smooth}
 <li>点「<strong>撤销</strong>」→「<strong>确定撤销</strong>」。撤销后这个人立刻被登出，链接作废。</li>
 </ol>
 <figure class="shot"><img src="img/online/34-revoke-confirm.png" alt="撤销确认" loading="lazy" width="375"><figcaption>撤销确认</figcaption></figure>
-<p><em>图 5-7：点「撤销」后出现红色「确定撤销」和「取消」。</em></p>
+<p><em>图 5-9：点「撤销」后出现红色「确定撤销」和「取消」。</em></p>
 <blockquote>
-<p><strong>已知问题（2026-11-10）</strong>：目前点「确定撤销」会提示「操作没有成功：invite not found」，网页撤销不生效。修好之前，请找开发在服务器上用邀请命令（invite <code>--revoke</code>）按这个人的用户 ID 撤销；用户 ID 在下面的审计日志里，形如 <code>u_xxxxxxxxxx</code>。</p>
+<p>11-10 写教学时发现的「撤销提示 invite not found、网页撤销不生效」已经修好，现在网页上撤销就行。</p>
 </blockquote>
 <p>「团队」页最下面还有「审计日志」，记录谁在什么时间做了什么。</p>
 <hr>
@@ -544,7 +758,7 @@ html{scroll-behavior:smooth}
 </tr>
 <tr>
 <td>Claude Haiku 5.5</td>
-<td>非 TEE · 最便宜</td>
+<td>非 TEE · 便宜</td>
 <td>想看另一家 AI 的表现时用</td>
 </tr>
 <tr>
@@ -562,7 +776,7 @@ html{scroll-behavior:smooth}
 <p><strong>Q：额度用完了怎么办？</strong>
 名字旁边的数字到了上限（比如 200/200），今天的大模型就用完了。这时对练会自动换成&quot;规则模式&quot;：诱饵只会说模板话，练习效果差。请明天再练。额度每天<strong>北京时间早上 8 点</strong>重置。</p>
 <blockquote>
-<p>名字旁的数字不会实时跳，<strong>刷新页面</strong>才会更新。点名字可以看到「今日大模型额度：已用 X / 共 Y 次」。</p>
+<p>AI 说完话后一两秒，名字旁的数字会自己更新（以前要刷新页面，11-10 已修好）。点名字可以看到「今日大模型额度：已用 X / 共 Y 次」。</p>
 </blockquote>
 <p><strong>Q：我发了话，AI 不回？</strong></p>
 <ol>
@@ -585,12 +799,24 @@ html{scroll-behavior:smooth}
 <li>训练用的「好 / 差 / 有风险 / ✎ 改写」只在<strong>训练模式打开</strong>时出现，只出现在<strong>诱饵</strong>的话下面。</li>
 <li>对话框可以单独滑动。按钮可能在框里面更下方。</li>
 </ul>
+<p><strong>Q：我接管了诱饵，怎么看不到「骗子：…」那一行和「骗子心智」了？</strong>
+这是故意的。你扮诱饵（「接管」或「AI + 耳语」）时，骗子的人物卡、心里话、骗子心智都会藏起来，免得你「开天眼」。把诱饵切回「AI」就能看到。见 2.6、2.10。</p>
+<p><strong>Q：没有看到「诱饵：…」人物卡和「💭 心里话」？</strong></p>
+<ul>
+<li>11-11 之前开的旧对局没有这些，开一局新的。</li>
+<li>「💭 心里话」只在 <strong>AI</strong> 说的话上有；你亲手打的话没有。</li>
+<li>额度用完、换成「规则模式」时，诱饵还会用人物卡，但没有心里话。</li>
+</ul>
+<p><strong>Q：骗子突然不回了 / 说了句「算了」就走了？</strong>
+骗子难度是「真实」时，骗子连续两轮怀疑度 90 以上就会跑掉（「骗子心智」里会记一条「跑了」）。说明诱饵前面露了馅：回头看是哪几句，打「差」或改写。想先练流程，可以开局时把「骗子难度」选「简单」。</p>
+<p><strong>Q：地址卡片下面有黄色警告？</strong>
+这是系统觉得这个地址可能不是骗子自己的收款地址（比如骗子起疑后才给的、是合约地址）。专家不用处理，审核者会逐条核实，见 5.2。</p>
 <p><strong>Q：在微信里打开链接，页面不正常？</strong>
 点右上角「…」→「在浏览器打开」。</p>
 <p><strong>Q：怎么退出登录？</strong>
 点顶部你的名字，弹出菜单里点「退出登录」。</p>
 <figure class="shot"><img src="img/online/26-user-menu.png" alt="账号菜单" loading="lazy" width="375"><figcaption>账号菜单</figcaption></figure>
-<p><em>图 7-1：点名字后弹出的菜单。在手机上这个菜单会偏到屏幕左边外面一点，只露出「…出登录」，点它就是「退出登录」。</em></p>
+<p><em>图 7-1：点名字后弹出的菜单：名字和角色、今日额度，下面是「使用教学」「重新带我走一遍」「退出登录」。（截图是本地样例账号「老周」，额度 /100；线上显示你自己的名字，每天 200 次。）</em></p>
 <p>退出后，要再用邀请链接才能登录。<strong>一般不用退出</strong>；只有借别人手机用过时，用完一定要退出。</p>
 <p><strong>Q：我点了别人的邀请链接，结果还是自己的账号？</strong>
 手机已经登录时，点别人的链接不会切换账号。要先「退出登录」，再点链接。（正常情况下你不该拿到别人的链接。）</p>
@@ -647,12 +873,32 @@ html{scroll-behavior:smooth}
 <td>点「AI + 耳语」→ 写 →「耳语」→「⇥ 单步」</td>
 </tr>
 <tr>
+<td>选骗子难度</td>
+<td>开局前「骗子难度」：「真实（会起疑）」或「简单」</td>
+</tr>
+<tr>
+<td>看诱饵演的是谁</td>
+<td>聊天上方「诱饵：…」→「人物卡 ›」</td>
+</tr>
+<tr>
+<td>看骗子的面具和真人</td>
+<td>聊天上方「骗子：…」→「人物卡 ›」（扮诱饵时看不到）</td>
+</tr>
+<tr>
+<td>看 AI 怎么想的</td>
+<td>那句话左上角「💭 心里话」</td>
+</tr>
+<tr>
+<td>看套到了什么、骗子起没起疑</td>
+<td>「抽到的地址」里「诱饵心智」「骗子心智」，点标题展开</td>
+</tr>
+<tr>
 <td>夸一句</td>
-<td>诱饵这句下面点「好」</td>
+<td>诱饵这句下面点「好」→（可选）点原则标签 →「保存标签」</td>
 </tr>
 <tr>
 <td>批一句</td>
-<td>「差」或「有风险」→ 选标签 → 写理由 →「保存评分」</td>
+<td>「差」或「有风险」→（「差」可选原则标签）→ 选战术标签 → 写理由 →「保存评分」</td>
 </tr>
 <tr>
 <td>改一句</td>
@@ -676,7 +922,7 @@ html{scroll-behavior:smooth}
 </tr>
 <tr>
 <td>看今天还剩多少次</td>
-<td>刷新后看名字旁边的数字；或点名字</td>
+<td>看名字旁边的数字；或点名字</td>
 </tr>
 <tr>
 <td>退出</td>
