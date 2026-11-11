@@ -17,6 +17,7 @@ jobs:
   secrets:
     name: Secret scan (gitleaks, full history)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,6 +42,9 @@ jobs:
     name: Typecheck · test · pnpm demo --ci
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Tests and the demo are offline and keyless: no public RPC lookups, LLM falls back to rules.
+      BAITNET_ONCHAIN_LOOKUP: "off"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -77,9 +81,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # Integration tests load the committed wasm (registry/res, vault/res), so no wasm32 target here.
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: contracts
