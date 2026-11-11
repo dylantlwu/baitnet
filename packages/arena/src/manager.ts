@@ -133,6 +133,7 @@ export class ArenaManager {
       // D33: real contract / activity lookup only with BAITNET_ONCHAIN_LOOKUP=on; otherwise a no-network stub
       onchain: this.opts.onchain ?? onchainLookupFromEnv(env),
       autoApprove: this.opts.autoApprove,
+      ...(this.opts.leakyDecoy ? { leakyDecoy: this.opts.leakyDecoy } : {}),
       stepDelayMs: this.opts.stepDelayMs ?? 0,
       maxTurns: this.opts.maxTurns,
       now: this.opts.now,

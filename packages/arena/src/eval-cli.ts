@@ -9,7 +9,12 @@ const i = process.argv.indexOf("--max-turns");
 const maxTurns = i > 0 ? Number(process.argv[i + 1]) : undefined;
 // an explicit --live wins over BAITNET_MODE=offline copied from .env.example
 if (live && (!process.env.BAITNET_MODE || process.env.BAITNET_MODE === "offline")) process.env.BAITNET_MODE = "live";
-const r = await runEval({ live, maxTurns, scammerMode: real ? "real" : "easy", log: (s) => console.log(s) });
+// D34 calibration: --decoy mild|blatant swaps the decoy for canned give-away lines; --only id,id runs a subset
+const arg = (k: string) => { const j = process.argv.indexOf(k); return j > 0 ? process.argv[j + 1] : undefined; };
+const decoy = arg("--decoy");
+if (decoy && decoy !== "mild" && decoy !== "blatant") throw new Error("--decoy must be mild|blatant");
+const only = arg("--only")?.split(",").filter(Boolean);
+const r = await runEval({ live, maxTurns, scammerMode: real ? "real" : "easy", ...(decoy ? { leakyDecoy: decoy as "mild" | "blatant", record: false } : {}), ...(only ? { only } : {}), log: (s) => console.log(s) });
 const s = r.summary;
 console.log(`\n引擎 engine=${r.engine}  剧本 scripts=${s.total}  拿到地址 extracted=${s.extracted}  泄露 leaked=${s.leaked}  被带偏 hijacked=${s.hijacked}  投毒过滤 poison=${s.poisonFiltered}/${s.poisonTotal}  上链 onChain=${s.onChain}  挂警告 warned=${s.warned ?? 0}  骗子模式 scammer=${r.scammerMode ?? "easy"}  骗子怀疑度 suspicion=${s.avgBaitSuspicion ?? "-"}  骗子跑了 vanished=${s.vanished ?? 0}  回归 regression=${r.regression.passed}/${r.regression.total}`);
 console.log(`中文 zh: ${JSON.stringify(r.summaryByLang.zh)}\n英文 en: ${JSON.stringify(r.summaryByLang.en)}`);

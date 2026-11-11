@@ -157,7 +157,7 @@ describe("D34 scammerMind 更新与规则怀疑度", () => {
     updateScammerMind(m, 0, { mind: { think: "t", plan: "P1" }, suspicion: { score: 80, signals: ["a", "b"] }, newFacts: ["f1"] }, { firstScore: true });
     expect(m.baitSuspicion.score).toBe(80);
     updateScammerMind(m, 2, { mind: { think: "t", plan: "P2" }, suspicion: { score: 20, signals: ["b", "c", "d", "e", "f", "g"] }, newFacts: ["f1", "f2"] });
-    expect(m.baitSuspicion.score).toBe(50);
+    expect(m.baitSuspicion.score).toBe(62); // falling moves 30 % of the way (calibration 2026-11-11)
     expect(m.baitSuspicion.signals).toEqual(["b", "c", "d", "e", "f", "g"]);
     expect(m.facts).toEqual([{ turn: 0, fact: "f1" }, { turn: 2, fact: "f2" }]);
     expect(m.plan).toBe("P2");
@@ -226,24 +226,33 @@ describe("D34 会话：LLM 骗子", () => {
     for (const k of ["CARD-HANDLE", "CARD-PRESSURE", "COVER-STORY", "COVER-CANNOT", "SM-FACT-0", "[Output format]", "fictional test data"]) expect(sys).toContain(k);
     expect(sys.indexOf("CARD-SITUATION")).toBeLessThan(sys.indexOf("COVER-STORY"));
     expect(sys.indexOf("[Output format]")).toBeLessThan(sys.length);
-    expect(sys).toMatch(/suspicion so far[^\n]*30\/100/);
+    expect(sys).toMatch(/suspicion so far[^\n]*0\/100/); // the opening line's score is ignored
     const msgs = sc[1]!.req.messages;
     expect(msgs[0]).toEqual({ role: "user", content: "(Start the conversation with your opening hook.)" });
     expect(JSON.parse(msgs[1]!.content)).toMatchObject({ think: "SM-THINK 观察", new_facts: ["SM-FACT-0"], reply: "亲，第0句" });
     expect(msgs.at(-1)!.role).toBe("user");
     expect(msgs.at(-1)!.content).toMatch(/只回一个 JSON/);
     const m = eng.session.scammerMind!;
-    expect(m.baitSuspicion.score).toBe(35);
+    expect(m.baitSuspicion.score).toBe(40);
     expect(m.facts.map((f) => f.fact)).toEqual(["SM-FACT-0", "SM-FACT-1"]);
-    expect(eng.session.turns[2]!.scammerMind).toEqual({ think: "SM-THINK 观察", plan: "SM-PLAN 下一步", baitSuspicion: 35 });
+    expect(eng.session.turns[2]!.scammerMind).toEqual({ think: "SM-THINK 观察", plan: "SM-PLAN 下一步", baitSuspicion: 40 });
     expect(eng.session.turns[2]!.text).toBe("亲，第1句");
+  });
+  it("calibration: an obvious AI tell sets a floor even when the model scores low; opening score ignored", async () => {
+    const f = fakeLLM((_r, role) => (role === "scammer" ? JSON.stringify({ think: "t", bait_suspicion: { score: 10, signals: [] }, reply: "亲，在吗" }) : "unused"));
+    const eng = new ArenaSessionEngine(testScript(), deps({ engine: "claude", llm: f.llm, leakyDecoy: "blatant" }), { scammerCard: CARD, scammerMode: "real" });
+    await steps(eng, 3);
+    expect(eng.session.turns[1]!.text).toContain("AI助手");
+    // floor 70 (AI tell), model says 10 → max(10, 70) = 70
+    expect(eng.session.scammerMind!.baitSuspicion.score).toBe(70);
+    expect(eng.session.turns[0]!.scammerMind!.baitSuspicion).toBe(0);
   });
   it("plain-text scammer answer with a card: reply kept, no crash, heuristic judges the bait line", async () => {
     const f = fakeLLM((_r, role) => (role === "scammer" ? "亲，在吗" : JSON.stringify({ think: "t", reply: "我要报警了" })));
     const eng = new ArenaSessionEngine(testScript(), deps({ engine: "claude", llm: f.llm }), { scammerCard: CARD, scammerMode: "real" });
     await steps(eng, 3);
     expect(eng.session.turns[2]!.text).toBe("亲，在吗");
-    expect(eng.session.scammerMind!.baitSuspicion.score).toBe(SUSPICION_WEIGHTS.police);
+    expect(eng.session.scammerMind!.baitSuspicion.score).toBe(60); // police floor, not floor + delta
   });
   it("decoy never sees the operator card, the mask's hidden parts or the scammer's mind", async () => {
     const { eng, calls } = llmSession([70, 70, 70]);
@@ -270,11 +279,11 @@ describe("D34 会话：LLM 骗子", () => {
     const sys = calls.filter((c) => c.role === "scammer")[2]!.req.system;
     expect(sys).not.toContain(ADDR);
     expect(sys).toContain("Do NOT give any receiving address");
-    expect(sys).toContain(CARD.tests[1]); // turn 2 already used tests[0]
+    expect(sys).toContain(CARD.tests[0]); // the opening score is ignored, so turn 4 is the first test
     expect(eng.session.turns.every((t) => !t.text.includes(ADDR))).toBe(true);
     expect(eng.session.drafts).toHaveLength(0);
-    expect(eng.session.scammerMind!.actions.map((a) => [a.turn, a.action])).toEqual([[2, "test"], [4, "test"]]);
-    expect(eng.session.scammerMind!.actions[1]!.detail).toContain("withheld");
+    expect(eng.session.scammerMind!.actions.map((a) => [a.turn, a.action])).toEqual([[4, "test"]]);
+    expect(eng.session.scammerMind!.actions[0]!.detail).toContain("withheld");
   });
   it("real: suspicion drops again → the withheld address is revealed later", async () => {
     const { eng } = llmSession([85, 85, 85, 0, 0, 0, 0]);

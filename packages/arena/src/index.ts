@@ -14,3 +14,4 @@ export * from "./decoy-checks.js";
 export * from "./decoy-mind.js";
 export * from "./scammers.js";
 export * from "./scammer-mind.js";
+export * from "./leaky-decoy.js";

@@ -79,14 +79,43 @@ const addSignals = (mind: ScammerMind, signals: string[]) => {
  * Apply one AI scammer turn (model output): facts appended (deduped), plan replaced, baitSuspicion = moving
  * average with the previous score (first score taken as is), signals deduped (≤ 6).
  */
-export function updateScammerMind(mind: ScammerMind, turn: number, out: Pick<ScammerOutput, "mind" | "suspicion" | "newFacts"> | undefined, opts: { firstScore?: boolean } = {}): ScammerMind {
+export function updateScammerMind(mind: ScammerMind, turn: number, out: Pick<ScammerOutput, "mind" | "suspicion" | "newFacts"> | undefined, opts: { firstScore?: boolean; floor?: number } = {}): ScammerMind {
   for (const f of out?.newFacts ?? []) if (!mind.facts.some((x) => x.fact === f)) mind.facts.push({ turn, fact: f });
   if (out?.mind?.plan) mind.plan = out.mind.plan;
   if (out?.suspicion) {
-    const s = out.suspicion.score;
-    mind.baitSuspicion.score = opts.firstScore ? s : Math.round((mind.baitSuspicion.score + s) / 2);
+    // D34 calibration: an objective tell found by code sets a floor; suspicion rises fast and decays slowly
+    const s = Math.max(out.suspicion.score, opts.floor ?? 0);
+    mind.baitSuspicion.score = opts.firstScore ? s : smoothSuspicion(mind.baitSuspicion.score, s);
     addSignals(mind, out.suspicion.signals);
   }
+  return mind;
+}
+
+/**
+ * D34 calibration (2026-11-11 live run): the model under-reacted (score 20 after "作为一个AI助手") and a plain
+ * average was too slow to reach the 80 threshold before the address stage. Rising moves 70 % of the way,
+ * falling only 30 %.
+ */
+export function smoothSuspicion(prev: number, next: number): number {
+  return Math.round(next >= prev ? prev + 0.7 * (next - prev) : prev + 0.3 * (next - prev));
+}
+
+/** Minimum suspicion an objective, code-detected tell in the latest bait line justifies (0 = none). */
+export function suspicionFloor(h: SuspicionHeuristic, lang: Lang): number {
+  const L = SIGNAL[lang];
+  const has = (k: keyof (typeof SIGNAL)["zh"]) => h.signals.includes(L[k]);
+  if (has("admitsAi")) return 90;
+  if (has("aiTell") && has("police")) return 85;
+  if (has("aiTell")) return 70;
+  if (has("police")) return 60;
+  return 0;
+}
+
+/** Raise the current score to the floor at once (LLM path, before the stance is decided). */
+export function applySuspicionFloor(mind: ScammerMind, h: SuspicionHeuristic, lang: Lang): ScammerMind {
+  const floor = suspicionFloor(h, lang);
+  if (floor > mind.baitSuspicion.score) mind.baitSuspicion.score = floor;
+  if (floor) addSignals(mind, h.signals);
   return mind;
 }
 

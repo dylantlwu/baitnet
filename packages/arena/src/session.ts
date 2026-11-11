@@ -49,8 +49,11 @@ import { initDecoyMind, selectPersona } from "./personas.js";
 import { admitsAi, checkDraft, describeHits, type CheckHit } from "./decoy-checks.js";
 import { codeIntel, parseDecoyOutput, updateDecoyMind, type DecoyOutput } from "./decoy-mind.js";
 import { initScammerMind, selectScammerCard } from "./scammers.js";
+import { leakyDecoyLine, type LeakyDecoyLevel } from "./leaky-decoy.js";
 import {
   applySuspicionDelta,
+  applySuspicionFloor,
+  suspicionFloor,
   parseScammerOutput,
   scammerStance,
   stripWithheld,
@@ -71,6 +74,8 @@ const SCAMMER_MAX_TOKENS = 900;
 export type ArenaDraft = ArenaSession["drafts"][number];
 
 export interface SessionDeps {
+  /** D34 calibration (eval only): canned decoy lines that deliberately give the decoy away. */
+  leakyDecoy?: LeakyDecoyLevel;
   engine: ArenaEngine;
   llm?: LLMProvider;
   /** D30: the model the expert picked (recorded on the session; `llm` is what it resolved to) */
@@ -434,12 +439,15 @@ export class ArenaSessionEngine extends EventEmitter {
     const scammerSoFar = this.session.turns.filter((t) => t.side === "scammer").map((t) => t.text).join("\n");
     const useLlm = await this.llmAllowed("scammer");
     let heuristic: SuspicionHeuristic | undefined;
+    let floorHint: SuspicionHeuristic | undefined;
     let stance: ScammerStance | undefined;
     if (card && mind) {
       // rules: judge the latest bait line now; LLM: the model judges it in its answer (stance uses the score so far)
       if (!useLlm && lastBait !== undefined) applySuspicionDelta(mind, (heuristic = suspicionFromBait(lastBait, lang, scammerSoFar)));
+      // LLM: objective tells in the latest bait line count before the stance (no one-turn lag for them)
+      if (useLlm && lastBait !== undefined) applySuspicionFloor(mind, (floorHint = suspicionFromBait(lastBait, lang, scammerSoFar)), lang);
       const score = mind.baitSuspicion.score;
-      const prevScore = useLlm ? recorded.at(-2) : recorded.at(-1);
+      const prevScore = recorded.at(-1);
       stance = scammerStance({ mode: this.scammerMode, card, script: this.script, plan: this.scammerRules.plan(), score, prevScore, actions: mind.actions, turnIndex });
     }
     const withheld = stance?.withheld ?? [];
@@ -477,9 +485,15 @@ export class ArenaSessionEngine extends EventEmitter {
     }
     let scammerMind: ArenaTurn["scammerMind"];
     if (card && mind) {
-      if (out?.mind) updateScammerMind(mind, turnIndex, out, { firstScore: recorded.length === 0 });
+      // the opening line has no victim message to judge: its model score is ignored (calibration 2026-11-11)
+      const judged = lastBait !== undefined ? out : out && { ...out, suspicion: undefined };
+      const firstScore = this.session.turns.filter((t) => t.side === "bait").length === 1;
+      const floor = floorHint ? suspicionFloor(floorHint, lang) : 0;
+      if (judged?.mind) updateScammerMind(mind, turnIndex, judged, { firstScore, ...(floor ? { floor } : {}) });
       // no score from the model (plain text / rules fallback): the heuristic judges the bait line instead
-      if (!out?.suspicion && !heuristic && stance?.action !== "vanish" && lastBait !== undefined) applySuspicionDelta(mind, (heuristic = suspicionFromBait(lastBait, lang, scammerSoFar)));
+      // (unless its floor was already applied for this same line)
+      if (!judged?.suspicion && !heuristic && !floor && stance?.action !== "vanish" && lastBait !== undefined) applySuspicionDelta(mind, (heuristic = suspicionFromBait(lastBait, lang, scammerSoFar)));
+      if (!heuristic && floor && !judged?.suspicion) heuristic = floorHint;
       if (stance?.action) mind.actions.push({ turn: turnIndex, action: stance.action, detail: stance.detail ?? "" });
       const think = out?.mind?.think || (heuristic ? heuristicThink(heuristic, lang) : lang === "zh" ? "开场" : "opening");
       scammerMind = {
@@ -578,7 +592,9 @@ export class ArenaSessionEngine extends EventEmitter {
 
     let draft: string;
     let out: DecoyOutput | undefined; // set only when the LLM wrote the line
-    if (await this.llmAllowed("bait")) {
+    if (this.deps.leakyDecoy) {
+      draft = leakyDecoyLine(this.deps.leakyDecoy, lang, this.session.turns.filter((t) => t.side === "bait").length);
+    } else if (await this.llmAllowed("bait")) {
       try {
         out = await this.llmBait(lang, playbook, whisper);
         draft = out.reply;

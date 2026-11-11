@@ -174,6 +174,10 @@ export interface EvalOptions {
   record?: boolean;
   /** D34: "easy" (default: stable regression numbers) or "real" (adversarial scammer) */
   scammerMode?: ScammerMode;
+  /** D34 calibration: replace the decoy with canned give-away lines ("mild" | "blatant"). */
+  leakyDecoy?: import("./leaky-decoy.js").LeakyDecoyLevel;
+  /** Only run these script ids. */
+  only?: string[];
 }
 
 export async function runEval(opts: EvalOptions = {}): Promise<EvalReportX> {
@@ -187,9 +191,10 @@ export async function runEval(opts: EvalOptions = {}): Promise<EvalReportX> {
     maxTurns: opts.maxTurns ?? 24,
     scripts: opts.scripts,
     scammerMode: opts.scammerMode ?? "easy",
+    ...(opts.leakyDecoy ? { leakyDecoy: opts.leakyDecoy } : {}),
     ...(opts.engine ? { engine: opts.engine, llm: opts.llm } : opts.live ? {} : { engine: "rules" as const }),
   });
-  const scripts = await mgr.scripts();
+  const scripts = (await mgr.scripts()).filter((x) => !opts.only?.length || opts.only.includes(x.id));
   const cases: EvalCase[] = [];
   const langOf: Record<string, Lang> = {};
   let engine: ArenaEngine = "rules";
