@@ -8,7 +8,7 @@
 
 - [ ] 主帖含 **built at NEAR HACKATHON**、**@NEARProtocol**、**#NEARHackathon**（三项都是硬要求）
 - [ ] 主帖附视频（[视频脚本](视频脚本.md) 的 **2:20 版**）；没有视频时至少附 2 张截图：`docs/manual/img/page-guard.jpg`（拦截日志）和 `docs/manual/img/arena-address-extracted.jpg`（抽到地址）
-- [ ] **GitHub 仓库 `dylantlwu/baitnet` 已设为公开**（2026-11-11 检查时未登录访问是 404，即还是私有）。没公开前不要发帖，串推 5 的 repo 链接会打不开
+- [x] GitHub 仓库 `dylantlwu/baitnet` 已设为公开（2026-11-11）
 - [ ] 打开串推 5 的两个链接各试一次（线上版不用登录也能看登记表和 TEE 页）
 - [ ] 可选：在串推 5 末尾加 @NearLegion @NearBuilders（各 12～13 字符，串推 5 还剩 34 字符，够）
 - [ ] 发完把**主帖链接**填进提交表单的 "Demo post link"
