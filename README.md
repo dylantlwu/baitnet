@@ -143,6 +143,17 @@ pnpm contracts:test      # cargo test (unit + near-workspaces integration tests)
 
 CI (`.github/workflows/ci.yml`): typecheck, unit tests, `pnpm demo --ci` and `--ci --full`, `cargo test` for contracts, the ignored-source check, and a gitleaks scan of the full git history.
 
+> **CI status:** GitHub Actions currently can't start jobs for this account ("account is locked due to a billing issue"). Until that is cleared, the same steps were run locally on commit `973c9aa` (2026-11-11, macOS arm64, Node 24) and all passed:
+>
+> | CI step | Local result |
+> |---|---|
+> | `scripts/check-secrets.sh --all`, `scripts/check-ignored-sources.sh` | pass |
+> | `pnpm install --frozen-lockfile`, `pnpm typecheck` | pass |
+> | `pnpm test` | 768 passed |
+> | `pnpm demo --ci` / `pnpm demo --ci --full` (`BAITNET_REQUIRE_CHAIN=1`) | `✓ 全部通过` ("all passed"), exit 0 |
+> | `cargo test --locked` (contracts) | 56 passed (registry 29, vault 22, integration 5) |
+> | gitleaks full-history scan | not run locally (gitleaks not installed); runs in CI once Actions is back |
+
 ## Testnet deployment
 
 | Contract / account | Testnet id | Explorer |

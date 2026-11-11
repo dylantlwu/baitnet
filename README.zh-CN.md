@@ -113,6 +113,8 @@ sandbox 下载失败或无法启动时，`pnpm demo` 会退回后端的内存登
 
 2026-11-11 跑 `pnpm test`：8 个包共 768 个 TypeScript 测试，全部通过（web 216、arena 203、agent 87、scriptlab 80、server 69、training 45、guard 44、im 24）。Rust 合约测试 56 个（registry 29、vault 22、near-workspaces 集成 5），用 `pnpm contracts:test` 运行（需要 Rust）。各模块说明见 [docs/02_系统分析.md](docs/02_系统分析.md) §3。
 
+> **CI 状态**：GitHub Actions 目前因为账户账单被锁，任务起不来。解锁前，CI 的各个步骤已在本机对提交 `973c9aa` 跑过一遍（2026-11-11，macOS arm64，Node 24），全部通过：密钥检查和忽略文件检查通过；`pnpm typecheck` 通过；`pnpm test` 768 个通过；`pnpm demo --ci` 和 `--ci --full`（`BAITNET_REQUIRE_CHAIN=1`）都是 `✓ 全部通过`；合约 `cargo test --locked` 56 个通过。gitleaks 全历史扫描本机没装，没跑，等 Actions 恢复后在 CI 里跑。
+
 ## NEAR 用在哪里
 
 | NEAR 功能 | BaitNet 怎么用 | 代码 |
