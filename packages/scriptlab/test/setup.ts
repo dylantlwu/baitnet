@@ -8,3 +8,4 @@ delete process.env.NEARAI_API_KEY;
 delete process.env.ANTHROPIC_API_KEY;
 delete process.env.NEARAI_CLAUDE_MODEL;
 delete process.env.BAITNET_LLM;
+delete process.env.BAITNET_ONCHAIN_LOOKUP; // D33: never hit public RPC / TronGrid in tests

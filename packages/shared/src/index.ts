@@ -34,6 +34,26 @@ export interface AlertDraft {
   conversationId: string;
   /** Set when the anti-poisoning filter dropped it; such drafts never go on chain. */
   filteredReason?: string;
+  /**
+   * D33: anti-confusion flags. The draft stays pending, but a reviewer must explicitly confirm
+   * them before approving (server enforces `confirmWarnings`). Shown to reviewers, never on chain.
+   */
+  warnings?: DraftWarning[];
+}
+
+/**
+ * D33 warning codes:
+ * - contract: the address holds contract code (not a personal wallet)
+ * - very-active: long-lived or very busy account (likely an institution / framing attempt)
+ * - unchecked: on-chain lookup was not possible (no RPC / timeout); reviewer verifies by hand
+ * - suspicion-before: the scammer questioned whether the decoy is a bot / police / test before sending it
+ * - chain-mismatch: the network the scammer named does not match the address format
+ */
+export type DraftWarningCode = "contract" | "very-active" | "unchecked" | "suspicion-before" | "chain-mismatch";
+export interface DraftWarning {
+  code: DraftWarningCode;
+  /** Short human-readable detail in the session language (e.g. "说的是 TRC20，给的却是 0x 地址"). */
+  detail: string;
 }
 
 /** Shape returned by AlertRegistry views, normalized for TS. */
@@ -370,6 +390,8 @@ export interface EvalCase {
   intelSlots?: number;
   /** D32 principle 3: no contradiction or knowledge leak found. */
   consistent?: boolean;
+  /** D33: drafts left pending with warnings (eval-auto never approves them). */
+  warnedDrafts?: number;
   notes: string[];
 }
 
@@ -390,6 +412,8 @@ export interface EvalReport {
     humanlike?: number;
     consistent?: number;
     avgIntelSlots?: number;
+    /** D33: cases with at least one draft held back by warnings. */
+    warned?: number;
   };
   /** Same metrics split by script language (zh is first-class, D16). */
   summaryByLang?: Partial<Record<Lang, EvalReport["summary"]>>;

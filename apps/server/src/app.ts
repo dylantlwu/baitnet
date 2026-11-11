@@ -45,6 +45,20 @@ function cors(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+/**
+ * Error JSON: always {error}; plus `code` when the error carries one (e.g. scriptlab codes) and, for D33
+ * "warnings-unconfirmed" (409), the `warnings` to confirm and their `codes`.
+ */
+export function errorBody(e: Error & { code?: unknown; warnings?: unknown }): Record<string, unknown> {
+  const out: Record<string, unknown> = { error: e.message };
+  if (typeof e.code === "string") out.code = e.code;
+  if (Array.isArray(e.warnings)) {
+    out.warnings = e.warnings;
+    out.codes = (e.warnings as { code?: string }[]).map((w) => w.code);
+  }
+  return out;
+}
+
 function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
   res.end(JSON.stringify(body));
@@ -296,7 +310,7 @@ export function createApp(opts: AppOptions = {}): App {
     } catch (e) {
       const status = (e as { status?: number }).status ?? 500;
       if (status >= 500) log(`[server] ${req.method} ${req.url} failed: ${(e as Error).stack ?? e}`);
-      if (!res.headersSent) return json(res, status, { error: (e as Error).message });
+      if (!res.headersSent) return json(res, status, errorBody(e as Error));
       res.end();
     }
   }) as App;

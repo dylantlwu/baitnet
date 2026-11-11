@@ -26,8 +26,14 @@ import {
   sha256Hex,
   saveReport,
   extractFromConversation,
+  disabledOnchainLookup,
+  mergeWarnings,
+  onchainVerdict,
+  textWarnings,
+  UnconfirmedWarningsError,
   type AccountAgeCheck,
   type KnownEntityFilter,
+  type OnchainLookup,
   type LLMProvider,
   type ChatMessage,
 } from "@baitnet/agent";
@@ -39,7 +45,7 @@ import { filterBaitText, isInjection, looksHijacked } from "./safety.js";
 import type { PlaybookRetriever } from "./deps.js";
 import { decoyReadyPlaybook, hasPlaceholder, naturalizePlaceholders } from "./placeholders.js";
 import { initDecoyMind, selectPersona } from "./personas.js";
-import { checkDraft, describeHits, type CheckHit } from "./decoy-checks.js";
+import { admitsAi, checkDraft, describeHits, type CheckHit } from "./decoy-checks.js";
 import { codeIntel, parseDecoyOutput, updateDecoyMind, type DecoyOutput } from "./decoy-mind.js";
 
 /** Bait answers carry a JSON mind (think / plan / facts …) now; 400 tokens could cut the reply off. */
@@ -56,6 +62,8 @@ export interface SessionDeps {
   retriever: PlaybookRetriever;
   known: KnownEntityFilter;
   age: AccountAgeCheck;
+  /** D33 on-chain contract / activity lookup (default: off, no network) */
+  onchain?: OnchainLookup;
   /** eval mode: approve L1 drafts automatically (still logged as review) */
   autoApprove?: boolean;
   stepDelayMs?: number;
@@ -392,10 +400,11 @@ export class ArenaSessionEngine extends EventEmitter {
     return turn;
   }
 
-  /** M2 on every scammer message: extract → filter → pending drafts. */
+  /** M2 on every scammer message: extract → filter → D33 anti-confusion checks → pending drafts. */
   private async afterScammer(turn: ArenaTurn) {
     if (!this.metrics.injectionTurns.includes(turn.index) && isInjection(turn.text)) this.metrics.injectionTurns.push(turn.index);
     const ex = extractFromText(turn.text);
+    const lang = this.script.lang;
     for (const a of ex.addresses) {
       const key = safeTargetKey(a);
       if (this.session.drafts.some((d) => safeTargetKey(d) === key)) continue;
@@ -419,10 +428,32 @@ export class ArenaSessionEngine extends EventEmitter {
           draft.review = "rejected";
         }
       }
+      if (draft.review === "pending") {
+        // D33: token contract → filtered; contract / very active / lookup failed / suspicion / chain mismatch → warnings
+        const oc = onchainVerdict(await (this.deps.onchain ?? disabledOnchainLookup).kind(a, a.assetHint), lang, this.now());
+        if (oc.filteredReason) {
+          draft.filteredReason = oc.filteredReason;
+          draft.review = "rejected";
+        } else {
+          const turns = this.session.turns.map((t) => ({ role: t.side, text: t.text }));
+          const admitted = this.session.turns
+            .filter((t) => t.side === "bait" && t.author === "ai" && t.index < turn.index)
+            .flatMap((t) => {
+              const q = admitsAi(t.text);
+              return q ? [{ turn: t.index, quote: q }] : [];
+            });
+          const warnings = mergeWarnings(oc.warnings, textWarnings({ ...a, turnIndex: turn.index }, turns, lang, admitted));
+          if (warnings.length) {
+            draft.warnings = warnings;
+            this.log(`[arena] ${this.session.id}: ${a.chain}:${a.address} warnings: ${warnings.map((w) => w.code).join(", ")}`);
+          }
+        }
+      }
       this.session.drafts.push(draft);
       const idx = this.session.drafts.length - 1;
       this.emitEvent({ type: "draft", sessionId: this.session.id, draftIndex: idx, draft });
-      if (this.deps.autoApprove && draft.review === "pending") await this.review(idx, true, "eval-auto");
+      // eval-auto never approves a draft with D33 warnings: those need a human to confirm each one
+      if (this.deps.autoApprove && draft.review === "pending" && !draft.warnings?.length) await this.review(idx, true, "eval-auto");
     }
   }
 
@@ -594,10 +625,15 @@ export class ArenaSessionEngine extends EventEmitter {
   }
 
   // ------------------------------------------------------------------ review → chain
-  async review(draftIndex: number, approve: boolean, reviewer = "operator"): Promise<ArenaDraft> {
+  /**
+   * Approve / reject a pending draft. A draft carrying D33 `warnings` is approved only with
+   * `opts.confirmWarnings === true` (the reviewer checked each one); otherwise UnconfirmedWarningsError (HTTP 409).
+   */
+  async review(draftIndex: number, approve: boolean, reviewer = "operator", opts: { confirmWarnings?: boolean } = {}): Promise<ArenaDraft> {
     const d = this.session.drafts[draftIndex];
     if (!d) throw new Error(`no draft ${draftIndex}`);
     if (d.review !== "pending") throw new Error(`draft ${draftIndex} already ${d.review}${d.filteredReason ? ` (${d.filteredReason})` : ""}`);
+    if (approve && d.warnings?.length && opts.confirmWarnings !== true) throw new UnconfirmedWarningsError(d.warnings);
     if (!approve) {
       d.review = "rejected";
       this.emitEvent({ type: "draft", sessionId: this.session.id, draftIndex, draft: d });
@@ -618,7 +654,7 @@ export class ArenaSessionEngine extends EventEmitter {
     d.alertId = r.value;
     if (r.txHash) d.txHash = r.txHash;
     saveReport({ alertId: r.value, chain: d.chain, address: d.address, txHash: r.txHash, evidenceHash: d.evidenceHash, conversationId: d.conversationId, at: this.now().toISOString() });
-    this.log(`[review] ${reviewer} approved ${d.chain}:${d.address} → alert #${r.value} tx ${r.txHash ?? "-"}`);
+    this.log(`[review] ${reviewer} approved ${d.chain}:${d.address} → alert #${r.value} tx ${r.txHash ?? "-"}${d.warnings?.length ? ` (confirmed ${d.warnings.length} warning(s): ${d.warnings.map((w) => w.code).join(", ")})` : ""}`);
     this.emitEvent({ type: "draft", sessionId: this.session.id, draftIndex, draft: d });
     this.emitEvent({ type: "onchain", sessionId: this.session.id, draftIndex, alertId: r.value, ...(r.txHash ? { txHash: r.txHash } : {}) });
     return d;

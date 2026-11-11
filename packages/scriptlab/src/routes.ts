@@ -13,6 +13,8 @@ export type ScriptLabContext = RouteContext & {
   registry?: ReviewDeps["registry"];
   /** NEAR RPC for the M2 account-age check (optional) */
   rpcUrl?: string;
+  /** D33 on-chain lookup for reviews (default from env: off unless BAITNET_ONCHAIN_LOOKUP=on) */
+  onchain?: ReviewDeps["onchain"];
   /** M10 verifier (apps/server/src/attestation.ts module) for zero-retention attestation */
   attestation?: M10Verifier;
 };
@@ -37,7 +39,8 @@ async function wrap<T>(fn: () => T | Promise<T>): Promise<T> {
  *   POST /scripts/analyze-ephemeral   same body → ScriptAnalysis & {ephemeral: true, attestation} — NOTHING is stored (D27)
  *   POST /scripts/analyses/:id/save   {draft, analysis?} → saved ScamScriptDef
  *                                     (analysis = the zero-retention result, sent only after the user confirms "save")
- *   POST /scripts/analyses/:id/review {draftIndex, approve} → updated alertDraft
+ *   POST /scripts/analyses/:id/review {draftIndex, approve, confirmWarnings?} → updated alertDraft
+ *        (D33: a draft with `warnings` needs confirmWarnings: true, else 409 {error, code: "warnings-unconfirmed", warnings, codes})
  *        (approve: M2 anti-poisoning → filtered: review "rejected" + filteredReason; else AlertRegistry.report → alertId/txHash)
  *   GET  /scripts/uploaded            → ScamScriptDef[] (saved uploads; Arena merges these)
  *   GET  /scripts/engine              → {engine: "llm"|"rules"} (which engine an upload would use now)
@@ -94,9 +97,10 @@ export function registerScriptLabRoutes(router: RouterLike, ctx: ScriptLabContex
   );
   router.post("/scripts/analyses/:id/review", (r) =>
     wrap(async () => {
-      const { draftIndex, approve } = r.body ?? {};
+      const { draftIndex, approve, confirmWarnings } = r.body ?? {};
       const reviewer = await currentExpert(r, ctx);
-      const out = await reviewAlertDraft(r.params.id!, draftIndex, approve, { registry: ctx.registry, rpcUrl: ctx.rpcUrl, log: ctx.log, reviewer }, db);
+      // D33: approving a draft with warnings needs confirmWarnings: true → else 409 {error, code: "warnings-unconfirmed", warnings, codes}
+      const out = await reviewAlertDraft(r.params.id!, draftIndex, approve, { registry: ctx.registry, rpcUrl: ctx.rpcUrl, onchain: ctx.onchain, log: ctx.log, reviewer, confirmWarnings: confirmWarnings === true }, db);
       ctx.log(`[scriptlab] review ${r.params.id}#${draftIndex} → ${out.draft.review}${out.draft.alertId !== undefined ? ` alert #${out.draft.alertId}` : ""}${out.filteredReason ? ` (${out.filteredReason})` : ""}`);
       return out.draft;
     }),

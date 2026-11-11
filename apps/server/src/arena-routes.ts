@@ -134,9 +134,10 @@ export function registerArenaRoutes(router: Router, mgr: ArenaManager, o: { auth
 
   router.post("/arena/sessions/:id/review", async ({ params, body }) => {
     const eng = live(params.id!);
-    if (typeof body?.draftIndex !== "number" || typeof body?.approve !== "boolean") throw httpError(400, "{draftIndex:number, approve:boolean} required");
+    if (typeof body?.draftIndex !== "number" || typeof body?.approve !== "boolean") throw httpError(400, "{draftIndex:number, approve:boolean, confirmWarnings?:boolean} required");
     try {
-      return await eng.review(body.draftIndex, body.approve, typeof body.reviewer === "string" ? body.reviewer : "operator");
+      // D33: a draft with warnings needs confirmWarnings: true → else 409 {error, code: "warnings-unconfirmed", warnings, codes}
+      return await eng.review(body.draftIndex, body.approve, typeof body.reviewer === "string" ? body.reviewer : "operator", { confirmWarnings: body.confirmWarnings === true });
     } catch (e) {
       throw (e as { status?: number }).status ? e : httpError(409, (e as Error).message);
     }

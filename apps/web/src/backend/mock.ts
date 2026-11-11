@@ -1,5 +1,8 @@
 import type {
+  AlertDraft,
   AttestationResult,
+  Chain,
+  DraftWarning,
   Annotation,
   ArenaSession,
   ArenaSide,
@@ -16,6 +19,7 @@ import { ARENA_MODELS, DEFAULT_ARENA_MODEL } from "@baitnet/shared";
 import { tokenize } from "../lib/tokens";
 import { analyzeUpload } from "../scriptlab/analyze";
 import { normalizeScripts } from "./normalize";
+import { HttpError } from "./http";
 import { ReadOnlyError, type ArenaStreamEvent, type Backend } from "./types";
 
 export interface MockSeed {
@@ -84,6 +88,42 @@ interface Live {
   injected: boolean;
 }
 
+/** D33 suspicion phrases (zh + en): "are you a bot / AI / police", "are you testing me", "you're a scam-baiter". */
+const SUSPICION_RE = /机器人|是不是\s*AI|人工智能|警察|测试我|钓鱼|\b(?:bot|robot|an? AI|police|cop|testing me|scam ?baiter|baiting)\b/i;
+const NETWORK_RE: [RegExp, Chain][] = [
+  [/TRC-?20|波场|\btron\b/i, "tron"],
+  [/ERC-?20|BEP-?20|\bBSC\b|以太坊|ethereum/i, "evm"],
+  [/\bBTC\b|比特币|bitcoin/i, "btc"],
+  [/\bNEAR\b/, "near"],
+];
+
+/**
+ * Offline stand-in for the server's D33 checks that need no network: suspicion-before (the scammer
+ * questioned the decoy earlier) and chain-mismatch (the network named in the same line does not fit the
+ * address). The on-chain checks (contract / very-active / unchecked) only exist on the server.
+ */
+export function mockDraftWarnings(earlierScammerLines: string[], line: string, chain: Chain, lang: string): DraftWarning[] {
+  const zh = lang === "zh";
+  const out: DraftWarning[] = [];
+  const at = earlierScammerLines.findIndex((x) => SUSPICION_RE.test(x));
+  if (at >= 0) {
+    const said = earlierScammerLines[at].slice(0, 40);
+    out.push({ code: "suspicion-before", detail: zh ? `对方第 ${at + 1} 句起疑：「${said}」` : `Scammer line ${at + 1} was suspicious: "${said}"` });
+  }
+  const named = NETWORK_RE.find(([re]) => re.test(line));
+  if (named && named[1] !== chain) {
+    const net = line.match(named[0])?.[0] ?? named[1];
+    out.push({ code: "chain-mismatch", detail: zh ? `说的是 ${net}，给的却是 ${chain} 地址` : `Said ${net}, but the address is ${chain}` });
+  }
+  return out;
+}
+
+/** Same rule as the server: a draft with warnings needs confirmWarnings=true to be approved. */
+function requireConfirm(d: Pick<AlertDraft, "warnings">, confirmWarnings?: boolean) {
+  const codes = (d.warnings ?? []).map((w) => w.code);
+  if (codes.length && !confirmWarnings) throw new HttpError(409, `confirm warnings first: ${codes.join(", ")}`, { error: "warnings-unconfirmed", warnings: codes });
+}
+
 export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; tickMs?: number } = {}): Backend {
   const readOnly = !!opts.readOnly;
   const tickMs = opts.tickMs ?? 1300;
@@ -122,11 +162,14 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
   }
 
   function extract(l: Live, text: string) {
+    const earlier = l.session.turns.slice(0, -1).filter((x) => x.side === "scammer").map((x) => x.text);
     for (const tok of tokenize(text)) {
       if (tok.kind !== "address") continue;
       if (l.session.drafts.some((d) => d.address === tok.value)) continue;
       const poison = l.script.poison && l.script.poison.address.toLowerCase() === tok.value.toLowerCase() ? l.script.poison : undefined;
+      const warnings = poison ? [] : mockDraftWarnings(earlier, text, tok.chain, l.script.lang);
       const draft = {
+        ...(warnings.length ? { warnings } : {}),
         chain: tok.chain,
         address: tok.value,
         level: "L1" as const,
@@ -293,11 +336,12 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
       guard();
       live(id).whispers[side] = text;
     },
-    async review(id, draftIndex, approve) {
+    async review(id, draftIndex, approve, confirmWarnings) {
       guard();
       const l = live(id);
       const d = l.session.drafts[draftIndex];
       if (!d || d.filteredReason) return;
+      if (approve) requireConfirm(d, confirmWarnings);
       if (!approve) {
         d.review = "rejected";
         emit(l, { type: "draft", sessionId: id, draftIndex, draft: { ...d } });
@@ -354,6 +398,13 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
       guard();
       if (opts?.ephemeral && (u.encoding === "base64" || /\.(png|jpe?g|webp|gif)$/i.test(u.filename))) throw new Error("ephemeral-image");
       const a = await analyzeUpload(u);
+      // D33 (offline): the same no-network checks as live drafts, line by line through the redacted chat
+      const lines = a.redactedText.split("\n");
+      a.alertDrafts = a.alertDrafts.map((d) => {
+        const at = lines.findIndex((x) => x.includes(d.address));
+        const w = at < 0 ? [] : mockDraftWarnings(lines.slice(0, at), lines[at], d.chain, a.draft.lang);
+        return w.length ? { ...d, warnings: w } : d;
+      });
       if (opts?.ephemeral) {
         // Zero retention: nothing is kept; the attestation of the (recorded) TEE call travels with the result.
         const att = seed.attestation ? { ...seed.attestation, recorded: true } : undefined;
@@ -375,10 +426,11 @@ export function createMockBackend(seed: MockSeed, opts: { readOnly?: boolean; ti
       else scripts.push(draft);
       return clone(draft);
     },
-    async reviewUploadDraft(id, idx, approve) {
+    async reviewUploadDraft(id, idx, approve, confirmWarnings) {
       guard();
       const a = analyses.get(id);
       if (!a || !a.alertDrafts[idx]) throw new Error("unknown draft");
+      if (approve) requireConfirm(a.alertDrafts[idx], confirmWarnings);
       a.reviewed[idx] = approve;
       return approve ? { alertId: nextAlertId++, txHash: fakeTx() } : {};
     },

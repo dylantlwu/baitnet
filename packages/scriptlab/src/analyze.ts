@@ -7,6 +7,7 @@ import {
   loadKnownEntities,
   sealEvidence,
   sha256Hex,
+  textWarnings,
   type ExtractedAddress,
   type PublicEvidence,
 } from "@baitnet/agent";
@@ -312,6 +313,11 @@ export function rulesAnalysis(p: Prepared, engine: AnalysisEngine = "rules", opt
     const d: AlertDraft = { chain: a.chain, address: a.address, level: "L1", category: scamType.value, evidenceHash, conversationId: p.id };
     const ent = known().match(a);
     if (ent) d.filteredReason = `known-entity: ${ent.name} (${ent.kind})`;
+    else {
+      // D33 text checks: the scammer doubted the other side before sending it / named network ≠ address format
+      const w = textWarnings(a, p.lines, ui);
+      if (w.length) d.warnings = w;
+    }
     return d;
   });
 
@@ -363,6 +369,8 @@ export function rulesAnalysis(p: Prepared, engine: AnalysisEngine = "rules", opt
   if (injections.length) warnings.push(zh ? `发现 ${injections.length} 句注入/诱导句，已列入 injections` : `${injections.length} injection line(s) found`);
   const filtered = alertDrafts.filter((d) => d.filteredReason).length;
   if (filtered) warnings.push(zh ? `${filtered} 个地址命中已知机构名单（疑似投毒），不会上链` : `${filtered} address(es) are known entities (possible poisoning); they will not go on chain`);
+  const warned = alertDrafts.filter((d) => d.warnings?.length).length;
+  if (warned) warnings.push(zh ? `${warned} 个地址挂了防混淆警告，审核时要逐条核实` : `${warned} address(es) carry anti-confusion warnings; confirm each before approving`);
   const piiCount = p.redactor.findings().length;
   if (piiCount)
     warnings.push(

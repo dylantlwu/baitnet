@@ -40,7 +40,7 @@ const SAFETY_RULE_ZH: Record<string, string> = {
 };
 export const safetyRuleZh = (rules: string) => rules.split(",").map((r) => SAFETY_RULE_ZH[r] ?? r).join("、");
 
-const KIND_ZH: Record<string, string> = { "exchange-hot-wallet": "交易所热钱包", "token-contract": "代币合约", bridge: "跨链桥", protocol: "协议合约" };
+const KIND_ZH: Record<string, string> = { "exchange-hot-wallet": "交易所热钱包", "exchange-wallet": "交易所钱包", "token-contract": "代币合约", "dex-router": "去中心化交易所路由合约", bridge: "跨链桥", protocol: "协议合约" };
 /** M2 filter reasons for drafts, in the session language. */
 export function knownEntityReason(name: string, kind: string, lang: Lang) {
   return lang === "zh" ? `已知机构地址：${name.replace(/\s*\([^)]*\)\s*$/, "")}（${KIND_ZH[kind] ?? kind}），不上链` : `known-entity: ${name} (${kind})`;

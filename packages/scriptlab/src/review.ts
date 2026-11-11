@@ -1,5 +1,16 @@
-import type { AlertDraft, ScriptAnalysis } from "@baitnet/shared";
-import { AccountAgeCheck, KnownEntityFilter, fixturePath, loadKnownEntities, reportDrafts } from "@baitnet/agent";
+import type { AlertDraft, Lang, ScriptAnalysis } from "@baitnet/shared";
+import {
+  AccountAgeCheck,
+  KnownEntityFilter,
+  UnconfirmedWarningsError,
+  fixturePath,
+  loadKnownEntities,
+  mergeWarnings,
+  onchainLookupFromEnv,
+  onchainVerdict,
+  reportDrafts,
+  type OnchainLookup,
+} from "@baitnet/agent";
 import { SampleAccountInfo, type RegistryClient } from "@baitnet/guard";
 import { getDefaultDb, type TrainingDb } from "@baitnet/training";
 import { ScriptLabError } from "./parse.js";
@@ -22,7 +33,31 @@ export interface ReviewDeps {
   known?: KnownEntityFilter;
   age?: AccountAgeCheck;
   rpcUrl?: string;
+  /** D33 on-chain contract / activity lookup; default from env (off unless BAITNET_ONCHAIN_LOOKUP=on) */
+  onchain?: OnchainLookup;
   log?: (line: string) => void;
+}
+
+/**
+ * D33 on-chain checks on analysis drafts: token contract → filteredReason; contract / very active / lookup failed
+ * → warnings. Drafts already filtered are left alone. Returns the same array when nothing changed.
+ */
+export async function applyOnchainChecks<D extends AlertDraft>(drafts: D[], lookup: OnchainLookup, lang: Lang, now = new Date()): Promise<D[]> {
+  let changed = false;
+  const out = await Promise.all(
+    drafts.map(async (d) => {
+      if (d.filteredReason) return d;
+      const v = onchainVerdict(await lookup.kind(d), lang, now);
+      if (v.filteredReason) {
+        changed = true;
+        return { ...d, filteredReason: v.filteredReason };
+      }
+      if (!v.warnings.length) return d;
+      changed = true;
+      return { ...d, warnings: mergeWarnings(d.warnings, v.warnings) };
+    }),
+  );
+  return changed ? out : drafts;
 }
 
 export interface ReviewOutcome {
@@ -30,6 +65,8 @@ export interface ReviewOutcome {
   /** set when the anti-poisoning filter stopped it (never goes on chain) */
   filteredReason?: string;
 }
+
+const uploaderOf = (a: ScriptAnalysis) => (a.draft.source as { citation?: string })?.citation?.match(/^uploaded by (.+?), /)?.[1] ?? "unknown";
 
 let defaultKnown: KnownEntityFilter | undefined;
 
@@ -47,7 +84,7 @@ export async function reviewAlertDraft(
   analysisId: string,
   draftIndex: number,
   approve: boolean,
-  deps: ReviewDeps & { reviewer?: string } = {},
+  deps: ReviewDeps & { reviewer?: string; confirmWarnings?: boolean } = {},
   db: TrainingDb = getDefaultDb(),
 ): Promise<ReviewOutcome> {
   const a = getAnalysis(analysisId, db);
@@ -74,6 +111,21 @@ export async function reviewAlertDraft(
       const r = await age.check(cur);
       if (!r.ok) filteredReason = `age-activity: ${r.detail}`;
     }
+    if (!filteredReason) {
+      // D33: look the address up again now (the analysis may be old, or was made with the lookup off)
+      const [checked] = await applyOnchainChecks([cur], deps.onchain ?? onchainLookupFromEnv(), a.lang);
+      filteredReason = checked!.filteredReason;
+      if (!filteredReason) {
+        const fresh = (checked!.warnings ?? []).filter((w) => !(cur.warnings ?? []).some((x) => x.code === w.code));
+        if (fresh.length) {
+          // new warnings the reviewer has not seen yet: store them (draft stays pending) and ask again
+          const withNew: ReviewedAlertDraft = { ...cur, warnings: mergeWarnings(cur.warnings, fresh) };
+          storeAnalysis({ ...a, alertDrafts: a.alertDrafts.map((d, i) => (i === draftIndex ? withNew : d)) }, uploaderOf(a), db);
+          throw new UnconfirmedWarningsError(withNew.warnings!);
+        }
+        if (cur.warnings?.length && deps.confirmWarnings !== true) throw new UnconfirmedWarningsError(cur.warnings);
+      }
+    }
     if (filteredReason) {
       log(`[scriptlab] review ${analysisId}#${draftIndex} ${cur.chain}:${cur.address} filtered — ${filteredReason}; NOT reported`);
       next = { ...cur, ...stamp, review: "rejected", filteredReason };
@@ -85,11 +137,11 @@ export async function reviewAlertDraft(
       for (const l of lines) log(`[scriptlab] ${l}`);
       if (!reported) throw new ScriptLabError("registry did not report the draft", 502, "report-failed");
       next = { ...cur, ...stamp, review: "approved", alertId: reported.alertId, txHash: reported.txHash };
+      if (cur.warnings?.length) log(`[scriptlab] review ${analysisId}#${draftIndex}: ${stamp.reviewer} confirmed ${cur.warnings.length} warning(s): ${cur.warnings.map((w) => w.code).join(", ")}`);
     }
   }
   const drafts = a.alertDrafts.map((d, i) => (i === draftIndex ? next : d));
   const updated: ScriptAnalysis = { ...a, alertDrafts: drafts };
-  const expert = (a.draft.source as { citation?: string })?.citation?.match(/^uploaded by (.+?), /)?.[1] ?? "unknown";
-  storeAnalysis(updated, expert, db);
+  storeAnalysis(updated, uploaderOf(a), db);
   return { draft: next, filteredReason };
 }

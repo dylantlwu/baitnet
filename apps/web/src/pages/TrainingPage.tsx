@@ -13,7 +13,7 @@ import { EXPERT_KEY, load, save } from "../lib/storage";
 import { fileToUpload, pastedUpload, PASTE_MAX_CHARS, SCAM_TYPES } from "../scriptlab/analyze";
 import { translateWarning } from "../i18n/vocab";
 import { defang } from "../lib/tokens";
-import { DraftItem, TACTIC_TAGS, useExpert } from "./ArenaPage";
+import { DraftItem, TACTIC_TAGS, reviewErrorText, useExpert } from "./ArenaPage";
 import { AttestationFold } from "./TeePage";
 import { NoEvalYet } from "./EvalPage";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -602,15 +602,15 @@ export function AnalysisView({ a, backend, network, expert }: { a: ScriptAnalysi
   const lines = useMemo(() => a.redactedText.split("\n"), [a.redactedText]);
   const [reviewErr, setReviewErr] = useState<string | null>(null);
   const [review, setReview] = useState<Record<number, { state: "pending" | "approved" | "rejected"; alertId?: number; tx?: string; busy?: boolean }>>({});
-  const doReview = async (i: number, ok: boolean) => {
+  const doReview = async (i: number, ok: boolean, confirmWarnings?: boolean) => {
     setReviewErr(null);
     setReview((r) => ({ ...r, [i]: { state: "pending", busy: true } }));
     try {
-      const res = await backend.reviewUploadDraft(a.id, i, ok);
+      const res = await backend.reviewUploadDraft(a.id, i, ok, confirmWarnings);
       setReview((r) => ({ ...r, [i]: { state: ok ? "approved" : "rejected", alertId: res.alertId, tx: res.txHash } }));
     } catch (e) {
       setReview((r) => ({ ...r, [i]: { state: "pending" } }));
-      setReviewErr((e as Error).message);
+      setReviewErr(reviewErrorText(e, t));
     }
   };
   const draftRow = (d: AlertDraft, i: number) => {

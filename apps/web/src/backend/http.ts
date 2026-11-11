@@ -4,7 +4,8 @@ import { normalizeScripts } from "./normalize";
 import { noteLlmUse } from "../lib/quota";
 
 export class HttpError extends Error {
-  constructor(public status: number, msg: string) {
+  /** `body` = the parsed JSON error body when there was one (e.g. D33 409 lists the warning codes). */
+  constructor(public status: number, msg: string, public body?: unknown) {
     super(msg);
     this.name = "HttpError";
   }
@@ -38,12 +39,14 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
     const text = await res.text();
     if (!res.ok) {
       let msg = text;
+      let body: unknown;
       try {
-        msg = (JSON.parse(text) as { error?: string }).error ?? text;
+        body = JSON.parse(text);
+        msg = (body as { error?: string } | null)?.error ?? text;
       } catch {
         /* plain text */
       }
-      throw new HttpError(res.status, msg || `HTTP ${res.status}`);
+      throw new HttpError(res.status, msg || `HTTP ${res.status}`, body);
     }
     return (text ? JSON.parse(text) : undefined) as T;
   }
@@ -86,7 +89,7 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
       return turn && typeof turn === "object" && typeof turn.index === "number" && typeof turn.text === "string" ? turn : undefined;
     },
     whisper: (id, side, text) => post(API.arenaWhisper(id), { side, text }),
-    review: (id, draftIndex, approve) => post(API.arenaReview(id), { draftIndex, approve }),
+    review: (id, draftIndex, approve, confirmWarnings) => post(API.arenaReview(id), { draftIndex, approve, ...(confirmWarnings ? { confirmWarnings: true } : {}) }),
     postAnnotation: (a) => post(API.annotations, a),
     deleteAnnotation: async (id) => {
       await post(`${API.annotations}/${encodeURIComponent(id)}/delete`);
@@ -117,7 +120,8 @@ export function createHttpBackend(apiBase: string, fetchFn: typeof fetch = (...a
     },
     saveScript: async (id, draft, analysis) =>
       unwrap<ScamScriptDef>(await post(API.scriptSave(id), analysis?.ephemeral ? { draft, analysis } : { draft }), "script"),
-    reviewUploadDraft: (id, draftIndex, approve) => post(API.scriptReview(id), { draftIndex, approve }),
+    reviewUploadDraft: (id, draftIndex, approve, confirmWarnings) =>
+      post(API.scriptReview(id), { draftIndex, approve, ...(confirmWarnings ? { confirmWarnings: true } : {}) }),
   };
 }
 

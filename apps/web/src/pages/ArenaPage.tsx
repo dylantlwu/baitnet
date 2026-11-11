@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
-import { ARENA_MODELS, DEFAULT_ARENA_MODEL, type ArenaModelChoice, type ArenaSession, type ArenaSide, type ArenaTurn, type ScamScriptDef, type ScamType, type SideMode, type TurnRating } from "@baitnet/shared";
+import { ARENA_MODELS, DEFAULT_ARENA_MODEL, type DraftWarning, type DraftWarningCode, type ArenaModelChoice, type ArenaSession, type ArenaSide, type ArenaTurn, type ScamScriptDef, type ScamType, type SideMode, type TurnRating } from "@baitnet/shared";
 import type { ViewSnapshot } from "../data/parse";
 import type { ArenaModelsInfo, Backend } from "../backend/types";
 import { useBackend } from "../backend/context";
@@ -16,6 +16,7 @@ import { sendSay } from "../arena/optimistic";
 import type { PendingTurn } from "../arena/reducer";
 import { useIdentity } from "../auth/context";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { HttpError } from "../backend/http";
 import { DecoyMindCard, PersonaLine, PrincipleChips, TurnMindChip, TurnMindNote, hasTurnMind, mindUpTo, ALL_PRINCIPLE_TAGS, PRINCIPLE_TAGS } from "../arena/DecoyMind";
 
 export const TACTIC_TAGS = [
@@ -468,7 +469,11 @@ function LiveSession({
       onRetrySay={(p) => void sendSay(backend, s.id, p.side, p.text, dispatch, p.localId)}
       onDiscardSay={(p) => dispatch({ type: "sayDiscard", localId: p.localId })}
       onWhisper={(side, text) => backend.whisper(s.id, side, text)}
-      onReview={(i, ok) => act(backend.review(s.id, i, ok))}
+      onReview={(i, ok, cw) => {
+        const p = backend.review(s.id, i, ok, cw).catch((e: unknown) => Promise.reject(new Error(reviewErrorText(e, t))));
+        act(p);
+        return p;
+      }}
     />
   );
 }
@@ -545,7 +550,7 @@ interface LayoutProps {
   onRetrySay?: (p: PendingTurn) => void;
   onDiscardSay?: (p: PendingTurn) => void;
   onWhisper?: (side: ArenaSide, text: string) => Promise<unknown>;
-  onReview?: (i: number, approve: boolean) => void;
+  onReview?: OnDraftReview;
 }
 
 function SessionLayout(p: LayoutProps) {
@@ -840,19 +845,65 @@ type DraftRow = ArenaSession["drafts"][number];
 
 function DraftList({
   session, network, txHashes, readOnly, onReview,
-}: { session: ArenaSession; network: ViewSnapshot["network"]; txHashes: Record<number, string>; readOnly: boolean; onReview?: (i: number, ok: boolean) => void }) {
+}: { session: ArenaSession; network: ViewSnapshot["network"]; txHashes: Record<number, string>; readOnly: boolean; onReview?: OnDraftReview }) {
   const { t } = useI18n();
   const [pending, setPending] = useState<Set<number>>(new Set());
   const visible = session.drafts.map((d, i) => [d, i] as const).filter(([d]) => d && (d.review as string) !== "hidden");
   if (visible.length === 0) return <p className="muted small">{t("arena.noDrafts")}</p>;
-  const review = (i: number, ok: boolean) => {
+  const review: OnDraftReview = (i, ok, confirmWarnings) => {
     setPending((s) => new Set(s).add(i));
-    onReview?.(i, ok);
+    const r = onReview?.(i, ok, confirmWarnings);
+    // a failed review (e.g. D33 409) frees the buttons again; the page shows the error
+    if (r && typeof r.then === "function") r.then(undefined, () => setPending((s) => {
+      const n = new Set(s);
+      n.delete(i);
+      return n;
+    }));
   };
   return (
     <ul className="draft-list">
       {visible.map(([d, i]) => (
         <DraftItem key={i} d={d} i={i} network={network} tx={txHashes[i]} readOnly={readOnly} busy={pending.has(i)} onReview={review} />
+      ))}
+    </ul>
+  );
+}
+
+/** `confirmWarnings` is true when the reviewer ticked every D33 warning of the draft (approve only). */
+export type OnDraftReview = (i: number, ok: boolean, confirmWarnings?: boolean) => void | Promise<unknown>;
+
+const WARN_ICON: Record<DraftWarningCode, string> = {
+  contract: "📜",
+  "very-active": "🏦",
+  unchecked: "❔",
+  "suspicion-before": "👀",
+  "chain-mismatch": "🔀",
+};
+
+/** Pending, not filtered, and carrying D33 warnings: needs the per-warning confirm before approval. */
+export const draftWarnings = (d: { warnings?: DraftWarning[]; filteredReason?: string } | null | undefined): DraftWarning[] =>
+  d && !d.filteredReason && Array.isArray(d.warnings) ? d.warnings.filter((w) => w && typeof w.code === "string") : [];
+
+/** A review error for the reviewer: the D33 409 (warnings not confirmed) gets a plain message. */
+export function reviewErrorText(e: unknown, t: (k: MsgKey) => string): string {
+  if (e instanceof HttpError && e.status === 409) return t("draftWarn.conflict");
+  return e instanceof Error ? e.message : String(e);
+}
+
+/** D33: the warnings under a pending draft — one line per warning, label + detail. */
+export function DraftWarnings({ warnings }: { warnings: DraftWarning[] }) {
+  const { t, tl } = useI18n();
+  if (!warnings.length) return null;
+  return (
+    <ul className="draft-warnings" aria-label={t("draftWarn.title", { n: warnings.length })}>
+      {warnings.map((w, k) => (
+        <li key={k} className="draft-warning">
+          <span className="dw-icon" aria-hidden="true">{WARN_ICON[w.code] ?? "⚠"}</span>
+          <span className="dw-text">
+            <strong>{tl("draftWarn", w.code)}</strong>
+            {w.detail && <span className="small"> · {w.detail}</span>}
+          </span>
+        </li>
       ))}
     </ul>
   );
@@ -865,11 +916,19 @@ export function registryWhereKey(network: string | undefined): MsgKey {
 
 export function DraftItem({
   d, i, network, tx, readOnly, busy, onReview,
-}: { d: DraftRow; i: number; network: ViewSnapshot["network"]; tx?: string; readOnly: boolean; busy: boolean; onReview: (i: number, ok: boolean) => void }) {
+}: { d: DraftRow; i: number; network: ViewSnapshot["network"]; tx?: string; readOnly: boolean; busy: boolean; onReview: OnDraftReview }) {
   const { t, tl } = useI18n();
   const { canReview } = useIdentity("");
   const [confirmReject, setConfirmReject] = useState(false);
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const warnings = draftWarnings(d);
+  /** D33: one "I've checked this" tick per warning; reset each time the confirm opens. */
+  const [ticked, setTicked] = useState<boolean[]>([]);
+  const allTicked = warnings.every((_, k) => ticked[k]);
+  const openApprove = () => {
+    setTicked(warnings.map(() => false));
+    setConfirmApprove(true);
+  };
   const txHash = tx ?? d.txHash;
   const url = nearTxUrl(network, txHash);
   return (
@@ -911,7 +970,9 @@ export function DraftItem({
         )
       ) : d.review === "rejected" ? (
         <div className="draft-state muted">{t("arena.rejected")}</div>
-      ) : !canReview ? (
+      ) : null}
+      {!d.filteredReason && d.review === "pending" && <DraftWarnings warnings={warnings} />}
+      {d.filteredReason || d.review === "approved" || d.review === "rejected" ? null : !canReview ? (
         <div className="draft-state muted">⏳ {t("auth.waitReviewer")}</div>
       ) : confirmReject ? (
         <div className="row gap draft-actions">
@@ -925,7 +986,7 @@ export function DraftItem({
         </div>
       ) : (
         <div className="row gap draft-actions">
-          <button type="button" className="btn small primary" disabled={readOnly || busy} onClick={() => setConfirmApprove(true)}>
+          <button type="button" className="btn small primary" disabled={readOnly || busy} onClick={openApprove}>
             {busy ? t("common.working") : t("arena.approve")}
           </button>
           <button type="button" className="btn small" disabled={readOnly || busy} onClick={() => setConfirmReject(true)}>
@@ -940,12 +1001,36 @@ export function DraftItem({
         body={t("arena.approveConfirmBody", { address: short(d.address, 8, 6), where: t(registryWhereKey(network)) })}
         confirmLabel={t("arena.approveConfirmYes")}
         cancelLabel={t("common.cancel")}
+        confirmDisabled={!allTicked}
         onConfirm={() => {
+          if (!allTicked) return;
           setConfirmApprove(false);
-          onReview(i, true);
+          if (warnings.length > 0) onReview(i, true, true);
+          else onReview(i, true);
         }}
         onCancel={() => setConfirmApprove(false)}
-      />
+      >
+        {warnings.length > 0 && (
+          <fieldset className="warn-confirm">
+            <legend>{t("draftWarn.title", { n: warnings.length })}</legend>
+            {warnings.map((w, k) => (
+              <label key={k} className="warn-check">
+                <input
+                  type="checkbox"
+                  checked={!!ticked[k]}
+                  onChange={(e) => setTicked((x) => warnings.map((_, j) => (j === k ? e.target.checked : !!x[j])))}
+                />
+                <span>
+                  <strong>{tl("draftWarn", w.code)}</strong>
+                  {w.detail && <span className="small muted"> · {w.detail}</span>}
+                  <span className="small warn-check-yes">{t("draftWarn.checked")}</span>
+                </span>
+              </label>
+            ))}
+            {!allTicked && <p className="small muted">{t("draftWarn.tickAll")}</p>}
+          </fieldset>
+        )}
+      </ConfirmDialog>
     </li>
   );
 }

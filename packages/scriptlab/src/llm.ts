@@ -1,5 +1,6 @@
 import type { AnalysisEngine, Lang, ScamScriptDef, ScriptAnalysis } from "@baitnet/shared";
-import { DEFAULT_CLAUDE_MODEL, DEFAULT_NEARAI_CLAUDE_MODEL, NEARAI_BASE_URL, allowLiveLLM, selectProvider, type LLMProvider } from "@baitnet/agent";
+import { DEFAULT_CLAUDE_MODEL, DEFAULT_NEARAI_CLAUDE_MODEL, NEARAI_BASE_URL, allowLiveLLM, onchainLookupFromEnv, selectProvider, type LLMProvider, type OnchainLookup } from "@baitnet/agent";
+import { applyOnchainChecks } from "./review.js";
 import { SCAM_TYPES } from "@baitnet/training";
 import { checkSize, imageOfflineError, joinTranscripts, multiName, prepareText, renderMessages, rulesAnalysis, uploadFiles, type Prepared, type ScriptUploadInput } from "./analyze.js";
 import { parseUpload, ScriptLabError, type ParsedUpload } from "./parse.js";
@@ -20,6 +21,8 @@ export interface AnalyzeOptions {
   outLang?: Lang;
   /** override vision transcription (tests) */
   vision?: (img: { mediaType: string; base64: string }) => Promise<string>;
+  /** D33 on-chain lookup for the alert drafts; default from env (off unless BAITNET_ONCHAIN_LOOKUP=on) */
+  onchain?: OnchainLookup;
 }
 
 export const ANALYSIS_SYSTEM = `You are a scam-analysis engine for an anti-fraud team. You receive a PII-redacted chat transcript (one message per line, placeholders like [NAME_1] / [PHONE_1] must be kept as-is).
@@ -267,5 +270,7 @@ export async function analyzeUpload(upload: ScriptUploadInput, opts: AnalyzeOpti
       ],
     };
   }
-  return analysis;
+  // D33: contract / token / activity lookup so reviewers see the warnings before they click approve
+  const alertDrafts = await applyOnchainChecks(analysis.alertDrafts, opts.onchain ?? onchainLookupFromEnv(env), p.outLang);
+  return alertDrafts === analysis.alertDrafts ? analysis : { ...analysis, alertDrafts };
 }

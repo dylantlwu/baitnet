@@ -11,7 +11,8 @@ import { useI18n } from "../i18n";
 import { fmtTime } from "../lib/format";
 import { href } from "../lib/router";
 import { normalizeScripts } from "../backend/normalize";
-import { DraftItem, EngineBadge, TurnRow, useExpert } from "./ArenaPage";
+import { DraftItem, EngineBadge, TurnRow, draftWarnings, reviewErrorText, useExpert } from "./ArenaPage";
+import { HttpError } from "../backend/http";
 import { CorrectionCard } from "./TrainingPage";
 
 type ChannelFilter = "all" | ChannelKind;
@@ -130,6 +131,7 @@ function SessionList({ backend }: { backend: Backend }) {
             const sc = scripts.get(s.scriptId);
             const pd = pendingDrafts(s);
             const pc = pendingCorr(s);
+            const pw = s.drafts.filter((d) => d && d.review === "pending" && draftWarnings(d).length > 0).length;
             const owner = nameOf(s.channel?.ownerId);
             return (
               <li key={s.id}>
@@ -150,6 +152,7 @@ function SessionList({ backend }: { backend: Backend }) {
                   {(pd > 0 || pc > 0) && (
                     <div className="row gap">
                       {pd > 0 && <Badge tone="danger">{t("sessions.pendingDrafts", { n: pd })}</Badge>}
+                      {pw > 0 && <Badge tone="warn">⚠ {t("draftWarn.pendingCount", { n: pw })}</Badge>}
                       {pc > 0 && <Badge tone="warn">{t("sessions.pendingCorrections", { n: pc })}</Badge>}
                     </div>
                   )}
@@ -195,17 +198,21 @@ function SessionDetail({ id, backend, snap }: { id: string; backend: Backend; sn
   }, [backend, id, loadCorr]);
 
   const s = st.session;
-  const review = (i: number, ok: boolean) => {
+  const review = (i: number, ok: boolean, confirmWarnings?: boolean) => {
     setBusy((b) => new Set(b).add(i));
     backend
-      .review(id, i, ok)
+      .review(id, i, ok, confirmWarnings)
       .then(() => backend.getSession(id))
       .then(
         (fresh) => {
           // Keep any on-chain result that arrived over SSE first.
           if (fresh.drafts[i]?.review !== "pending") dispatch({ type: "session", session: fresh });
         },
-        (e: Error) => setErr(e.message),
+        (e: unknown) => {
+          setErr(reviewErrorText(e, t));
+          // D33 409: the server knows warnings we may not show yet; refresh so they appear
+          if (e instanceof HttpError && e.status === 409) backend.getSession(id).then((fresh) => dispatch({ type: "session", session: fresh }), () => undefined);
+        },
       )
       .finally(() => setBusy((b) => {
         const n = new Set(b);

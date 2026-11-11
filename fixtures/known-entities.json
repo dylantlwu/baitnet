@@ -1,5 +1,5 @@
 {
-  "note": "Known institutional addresses (exchange hot wallets, token and bridge contracts). A draft hitting this list is never reported on chain, only logged. Public, well-known addresses.",
+  "note": "Known institutional addresses (exchange hot wallets, token and bridge contracts). A draft hitting this list is never reported on chain, only logged. Public, well-known addresses. Entries with a `source` field were added for D33 (2026-11-11) and checked against that page (plus an on-chain name()/symbol() call for tokens).",
   "entities": [
     { "chain": "near", "address": "usdt.tether-token.near", "name": "Tether USDT token contract (NEAR)", "kind": "token-contract" },
     { "chain": "near", "address": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1", "name": "Circle USDC token contract (NEAR)", "kind": "token-contract" },
@@ -12,6 +12,21 @@
     { "chain": "evm", "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7", "name": "Tether USDT token contract (Ethereum)", "kind": "token-contract" },
     { "chain": "evm", "address": "0x23Ddd3e3692d1861Ed57EDE224608875809e127f", "name": "Rainbow Bridge ERC20 locker", "kind": "bridge" },
     { "chain": "tron", "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", "name": "Tether USDT token contract (Tron)", "kind": "token-contract" },
-    { "chain": "tron", "address": "TV6MuMXfmLbBqPZvBHdwFsDnQeVfnmiuSi", "name": "Binance (Tron hot wallet)", "kind": "exchange-hot-wallet" }
+    { "chain": "tron", "address": "TV6MuMXfmLbBqPZvBHdwFsDnQeVfnmiuSi", "name": "Binance (Tron hot wallet)", "kind": "exchange-hot-wallet" },
+    { "chain": "evm", "address": "0x55d398326f99059fF775485246999027B3197955", "name": "Tether USDT token contract (BSC, BEP-20)", "kind": "token-contract", "source": "https://www.coingecko.com/en/coins/binance-bridged-usdt-bnb-smart-chain" },
+    { "chain": "evm", "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "name": "Circle USDC token contract (Ethereum)", "kind": "token-contract", "source": "https://developers.circle.com/stablecoins/usdc-contract-addresses" },
+    { "chain": "evm", "address": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", "name": "USDC token contract (BSC, Binance-Peg)", "kind": "token-contract", "source": "https://www.coingecko.com/en/coins/usdc" },
+    { "chain": "tron", "address": "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8", "name": "USDC token contract (Tron)", "kind": "token-contract", "source": "https://www.coingecko.com/en/coins/usdc" },
+    { "chain": "evm", "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "name": "Wrapped Ether WETH9 (Ethereum)", "kind": "token-contract", "source": "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
+    { "chain": "evm", "address": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D", "name": "Uniswap V2 Router 02 (Ethereum)", "kind": "dex-router", "source": "https://etherscan.io/address/0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D" },
+    { "chain": "evm", "address": "0xE592427A0AEce92De3Edee1F18E0157C05861564", "name": "Uniswap V3 SwapRouter (Ethereum)", "kind": "dex-router", "source": "https://developers.uniswap.org/contracts/v3/reference/deployments/ethereum-deployments" },
+    { "chain": "evm", "address": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45", "name": "Uniswap V3 SwapRouter02 (Ethereum)", "kind": "dex-router", "source": "https://developers.uniswap.org/contracts/v3/reference/deployments/ethereum-deployments" },
+    { "chain": "evm", "address": "0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af", "name": "Uniswap Universal Router (Ethereum)", "kind": "dex-router", "source": "https://developers.uniswap.org/contracts/v3/reference/deployments/ethereum-deployments" },
+    { "chain": "evm", "address": "0xDFd5293D8e347dFe59E90eFd55b2956a1343963d", "name": "Binance 16 (hot wallet)", "kind": "exchange-hot-wallet", "source": "https://etherscan.io/address/0xDFd5293D8e347dFe59E90eFd55b2956a1343963d" },
+    { "chain": "evm", "address": "0xF977814e90dA44bFA03b6295A0616a897441aceC", "name": "Binance Cold Wallet 20", "kind": "exchange-wallet", "source": "https://etherscan.io/address/0xF977814e90dA44bFA03b6295A0616a897441aceC" },
+    { "chain": "evm", "address": "0x6cC5F688a315f3dC28A7781717a9A798a59fDA7b", "name": "OKX (exchange wallet)", "kind": "exchange-hot-wallet", "source": "https://etherscan.io/address/0x6cC5F688a315f3dC28A7781717a9A798a59fDA7b" },
+    { "chain": "evm", "address": "0x5041ed759Dd4aFc3a72b8192C143F72f4724081A", "name": "OKX 7 (exchange wallet)", "kind": "exchange-hot-wallet", "source": "https://etherscan.io/address/0x5041ed759Dd4aFc3a72b8192C143F72f4724081A" },
+    { "chain": "evm", "address": "0xA9D1e08C7793af67e9d92fe308d5697FB81d3E43", "name": "Coinbase 10 (exchange wallet)", "kind": "exchange-hot-wallet", "source": "https://etherscan.io/address/0xA9D1e08C7793af67e9d92fe308d5697FB81d3E43" },
+    { "chain": "evm", "address": "0x503828976D22510aad0201ac7EC88293211D23Da", "name": "Coinbase 12 (exchange wallet)", "kind": "exchange-hot-wallet", "source": "https://etherscan.io/address/0x503828976D22510aad0201ac7EC88293211D23Da" }
   ]
 }

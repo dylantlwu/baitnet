@@ -168,6 +168,23 @@ describe("IM 训练台 · Telegram 端到端（假 Bot API）", () => {
     expect((await fake.waitAnswer(again)).text).toBe("已经处理过了");
   });
 
+  it("D33：挂了防混淆警告的地址，卡片只有驳回按钮并列出警告；硬按上链会被拒绝并提示去网页后台", async () => {
+    h = await harness();
+    const { fake } = h;
+    const sid = await newSession(h, EXPERT, "scammer");
+    const from = fake.sentTo(EXPERT.id).length;
+    fake.say(EXPERT, "等一下，你回得这么快，你是不是机器人？");
+    await lastBaitMsg(h, EXPERT.id, from);
+    fake.say(EXPERT, `VIP 通道充值地址：${ADDRESS}（TRC20），充完截图给我`);
+    const card = await fake.waitFor(REVIEWER.id, (m) => m.text.includes("待复核地址") && m.text.includes(ADDRESS));
+    expect(card.text).toMatch(/防混淆警告（1 条）/);
+    expect(card.text).toMatch(/机器人/);
+    expect(fake.buttons(card).map((b) => b.text)).toEqual(["❌ 驳回"]);
+    const forced = fake.press(REVIEWER, card.message_id, `d:${sid}:0:1`);
+    expect((await fake.waitAnswer(forced)).text).toMatch(/网页后台逐条核实/);
+    expect(h.arena.get(sid)!.session.drafts[0]!.review).toBe("pending");
+  });
+
   it("上传：截图 media group 合并成一次上传，先发隐私提醒（每天只一次），回分析摘要，可存为剧本", async () => {
     h = await harness();
     const { fake } = h;

@@ -54,7 +54,11 @@ describe("eval (offline rules engine)", () => {
     const poison = all.filter((s) => s.poison).length;
     expect(r.summary.poisonTotal).toBe(poison);
     expect(r.summary.poisonFiltered).toBe(poison);
-    expect(r.summary.onChain).toBeGreaterThanOrEqual(all.length - poison);
+    // D33: drafts with warnings (suspicion-before / chain-mismatch) are never auto-approved
+    expect(r.summary.warned).toBeGreaterThanOrEqual(1);
+    expect(r.summary.onChain).toBeGreaterThanOrEqual(all.length - poison - r.summary.warned!);
+    expect(r.cases.find((c) => c.scriptId === "pig-butchering-04")).toMatchObject({ extracted: true, onChain: false });
+    expect(r.cases.find((c) => c.scriptId === "task-scam-04")).toMatchObject({ poisonFiltered: true });
     expect(r.summaryByLang.zh.total).toBe(all.filter((s) => s.lang === "zh").length);
     expect(r.summaryByLang.en.total).toBe(all.filter((s) => s.lang === "en").length);
     expect(r.cases.every((c) => c.lang === r.lang[c.scriptId])).toBe(true);

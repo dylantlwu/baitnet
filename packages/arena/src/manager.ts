@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { DEFAULT_ARENA_MODEL, type ArenaEvent, type ArenaModelChoice, type ArenaSession, type ArenaSide, type ScamScriptDef, type SideMode } from "@baitnet/shared";
 import { MemoryRegistryClient, SampleAccountInfo, type RegistryClient } from "@baitnet/guard";
-import { AccountAgeCheck, KnownEntityFilter, RuntimeMissingError, dataPath, fixturePath, loadEnv, loadKnownEntities } from "@baitnet/agent";
+import { AccountAgeCheck, KnownEntityFilter, RuntimeMissingError, dataPath, fixturePath, loadEnv, loadKnownEntities, onchainLookupFromEnv } from "@baitnet/agent";
 import { ArenaSessionEngine, validateRating, type SessionDeps } from "./session.js";
 import { resolvePersonaId } from "./personas.js";
 import type { SessionChannel, SessionRating } from "@baitnet/shared";
@@ -124,6 +124,8 @@ export class ArenaManager {
       retriever: this.retriever,
       known: this.opts.known ?? new KnownEntityFilter(loadKnownEntities()),
       age: this.opts.age ?? new AccountAgeCheck(SampleAccountInfo.fromFile(fixturePath("account-meta.json"))),
+      // D33: real contract / activity lookup only with BAITNET_ONCHAIN_LOOKUP=on; otherwise a no-network stub
+      onchain: this.opts.onchain ?? onchainLookupFromEnv(env),
       autoApprove: this.opts.autoApprove,
       stepDelayMs: this.opts.stepDelayMs ?? 0,
       maxTurns: this.opts.maxTurns,

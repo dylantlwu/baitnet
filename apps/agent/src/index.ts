@@ -6,6 +6,7 @@ export * from "./bait/bait.js";
 export * from "./extract/extract.js";
 export * from "./extract/evidence.js";
 export * from "./extract/pipeline.js";
+export * from "./extract/confusion.js";
 export * from "./wallet/wallet.js";
 export * from "./solver/solver.js";
 export * from "./trace/trace.js";

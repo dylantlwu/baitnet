@@ -185,6 +185,8 @@ const zh = {
   verdictFiltered: (why: string) => `被过滤，未上链：${why}`,
   notLive: "这场会话不在内存里，请到网页后台审核。",
   noReviewDraft: "上传里的地址请到网页后台审核。",
+  cardWarnings: (lines: string[]) => [`⚠️ 防混淆警告（${lines.length} 条）：`, ...lines.map((l) => `· ${l}`), "这个地址请到网页后台逐条核实后再上链。"].join("\n"),
+  warnedUseWeb: "这个地址挂了防混淆警告，机器人里不能直接上链。请到网页后台逐条核实警告后再通过。",
   digest: (o: { corrections: number; pendingCorr: number; addrs: number; pendingAddr: number; regression?: string; console: string }) =>
     [
       "☀️ 每日小结（过去 24 小时）",
@@ -325,6 +327,8 @@ const en: Dict = {
   verdictFiltered: (why) => `filtered, not reported: ${why}`,
   notLive: "This session is not loaded; please review it in the web console.",
   noReviewDraft: "Please review upload addresses in the web console.",
+  cardWarnings: (lines) => [`⚠️ Anti-confusion warnings (${lines.length}):`, ...lines.map((l) => `· ${l}`), "Review this address in the web console and confirm each warning there."].join("\n"),
+  warnedUseWeb: "This address carries anti-confusion warnings and cannot be approved from the bot. Please check each warning in the web console and approve it there.",
   digest: (o) =>
     [
       "☀️ Daily digest (last 24 h)",

@@ -551,9 +551,13 @@ export class SessionRouter {
           await this.send(ch.chatId, t.drafted(d.chain, d.address));
           const ctxTurn = [...eng.session.turns].reverse().find((x) => x.side === "scammer" && x.text.includes(d.address));
           const owner = this.names.get(ch.ownerId) ?? ch.ownerId;
+          // D33: a warned draft gets no "on chain" button here; the reviewer confirms each warning in the web console
+          const warned = !!d.warnings?.length;
           await this.pushCard(`d:${e.sessionId}:${e.draftIndex}`, (L) => ({
-            text: T[L].cardAddress({ who: owner, title: eng.script.title, chain: d.chain, addr: d.address, context: clip(ctxTurn?.text ?? "", 200), source: L === "zh" ? "对练" : "arena" }),
-            buttons: [[{ text: T[L].approveChain, payload: `d:${e.sessionId}:${e.draftIndex}:1` }, { text: T[L].reject, payload: `d:${e.sessionId}:${e.draftIndex}:0` }]],
+            text:
+              T[L].cardAddress({ who: owner, title: eng.script.title, chain: d.chain, addr: d.address, context: clip(ctxTurn?.text ?? "", 200), source: L === "zh" ? "对练" : "arena" }) +
+              (warned ? `\n${T[L].cardWarnings(d.warnings!.map((w) => w.detail))}` : ""),
+            buttons: [[...(warned ? [] : [{ text: T[L].approveChain, payload: `d:${e.sessionId}:${e.draftIndex}:1` }]), { text: T[L].reject, payload: `d:${e.sessionId}:${e.draftIndex}:0` }]],
           }));
         } else if (d.filteredReason) {
           await this.send(ch.chatId, t.filtered(d.chain, d.address, d.filteredReason));
@@ -856,6 +860,7 @@ export class SessionRouter {
       await answer(verdict(ctx.lang));
       await this.closeCards(key, verdict, ctx.user.name);
     } catch (e) {
+      if ((e as { code?: string }).code === "warnings-unconfirmed") return answer(ctx.t.warnedUseWeb, true);
       if (/already/.test((e as Error).message)) {
         await this.closeCards(key, () => ctx.t.alreadyDone, "-");
         return answer(ctx.t.alreadyDone);
@@ -886,6 +891,7 @@ export class SessionRouter {
       if (chat && d.review === "approved" && d.alertId !== undefined) await this.send(chat, T[this.langFor(uploader!)].onchain(d.address ?? "", d.alertId)).catch(() => {});
     } catch (e) {
       const st = (e as { status?: number }).status;
+      if ((e as { code?: string }).code === "warnings-unconfirmed") return answer(ctx.t.warnedUseWeb, true);
       if (st === 409) {
         await this.closeCards(key, () => ctx.t.alreadyDone, "-");
         return answer(ctx.t.alreadyDone);
@@ -964,9 +970,12 @@ export class SessionRouter {
       }) + (live.length ? `\n${ctx.t.uploadDrafts(live.length)}` : "");
     await this.send(ctx.chatId, { text, buttons: [[{ text: ctx.t.saveBtn, payload: `sv:${a.id}` }]] });
     for (const { d, i } of live) {
+      const warned = !!d.warnings?.length;
       await this.pushCard(`ud:${a.id}:${i}`, (L) => ({
-        text: T[L].cardAddress({ who: ctx.user.name, title: a.filename, chain: d.chain, addr: d.address, context: "", source: L === "zh" ? "上传" : "upload" }),
-        buttons: [[{ text: T[L].approveChain, payload: `ud:${a.id}:${i}:1` }, { text: T[L].reject, payload: `ud:${a.id}:${i}:0` }]],
+        text:
+          T[L].cardAddress({ who: ctx.user.name, title: a.filename, chain: d.chain, addr: d.address, context: "", source: L === "zh" ? "上传" : "upload" }) +
+          (warned ? `\n${T[L].cardWarnings(d.warnings!.map((w) => w.detail))}` : ""),
+        buttons: [[...(warned ? [] : [{ text: T[L].approveChain, payload: `ud:${a.id}:${i}:1` }]), { text: T[L].reject, payload: `ud:${a.id}:${i}:0` }]],
       }));
     }
   }

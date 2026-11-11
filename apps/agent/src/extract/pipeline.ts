@@ -4,12 +4,15 @@ import { safeTargetKey, rpcQuery, SampleAccountInfo, type RegistryClient } from 
 import { fixturePath } from "../paths.js";
 import { extractFromConversation, type Extraction } from "./extract.js";
 import { sealConversationEvidence, type SealedEvidence } from "./evidence.js";
+import { disabledOnchainLookup, onchainVerdict, textWarnings, type OnchainLookup } from "./confusion.js";
 
 export interface KnownEntity {
   chain: Target["chain"];
   address: string;
   name: string;
   kind: string;
+  /** D33: where the entry was verified (block explorer / official doc URL) */
+  source?: string;
 }
 
 export function loadKnownEntities(path = fixturePath("known-entities.json")): KnownEntity[] {
@@ -85,7 +88,10 @@ export interface ReviewDecision {
 /** Human review gate before an L1 goes on chain. Demo: auto-approve, but logged. */
 export type Reviewer = (draft: AlertDraft, ctx: { context?: string }) => Promise<ReviewDecision>;
 
-export const autoApproveReviewer: Reviewer = async () => ({ approved: true, reviewer: "demo-auto", note: "auto-approved in demo mode (BAITNET_REVIEW=manual for a real prompt)" });
+export const autoApproveReviewer: Reviewer = async (draft) =>
+  draft.warnings?.length
+    ? { approved: false, reviewer: "demo-auto", note: `not auto-approved: ${draft.warnings.length} D33 warning(s) need a human (${draft.warnings.map((w) => w.code).join(", ")})` }
+    : { approved: true, reviewer: "demo-auto", note: "auto-approved in demo mode (BAITNET_REVIEW=manual for a real prompt)" };
 
 export interface PipelineResult {
   conversationId: string;
@@ -101,6 +107,9 @@ export interface PipelineDeps {
   age: AccountAgeCheck;
   reviewer?: Reviewer;
   evidenceKey?: Buffer;
+  /** D33 on-chain contract / activity lookup; default off (no network) */
+  onchain?: OnchainLookup;
+  now?: () => Date;
 }
 
 /** M2: conversation → extraction → evidence → drafts (filtered) → review. */
@@ -134,6 +143,19 @@ export async function processConversation(conv: Conversation, deps: PipelineDeps
       log.push(`[filter] ${a.chain}:${a.address} held — ${age.detail}`);
       drafts.push(draft);
       continue;
+    }
+    // D33: token contract → filtered; contract / very active / lookup failed / suspicion / chain mismatch → warnings
+    const oc = onchainVerdict(await (deps.onchain ?? disabledOnchainLookup).kind(a, a.assetHint), "en", deps.now?.() ?? new Date());
+    if (oc.filteredReason) {
+      draft.filteredReason = oc.filteredReason;
+      log.push(`[filter] ${a.chain}:${a.address} dropped — ${oc.filteredReason}; logged, NOT reported`);
+      drafts.push(draft);
+      continue;
+    }
+    const warnings = [...oc.warnings, ...textWarnings(a, conv.turns.map((t) => ({ role: t.role, text: t.text })), "en")];
+    if (warnings.length) {
+      draft.warnings = warnings;
+      log.push(`[warn] ${a.chain}:${a.address} — ${warnings.map((w) => `${w.code}: ${w.detail}`).join("; ")}`);
     }
     log.push(`[filter] ${a.chain}:${a.address} passed (${age.detail}${a.assetHint ? `; hint ${a.assetHint}` : ""})`);
     const review = await (deps.reviewer ?? autoApproveReviewer)(draft, { context: a.context });

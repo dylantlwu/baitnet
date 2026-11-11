@@ -111,6 +111,7 @@ export function GuideView({ role }: { role: Role | null }) {
       <>
         {role !== "reviewer" && <p className="muted small">{t("guide.reviewerNote")}</p>}
         <List k="guide.reviewer.list" />
+        <p className="note warn-note small">⚠ {t("guide.reviewer.warnings")}</p>
       </>
     ),
     faq: (

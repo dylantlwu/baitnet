@@ -2911,6 +2911,10 @@
           "category": "fake-airdrop",
           "evidenceHash": "1f6dbed11f3203da76ed829ab111b8aa011faff10417f9a598177cb0996a1f67",
           "conversationId": "as-tg-airdrop-zh",
+          "warnings": [
+            { "code": "very-active", "detail": "以太坊上已有 18,420 笔交易，可能是机构或别人的老钱包" },
+            { "code": "unchecked", "detail": "BSC 节点 3 秒内没有响应，没查到是不是合约" }
+          ],
           "review": "pending"
         }
       ]

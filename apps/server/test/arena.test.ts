@@ -23,6 +23,24 @@ const post = async (p: string, body: unknown) => {
 const get = async (p: string) => (await fetch(base + p)).json();
 
 describe("Arena API", () => {
+  it("D33: approving a draft with warnings needs confirmWarnings → 409 {error, code, warnings, codes}", async () => {
+    const s = (await post("/arena/sessions", { scriptId: "pig-butchering-04", scammer: "human", bait: "human" })).body as ArenaSession;
+    const addr = "0xebb538b6bc2c2261e0af131502f7911f638bd797";
+    await post(`/arena/sessions/${s.id}/say`, { side: "scammer", text: "Wait, are you a bot?" });
+    await post(`/arena/sessions/${s.id}/say`, { side: "bait", text: "lol no" });
+    await post(`/arena/sessions/${s.id}/say`, { side: "scammer", text: `Send it via TRC20 to ${addr}` });
+    const detail = (await get(`/arena/sessions/${s.id}`)) as ArenaSession;
+    const idx = detail.drafts.findIndex((d) => d.address === addr);
+    expect(detail.drafts[idx]!.warnings?.map((w) => w.code)).toEqual(["suspicion-before", "chain-mismatch"]);
+    const no = await post(`/arena/sessions/${s.id}/review`, { draftIndex: idx, approve: true });
+    expect(no.status).toBe(409);
+    expect(no.body).toMatchObject({ code: "warnings-unconfirmed", codes: ["suspicion-before", "chain-mismatch"], warnings: detail.drafts[idx]!.warnings });
+    expect(no.body.error).toMatch(/confirmWarnings/);
+    const yes = await post(`/arena/sessions/${s.id}/review`, { draftIndex: idx, approve: true, confirmWarnings: true });
+    expect(yes.status).toBe(200);
+    expect(yes.body).toMatchObject({ review: "approved", alertId: expect.any(Number) });
+  });
+
   it("lists 30 scripts", async () => {
     const s = await get("/arena/scripts");
     expect(s.length).toBeGreaterThanOrEqual(30);

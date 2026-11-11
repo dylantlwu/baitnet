@@ -42,7 +42,8 @@ export interface Backend {
   /** Resolves with the created turn when the server returns it (lets the UI confirm before SSE arrives). */
   say(sessionId: string, side: ArenaSide, text: string): Promise<ArenaTurn | void>;
   whisper(sessionId: string, side: ArenaSide, text: string): Promise<void>;
-  review(sessionId: string, draftIndex: number, approve: boolean): Promise<void>;
+  /** D33: approving a draft with `warnings` needs confirmWarnings=true (server answers 409 otherwise). */
+  review(sessionId: string, draftIndex: number, approve: boolean, confirmWarnings?: boolean): Promise<void>;
   // Training
   postAnnotation(a: Omit<Annotation, "id" | "at">): Promise<Annotation>;
   /** POST /training/annotations/:id/delete — used to replace an expert's earlier rating of the same line. Optional. */
@@ -62,7 +63,7 @@ export interface Backend {
   /** For an ephemeral analysis the server has nothing stored, so the analysis travels back with the draft. */
   saveScript(analysisId: string, draft: ScamScriptDef, analysis?: ScriptAnalysis): Promise<ScamScriptDef>;
   /** Not in the shared API yet: review an AlertDraft found in an uploaded chat. */
-  reviewUploadDraft(analysisId: string, draftIndex: number, approve: boolean): Promise<{ alertId?: number; txHash?: string }>;
+  reviewUploadDraft(analysisId: string, draftIndex: number, approve: boolean, confirmWarnings?: boolean): Promise<{ alertId?: number; txHash?: string }>;
 }
 
 /** "typing…": an AI line is being generated (server SSE, not in the shared ArenaEvent union). */
