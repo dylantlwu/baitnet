@@ -31,17 +31,10 @@
   "goal": "让受害者用自己的收款码帮平台收赃款；先让他往交易所冷钱包『测试转账』建立信任，再把保证金 USDT 充进平台地址。",
   "stages": [
     {
-      "name": "招代理",
-      "objective": "介绍平台，让受害者下载 App。",
+      "name": "招代理讲规则",
+      "objective": "介绍平台和『抢单要先充保证金』的规则，让受害者下载 App。",
       "sampleLines": [
-        "平台叫鼎盛跑分，下载地址 https://dingsheng-pay.example/app ，注册时填邀请码 DS6688。",
-        "我们给海外电商做聚合支付，订单太多，需要大家的收款码帮忙分流。"
-      ]
-    },
-    {
-      "name": "讲规则",
-      "objective": "解释『抢单』需要先充保证金。",
-      "sampleLines": [
+        "平台叫鼎盛跑分，给海外电商做聚合支付，订单太多，需要大家的收款码帮忙分流。下载地址 https://dingsheng-pay.example/app ，注册时填邀请码 DS6688。",
         "抢单前要先充值保证金，你充多少 U，就能抢多大额度的单，充 1000U 能抢 7000 块的单。",
         "单子来了客户把钱打到你的收款码，你在 App 里点『确认收款』，系统就从保证金里扣对应的 U 给客户，佣金当场到账。"
       ]
@@ -104,13 +97,13 @@
       "kind": "address",
       "chain": "evm",
       "value": "0xF977814e90dA44bFA03b6295A0616a897441aceC",
-      "revealAtStage": 2
+      "revealAtStage": 1
     },
     {
       "kind": "address",
       "chain": "evm",
       "value": "0x33a9fc5da8497b9b23b12cc7bca6cbcaf8675ecb",
-      "revealAtStage": 3
+      "revealAtStage": 2
     }
   ],
   "injections": [

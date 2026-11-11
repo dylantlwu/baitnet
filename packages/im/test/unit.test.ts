@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MemoryIdentityService, TelegramApi, TelegramError, delayScale, langOf, maybeSplit, shanghai, typingDelayMs } from "../src/index.js";
+import { BAIT_NAME, MemoryIdentityService, T, TelegramApi, TelegramError, baitName, delayScale, langOf, maybeSplit, shanghai, typingDelayMs } from "../src/index.js";
 
 describe("模拟真人", () => {
   it("停顿 2–8 秒，随长度增加；环境变量可缩到 0", () => {
@@ -36,6 +36,21 @@ describe("语言与时区", () => {
   it("上海时间", () => {
     expect(shanghai(new Date("2026-11-10T01:00:00Z"))).toEqual({ day: "2026-11-10", hour: 9 });
     expect(shanghai(new Date("2026-11-09T17:00:00Z"))).toEqual({ day: "2026-11-10", hour: 1 });
+  });
+});
+
+describe("诱饵名字（D32 人物卡）", () => {
+  it("有人物卡用卡上的名字，没有才退回默认名；中英文文案都带上", () => {
+    expect(baitName({ name: "周秀梅" }, "zh")).toBe("周秀梅");
+    expect(baitName({ name: "Margaret" }, "en")).toBe("Margaret");
+    expect(baitName(undefined, "zh")).toBe(BAIT_NAME.zh);
+    expect(baitName(undefined, "en")).toBe(BAIT_NAME.en);
+    expect(baitName({ name: "  " }, "en")).toBe(BAIT_NAME.en);
+    expect(T.zh.startedScammer("剧本", "开场", "周秀梅")).toContain("诱饵「周秀梅」");
+    expect(T.en.startedScammer("Script", "hook", "Margaret")).toContain('the decoy is "Margaret"');
+    expect(T.zh.whisperBait("周秀梅")).toBe("诱饵「周秀梅」");
+    expect(T.en.whisperBait("Margaret")).toBe('the decoy "Margaret"');
+    for (const l of ["zh", "en"] as const) expect(T[l].welcome("阿明", "expert")).not.toMatch(/小林|"Lin"/);
   });
 });
 

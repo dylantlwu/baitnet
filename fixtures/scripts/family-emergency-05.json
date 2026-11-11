@@ -30,17 +30,10 @@
   "goal": "Get the victim to pay a fake 'flat deposit' in USDT to a wallet held by an accomplice ('Megan'), then a 'late fee'.",
   "stages": [
     {
-      "name": "New number",
-      "objective": "Establish the 'new number' story.",
+      "name": "New number, urgent bill",
+      "objective": "Establish the 'new number' story, then the deadline and the locked bank app.",
       "sampleLines": [
-        "Old one is completely dead, I'm using a cheap temporary one till the insurance sorts it.",
-        "Can you delete the old number for now? I'll tell you when the new phone comes."
-      ]
-    },
-    {
-      "name": "Urgent bill",
-      "objective": "Introduce the deadline and the locked bank app.",
-      "sampleLines": [
+        "Old one is completely dead, I'm using a cheap temporary one till the insurance sorts it. Can you delete the old number for now?",
         "Mum I'm so stressed, I've got the deposit for my new flat due today, £1,850, and my banking app won't let me log in on a new phone for 24 hours.",
         "Could you pay it for me and I'll pay you back on Friday? I'm so sorry 😩"
       ]
@@ -97,13 +90,13 @@
     {
       "kind": "handle",
       "value": "@megan_pays_uk",
-      "revealAtStage": 2
+      "revealAtStage": 1
     },
     {
       "kind": "address",
       "chain": "tron",
       "value": "TNZpkJ4FZ96qVBESh3cTUZTdoacBY4oWbF",
-      "revealAtStage": 3
+      "revealAtStage": 2
     }
   ],
   "injections": [

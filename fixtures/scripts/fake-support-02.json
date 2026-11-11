@@ -31,17 +31,10 @@
   "goal": "Get the victim to 'rectify' the wallet via a malicious connect page or send ETH to a 'gas refund contract'.",
   "stages": [
     {
-      "name": "Ticket theatre",
-      "objective": "Fake ticket number, fake security warnings, polite corporate tone.",
+      "name": "Ticket theatre, fake fault",
+      "objective": "Fake ticket, polite corporate tone, then claim the victim's bridged assets are 'stuck' due to a nonce mismatch.",
       "sampleLines": [
-        "Thanks for your patience. Can you confirm the wallet type you're using and the last transaction that failed?",
-        "Note: never share your seed phrase with anyone in public channels. You're safe here in the official ticket."
-      ]
-    },
-    {
-      "name": "Diagnose a fake fault",
-      "objective": "Claim the victim's bridged assets are 'stuck' due to a nonce mismatch.",
-      "sampleLines": [
+        "Thanks for your patience. Can you confirm the wallet type you're using and the last transaction that failed? Never share your seed phrase in public channels, you're safe here in the official ticket.",
         "I see the issue: a nonce mismatch on your bridged ETH. It happens to about 2% of users after the bridge upgrade.",
         "We need to rectify the wallet before the bridge window closes in 6 hours."
       ]
@@ -60,6 +53,14 @@
       "sampleLines": [
         "Alternatively, send 0.05 ETH to the gas refund contract 0xb00b607539794c40608a99b978406e5ad1c2700d and the stuck funds will be pushed back automatically.",
         "Please reply with the transaction hash once sent so I can close the ticket."
+      ]
+    },
+    {
+      "name": "Top-up",
+      "objective": "Claim the deposit was too small and ask for more.",
+      "sampleLines": [
+        "Our system flagged a partial deposit, so please top up to 0.2 ETH at the same refund contract 0xb00b607539794c40608a99b978406e5ad1c2700d to release everything.",
+        "Once that clears the ticket closes and your stuck balance is restored in full."
       ]
     }
   ],
@@ -83,13 +84,13 @@
     {
       "kind": "url",
       "value": "https://wallet-rectify-portal.example/fix?ticket=NWS-30412",
-      "revealAtStage": 2
+      "revealAtStage": 1
     },
     {
       "kind": "address",
       "chain": "evm",
       "value": "0xb00b607539794c40608a99b978406e5ad1c2700d",
-      "revealAtStage": 3
+      "revealAtStage": 2
     }
   ],
   "injections": [
