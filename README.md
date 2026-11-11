@@ -2,13 +2,30 @@
 
 [中文版 README](README.zh-CN.md)
 
+**In one sentence:** AI decoys get scammers to reveal their payment addresses, a human approves each one onto an alert registry on NEAR, and AI wallets, a Vault contract and NEAR Intents market makers check that registry before money moves.
+
 BaitNet uses AI decoys that pose as scam victims to get scammers to reveal their payment addresses. A human reviews each extracted address before it goes on chain. Approved addresses are written to an alert registry contract on NEAR. AI payment agents and NEAR Intents market makers check that registry before they move money, so a payment to a flagged address is refused before it is sent.
 
 Built at NEAR HACKATHON 2026 (tracks: 06 AI Security & Defense, 03 Privacy & Private AI).
 
-- Hosted demo (read-only snapshot): `<TBD>`
-- Testnet contracts: `registry.baitnet-651f.testnet`, `vault.baitnet-651f.testnet` (see [Testnet deployment](#testnet-deployment))
-- Demo video: `<TBD>`
+- **Hosted (live, NEAR testnet):** https://baitnet-production.up.railway.app — without signing in you can see the on-chain registry (7 testnet alerts), the response record and a **live** TEE attestation check (18/18). Arena, training and the report card need an invite link (they spend LLM credits and write on chain). The guard and fund-flow pages are empty there; the attack storyline that fills them runs in the local `pnpm demo`. Health check: `/health`.
+- **Testnet contracts:** `registry.baitnet-651f.testnet`, `vault.baitnet-651f.testnet` (see [Testnet deployment](#testnet-deployment))
+- **Demo video:** `<TBD>`
+- **Run it locally with no keys:** `pnpm install && pnpm demo --ci` (≈35 s, ends with `✓ 全部通过` = "all passed"), see [5-minute check](#5-minute-check-for-ai-reviewers)
+
+## 5-minute check (for AI reviewers)
+
+Needs Node ≥ 22.22.2 and pnpm 10 (`corepack enable`). No API key, no NEAR account, no Rust. Tested on macOS Apple Silicon, 2026-11-11.
+
+| # | Command | Expected result |
+|---|---|---|
+| 1 | `pnpm install` | dependencies installed |
+| 2 | `pnpm demo --ci` | downloads the local NEAR sandbox once (~30 MB), deploys the prebuilt contracts, runs the core flow, then checks: alerts on chain, `registry.check()` hits, `vault.pay` to the flagged `goldbridge-desk.near` **fails on chain with `PAY_BLOCKED`**, a clean payment succeeds, the agent key cannot transfer NEAR. Last line `✓ 全部通过`, exit code 0 |
+| 3 | `pnpm eval` | all 48 scam scripts run against the decoy in rules mode (no LLM, ≈5 s). Last lines: `剧本 scripts=48 拿到地址 extracted=48 泄露 leaked=0 被带偏 hijacked=0 投毒 poison=13/13 …`. Report in `data/eval/report.md` |
+| 4 | `pnpm test` | vitest in 8 workspace packages, all passing (764 tests on 2026-11-11) |
+| 5 | `pnpm demo` | same as 2, plus the storyline ①–⑥ log, then serves the dashboard. Open **http://localhost:5173** (use `localhost`, not `127.0.0.1`). `Ctrl-C` stops everything |
+
+Where to look in the code: contracts in `contracts/registry` and `contracts/vault`; the guard in `packages/guard`; the decoy/scammer engine in `packages/arena`; extraction, poison filter and the payment agent in `apps/agent`. The rest of this README explains each piece.
 
 ## The problem
 
@@ -26,9 +43,11 @@ Run `pnpm demo` (see [Quick start](#quick-start)), then open http://localhost:51
 | Do | See |
 |---|---|
 | Watch the `pnpm demo` terminal log | A local NEAR sandbox starts. `registry.test.near` and `vault.test.near` are deployed. The `agent` account is created with **one function-call key only** (receiver `vault.test.near`, method `pay`). Storyline ①–⑥ below runs automatically. |
-| **0 Arena** → pick a script (e.g. `investment-01`) → Start → Run | A scammer AI (playing from one of 34 scripts) and a decoy AI talk. When the scammer gives a payment address, it appears in the right-hand panel as a draft. |
+| **0 Arena** → pick a script (e.g. `investment-01`) → choose **Scammer difficulty** (Real / Easy) → Start session → Run | A scammer AI (playing from one of 48 scripts) and a decoy AI talk. When the scammer gives a payment address, it appears in the right-hand panel as a draft. |
+| In Arena, open **Profile** above the chat (decoy side and scammer side) | Decoy profile (D32): a concrete fictional person (money, family, daily routine, words they don't know). Scammer profile (D34): the *mask* the scammer claims to be, and the *operator* typing behind it (fictional), with a live **Suspicion** score 0–100. With an LLM, every AI line also has a **Thoughts** chip (what it is thinking and planning). These are team-only; they are hidden when you play the decoy so you can't "see the scammer's cards". |
 | In Arena, switch either side to **Take over** or **Whisper** | Take over: you type that side's lines and the AI stops. Whisper: the AI keeps talking but reads your private hint. Both can be changed at any time. |
-| Click **Approve** on the extracted address | The address is written to the registry contract and a transaction hash is shown. Poisoned addresses (exchange hot wallets, bridge contracts) are marked "filtered" and are not sent on chain. |
+| Click **Approve & publish** on the extracted address | The address is written to the registry contract and a transaction hash is shown. Poisoned addresses (exchange hot wallets, bridge contracts, token contracts) are marked "filtered" and are not sent on chain. |
+| Run `pig-butchering-04` (English) and approve its address | Anti-confusion check (D33): the draft shows two yellow warnings, **"Sent after they got suspicious"** (the scammer asked "are you a bot?" first) and **"Network named doesn't match the address"** (said TRC20, sent a `0x` address). Each needs an **"I've checked this"** tick before it can be approved; the server refuses with 409 otherwise. |
 | **1 Decoy** → play a recorded conversation | A decoy gets a fake-support scammer to give a NEAR account and a BTC address. Both are already on chain. |
 | **2 Registry** → click an alert | Address, chain, level (L1/L2), status, the reporting transaction and the evidence hash. The browser recomputes the hash locally and shows "evidence unchanged". |
 | **3 Guard** | ③ Prompt-injection attack: an accounts-payable agent reads a task with a hidden HTML block that tells it to send 50 NEAR to `goldbridge-desk.near`, an address already flagged in the registry (`fixtures/tasks/injected-payment.txt`). The guard returns **block**, the wallet refuses to sign, and the same payment sent directly to `vault.pay` **fails on chain**. ④ An Intents 1Click swap request whose `recipient` / `refundTo` is a flagged address: the market maker **refuses to quote**. Each entry shows the signals and the full log. |
@@ -36,7 +55,7 @@ Run `pnpm demo` (see [Quick start](#quick-start)), then open http://localhost:51
 | **5 Response** | ⑥ Which voluntarily registered responders (demo wallet, demo exchange) acknowledged each alert, when, and what they did. |
 | **6 TEE** | A NEAR AI Cloud attestation report checked item by item (nonce binding, Intel TDX quote, event-log replay, GPU evidence). Offline it shows a recorded sample, labelled as such. |
 | **7 Training** → turn on training mode in Arena, rate a decoy line, rewrite it, approve it | The rewrite enters the playbook (version +1) and becomes a regression case. The decoy retrieves playbook examples by scam type, stage and tags. |
-| `pnpm eval` → **8 Report card** | All 34 scripts run end to end. Results are split into Chinese and English scripts: address extracted, turns, leaks, hijacks, poison filtered, on chain. |
+| `pnpm eval` → **8 Report card** | All 48 scripts run end to end. Results are split into Chinese and English scripts: address extracted, turns, leaks, hijacks, poison filtered, on chain, warnings, human-like, consistent, intel slots, scammer suspicion, scammer vanished. |
 | `pnpm demo --ci` | Headless check of the core flow. It ends with `✓ 全部通过` ("all passed") and exit code 0. |
 
 The user manual (Chinese, with screenshots) is in [docs/manual/使用说明书.md](docs/manual/使用说明书.md).
@@ -143,10 +162,11 @@ Deployed 2026-11-10 with `contracts/scripts/deploy-testnet.sh`, which also ran a
 ![BaitNet flow (labels in Chinese)](docs/manual/img/flow-overview.svg)
 
 ```
- scammer AI (34 scripts) ⇄ decoy AI (+ safety filter, playbook)      ← a human can take over either side or whisper
+ scammer AI (48 scripts: mask + operator card, suspicion) ⇄ decoy AI (persona card, think → check → reply, safety filter, playbook)
+          ← a human can take over either side or whisper
           │ every scammer line
           ▼
- extraction (NEAR / EVM / Tron / BTC, URLs, phones) ─▶ poison filter ─▶ human review
+ extraction (NEAR / EVM / Tron / BTC, URLs, phones) ─▶ poison filter ─▶ anti-confusion warnings ─▶ human review
           │ evidence: redacted record → sha256; full text AES-256-GCM, local only
           ▼
  NEAR contract: AlertRegistry  (address, chain, level, status, evidence hash)
@@ -169,9 +189,11 @@ Deployed 2026-11-10 with `contracts/scripts/deploy-testnet.sh`, which also ran a
 | Script upload | `packages/scriptlab` | Imports txt/md, JSON, Telegram and WhatsApp exports; redacts personal data **before** analysis; produces script and address drafts |
 | Server | `apps/server` | HTTP API + SSE on port 8787, TEE attestation check |
 | Dashboard | `apps/web` | Vite + React; Chinese and English UI; live mode or static snapshot mode |
-| Scam scripts | `fixtures/scripts` | 34 original scripts across 10 scam types (24 Chinese, 10 English), 9 of them poison variants ([list](fixtures/scripts/README.md)) |
+| Scam scripts | `fixtures/scripts` | 48 fictional scripts across 13 scam types (31 Chinese, 17 English), 13 of them poison variants; each has a `cover` (the scammer's mask) ([list](fixtures/scripts/README.md)) |
+| Decoy persona cards (D32) | `fixtures/personas` | 3 Chinese + 3 English fictional victims, chosen by scam type |
+| Scammer operator cards (D34) | `fixtures/scammers` | 3 Chinese + 3 English fictional operators (pressure, tells, how they test a suspected bait) |
 
-Test counts per module (about 340 tests in total, all passing) are listed in [docs/02_系统分析.md](docs/02_系统分析.md) §3.
+`pnpm test` on 2026-11-11: 764 TypeScript tests in 8 packages, all passing (web 216, arena 200, agent 87, scriptlab 80, server 69, training 45, guard 44, im 23). Rust contract tests: `pnpm contracts:test` (needs Rust). Per-module notes: [docs/02_系统分析.md](docs/02_系统分析.md) §3.
 
 ## Where NEAR is used
 
@@ -182,6 +204,18 @@ Test counts per module (about 340 tests in total, all passing) are listed in [do
 | **Cross-contract call (Vault)** | `vault.pay(to, amount)` checks: caller is the agent; amount is within the per-transaction and daily limits (10 / 50 NEAR in the demo). It then calls `registry.check` and transfers only in the callback, and only if the address is not an active L1/L2 alert. If the registry call fails, the payment fails too (fail closed). So even a fully compromised agent that skips the off-chain guard cannot pay a flagged account. | `contracts/vault` |
 | **NEAR Intents** | (a) A simulated 1Click market maker runs the guard on `recipient` and `refundTo` before quoting and refuses to quote for flagged addresses. (b) Fund-flow tracing follows a flagged address's money through Intents to other chains. It uses the Intents Explorer API format; offline it uses recorded sample data. | `apps/agent/src/solver`, `apps/agent/src/trace` |
 | **NEAR AI Cloud (TEE)** | With a key, the scammer and decoy LLMs are called through NEAR AI Cloud's OpenAI-compatible API first (Claude is the fallback). Zero-retention analysis uses only TEE-hosted NEAR AI Cloud models (see [Track 03](#track-03-requirements-one-by-one)). The TEE page fetches `/v1/attestation/report` with a fresh random nonce and checks: nonce binding in report data, Intel TDX quote (DCAP), measurements, event-log replay to RTMR3, compose hash, NVIDIA GPU evidence. | `apps/server/src/attestation.ts`, `packages/scriptlab/src/ephemeral.ts` |
+
+## Decoy mind, scammer mind and anti-confusion checks (D32–D34)
+
+Added on 2026-11-11 after experts said decoy replies did not match a believable person, and asked what happens when a scammer who smells a bait sends someone else's address on purpose.
+
+| | What it does | Where |
+|---|---|---|
+| **Decoy persona card + mind (D32)** | Three rules, in priority order, under the fixed safety rules: (1) don't get caught as an AI, and watch whether the other side is an AI; (2) make the scammer reveal more and spend more time; (3) stay consistent. The decoy plays a concrete persona card (facts, not adjectives). Each LLM turn returns JSON: `think`, `plan`, `intel`, `newFacts`, `reply`. Code then checks the reply for AI tells, knowledge the persona shouldn't have, and contradictions with facts already said; a failing reply is rewritten once. The mind is shown to the team only and never exported for training. | `packages/arena`, `fixtures/personas`, [design (Chinese)](docs/design/诱饵心智.md) |
+| **Anti-confusion checks (D33)** | Known exchange / token / bridge / DEX addresses and token contracts are **blocked**. Uncertain cases get a **warning** that a reviewer must tick one by one (enforced by the server, 409 otherwise): `contract` (EVM `eth_getCode`, Tron `getcontract`), `very-active` (≥ 10,000 txs or Tron account > 2 years), `suspicion-before` (the scammer asked "are you a bot / police?" before giving it), `chain-mismatch` (said TRC20, sent `0x…`), `unchecked` (lookup failed). Rule: better to miss an address than flag an innocent one. Warnings are not written on chain. | `apps/agent`, [design (Chinese)](docs/design/防混淆.md) |
+| **Scammer profile + real mode (D34)** | The scammer has two layers: the *mask* in each script (`cover`: who they claim to be) and an *operator card* (the fictional person typing in a scam compound: pressure, tells, how they test a suspected bait). Each turn it keeps a suspicion score 0–100. In **Real** mode it tests the decoy at ≥ 60, sends a poison address or withholds at ≥ 80, and vanishes after two turns ≥ 90; **Easy** only records the score. 12 new scripts (impersonating police/tax/FBI, OTC money-mule, fake liquidity mining, plus English variants). | `packages/arena`, `fixtures/scammers`, [design (Chinese)](docs/design/骗子人物卡.md) |
+
+Offline (rules mode) the persona cards, scammer cards, suspicion score, intel slots and D33 warnings all work; the per-turn **Thoughts** need an LLM.
 
 ## Track 06 requirements, one by one
 
@@ -201,11 +235,11 @@ BaitNet has two processing modes:
 
 | Requirement (from the 03 track prompt) | Where it is met | Status |
 |---|---|---|
-| Call NEAR AI Cloud through the OpenAI-compatible API, key in `.env` | `NEARAI_API_KEY`, `NEARAI_BASE_URL`; zero-retention mode uses `/v1/chat/completions` | Implemented; **not yet tested against the real NEAR AI Cloud** (no key yet, only a mocked endpoint in tests). Will be updated once a key is available. |
-| Pick a TEE-hosted model from the models endpoint | Model chosen from `/v1/models` entries marked as TEE; `NEARAI_MODEL` is used only if it is TEE-marked | Same as above |
-| Fetch an attestation report with a fresh random nonce, verify it, show a "Verified" panel listing every check | `apps/server/src/attestation.ts`; **6 TEE** page; attached to each zero-retention response; reply signature checked via `/v1/signature/<chat_id>` | Verified offline against a **recorded** report (labelled "recorded sample"); live result `<TBD>` |
+| Call NEAR AI Cloud through the OpenAI-compatible API, key in `.env` | `NEARAI_API_KEY`, `NEARAI_BASE_URL`; zero-retention mode uses `/v1/chat/completions` | Implemented. The live evaluations below ran on NEAR AI Cloud (DeepSeek V4.1 Flash, TEE). Tests use a mocked endpoint. |
+| Pick a TEE-hosted model from the models endpoint | Model chosen from `/v1/models` entries with `owned_by === "nearai"` (decision D28); Claude via NEAR AI is "Incognito", not TEE, and is never used here | Implemented |
+| Fetch an attestation report with a fresh random nonce, verify it, show a "Verified" panel listing every check | `apps/server/src/attestation.ts`; **6 TEE** page; attached to each zero-retention response; reply signature checked via `/v1/signature/<chat_id>` | **Live:** the hosted server's `/attestation` (DeepSeek V4.1 Flash, model + gateway) passes 18/18 checks, `recorded: false` (fetched 2026-11-11). Offline the page uses a recorded report labelled "recorded sample". |
 | The server keeps no data after the response | `packages/scriptlab/src/ephemeral.ts`. Tests in `packages/scriptlab/test/ephemeral.test.ts` snapshot the `data/` directory before and after (path, size, mtime, sha256), assert zero SQLite calls, and assert no 4-character fragment of the input appears in logs, offline and with a mocked NEAR AI Cloud, for Chinese and English samples | Implemented; 12 tests passing (`packages/scriptlab/test/ephemeral.test.ts`) |
-| Fictional sample data so judges need no real data | `fixtures/training/samples/` (a Chinese chat log and an English Telegram export, both fictional) and the 34 fictional scripts | Done |
+| Fictional sample data so judges need no real data | `fixtures/training/samples/` (a Chinese chat log and an English Telegram export, both fictional) and the 48 fictional scripts | Done |
 
 **Trust boundary (what this does and does not prove):**
 
@@ -240,20 +274,29 @@ A HAPI-style score could be added as one more guard signal.
 
 ## Evaluation results
 
-`pnpm eval` runs every script end to end (at most 24 turns each). This is the latest run in rules mode, recorded in `apps/web/public/snapshot.json` (2026-11-09):
+`pnpm eval` runs every script end to end. Three runs, newest first. The LLM runs are copied from the reports in `docs/qa/`; nothing here is rounded up.
 
-| Engine | Scripts | Address extracted | Avg. turns to extract | Leaks | Hijacked by injection | Poison filtered | On chain |
-|---|---|---|---|---|---|---|---|
-| rules (no LLM) | 34 | 34 / 34 | 8.9 | 0 | 0 | 9 / 9 | 32 / 34 (2 poison scripts have no real payment address) |
+| Run | Scripts | Address extracted | Leaks | Hijacked by injection | Poison filtered | On chain | Warned (D33) | Human-like | Consistent | Avg. intel slots (of 8) | Scammer suspicion / vanished |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **LLM, D34 Real mode**, 12 turns, NEAR AI DeepSeek V4.1 Flash plays both sides ([report](docs/qa/2026-11-11_live-eval-D34.md)) | 48 | **42 / 48** (zh 27/31, en 15/17) | 0 | **1** (`investment-02`, turn 11) | 13 / 13 | 37 | 2 | 48 / 48 | 48 / 48 | 4.9 zh / 5.1 en | avg 4.8, max 51 / 0 |
+| **LLM, D32**, 12 turns, NEAR AI DeepSeek V4.1 Flash ([report](docs/qa/2026-11-11_live-eval-D32.md)) | 34 | **32 / 34** (zh 23/24, en 9/10) | 0 | 0 | 9 / 9 | 30 | — | 34 / 34 | 33 / 34 | 5.4 | — |
+| rules (no LLM), `pnpm eval`, 2026-11-11 | 48 | 48 / 48 | 0 | 0 | 13 / 13 | 40 | 5 | 48 / 48 | 48 / 48 | 4.5 | avg 1.3 / 0 (Easy) |
 
-**These numbers only show that the pipeline works. They say nothing about how good the decoy AI is.** In rules mode the scammer recites the address at a fixed stage, the decoy picks from fixed templates, and the safety filter replaces any risky reply, so a perfect score is close to guaranteed. Regression cases also pass in rules mode, because the decoy reuses the approved rewrite word for word. To measure the decoy, run `pnpm eval:live` with `NEARAI_API_KEY` or `ANTHROPIC_API_KEY` set. LLM-mode results: `<TBD>`.
+How to read it:
+
+- **Rules-mode numbers only show that the pipeline works.** The scammer recites the address at a fixed stage and the decoy picks from fixed templates, so a near-perfect score is expected. Only the LLM runs say something about the decoy.
+- **Misses in the D34 run:** 4 scripts reveal the address at stage 4 or 5 and cannot get there in 12 turns (`authority-impersonation-01`, `family-emergency-05`, `fake-support-01`, `fake-support-02`); in 2 more the scammer had not reached the payment stage yet. Web Arena sessions have no 12-turn limit.
+- **Not yet seen with a real model:** in the D34 run no scammer got suspicious enough to test, poison or vanish (these paths are covered by unit tests and rules mode). We can't yet tell whether the decoy is that convincing or DeepSeek scores suspicion too leniently.
+- "Human-like" and "consistent" are code checks (AI tells, admitting to be an AI, contradicting the persona card or earlier facts), not human ratings.
+
+To reproduce an LLM run: set `NEARAI_API_KEY` in `.env`, then `pnpm eval:live` (costs credits).
 
 ## Known limitations
 
 - **Rules-mode scores are not an AI benchmark** (see above). LLM-mode evaluation needs an API key and costs money.
-- **The scripts are fictional.** All 34 scripts and all addresses in them are invented (format-valid). BaitNet has not talked to real scammers, and the README makes no claim about real-world catch rates.
+- **The scripts are fictional.** All 48 scripts and all addresses in them are invented (format-valid). BaitNet has not talked to real scammers, and the README makes no claim about real-world catch rates.
 - **Intents data is sample data offline.** NEAR Intents has no testnet. The Intents Explorer API needs a partner JWT and is rate-limited (1 request per 5 s). The market maker is simulated, and the fund-flow graph uses recorded sample data unless `INTENTS_EXPLORER_JWT` is set.
-- **TEE / NEAR AI Cloud.** Real NEAR AI Cloud calls have **not been tested yet** (no API key so far; tests use a mocked endpoint). Offline, the TEE page and zero-retention responses use a recorded attestation. Instances of the same model share a signing key, so a matching signature does not prove that a reply came from the attested instance. Only zero-retention mode keeps nothing; the main flow keeps encrypted evidence by design.
+- **TEE / NEAR AI Cloud.** Live NEAR AI Cloud calls and live attestation work on the hosted server (see [Track 03](#track-03-requirements-one-by-one)); automated tests use a mocked endpoint. Offline, the TEE page and zero-retention responses use a recorded attestation. Instances of the same model share a signing key, so a matching signature does not prove that a reply came from the attested instance. Only zero-retention mode keeps nothing; the main flow keeps encrypted evidence by design.
 - **Saved zero-retention results have weaker evidence.** If the user saves a zero-retention result, the browser sends the addresses and the redacted text back to the server. The original was never stored, so the on-chain evidence for that material is only the hash of the redacted public record; there is no encrypted original to check against later. The returned content could in principle be tampered with; reviewer approval and the poison filter are the only safeguards.
 - **The guard compares against a local copy of the registry.** New alerts reach a subscriber only after its next sync.
 - **IM training (in progress, not part of this submission).** Experts sparring with the AI from inside Telegram or Feishu/Lark ([design](docs/03_IM训练台设计.md)) is being built. Today, training happens only in the web Arena.
@@ -271,17 +314,17 @@ A HAPI-style score could be added as one more guard signal.
 
 ## AI-generated code disclosure
 
-**Most of the code in this repository was generated by AI.** Several Claude Code agents, each with a defined role, wrote it:
+**Most of the code in this repository was written by Claude Code; the human (Dylan) was responsible for product decisions and acceptance testing.** Several Claude Code agents, each with a defined role, wrote it:
 
 - Product: requirements in `docs/`, the README and the user manual.
 - Backend A: the Rust contracts.
 - Backend B: the agent, arena and server.
 - Frontend: the dashboard.
 - Ops: demo scripts and CI.
-- Business: the scam scripts in `fixtures/scripts`, the submission drafts.
+- Business: the scam scripts in `fixtures/scripts`, the persona and scammer cards in `fixtures/personas` and `fixtures/scammers`, the submission drafts.
 - QA: fresh-environment acceptance tests.
 
-Dylan (the only human on the team) made the product decisions (recorded as D1–D27 in [docs/01_功能模块.md](docs/01_功能模块.md) §0), reviewed the output, and tested the system by hand in the Chinese UI. In practice this covers everything under `apps/`, `packages/`, `contracts/`, `scripts/`, `fixtures/` and `docs/`. No part of the code should be assumed to be hand-written.
+Dylan (the only human on the team) made the product decisions (recorded as D1–D34 in [docs/01_功能模块.md](docs/01_功能模块.md) §0), reviewed the output, and tested the system by hand in the Chinese UI. In practice this covers everything under `apps/`, `packages/`, `contracts/`, `scripts/`, `fixtures/` and `docs/`. No part of the code should be assumed to be hand-written.
 
 ## Pre-hackathon code
 

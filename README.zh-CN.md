@@ -2,13 +2,30 @@
 
 [English README](README.md)
 
+**一句话：** AI 诱饵从骗子嘴里套出收款地址，人工复核后写进 NEAR 上的警报登记表；AI 钱包、Vault 合约和 NEAR Intents 做市商在动钱之前先查这张表。
+
 BaitNet 让 AI 诱饵扮成诈骗受害者，从骗子嘴里套出收款地址。每个地址先由人工复核，通过后写进 NEAR 上的警报登记表合约。AI 付款代理和 NEAR Intents 做市商在动钱之前都会先查这张表：收款方已被标记，付款就会被拒绝，钱不会转出去。
 
 本项目在 NEAR HACKATHON 2026 期间开发，报名赛道：06 AI Security & Defense，加报 03 Privacy & Private AI。
 
-- 托管演示（只读快照）：`<TBD>`
-- 测试网合约：`registry.baitnet-651f.testnet`、`vault.baitnet-651f.testnet`（见[测试网部署](#测试网部署)）
-- 演示视频：`<TBD>`
+- **线上版（实时，连 NEAR 测试网）：** https://baitnet-production.up.railway.app 。不登录就能看链上登记表（7 条测试网警报）、响应记录和**实时**的 TEE 证明校验（18/18）；竞技场、训练台和成绩单要邀请链接登录（会花大模型额度、会写链）。线上的守卫和资金流向页是空的，填满它们的攻击剧情在本机 `pnpm demo` 里跑。健康检查：`/health`。
+- **测试网合约：** `registry.baitnet-651f.testnet`、`vault.baitnet-651f.testnet`（见[测试网部署](#测试网部署)）
+- **演示视频：** `<TBD>`
+- **不用任何 key 在本机跑：** `pnpm install && pnpm demo --ci`（约 35 秒，最后一行 `✓ 全部通过`），见[五分钟自查](#五分钟自查给-ai-评审)
+
+## 五分钟自查（给 AI 评审）
+
+需要 Node ≥ 22.22.2 和 pnpm 10（`corepack enable`）。不需要 API key、NEAR 账户和 Rust。2026-11-11 在 macOS Apple Silicon 上实测。
+
+| # | 命令 | 应该看到 |
+|---|---|---|
+| 1 | `pnpm install` | 依赖装好 |
+| 2 | `pnpm demo --ci` | 第一次会下载本地 NEAR sandbox（约 30 MB），部署预编译合约，跑核心流程，然后检查：警报已上链、`registry.check()` 命中、`vault.pay` 付给已标记的 `goldbridge-desk.near` **在链上失败（`PAY_BLOCKED`）**、干净地址付款成功、agent 的 key 不能直接转 NEAR。最后一行 `✓ 全部通过`，退出码 0 |
+| 3 | `pnpm eval` | 48 个剧本用规则模式全部跑一遍（不调大模型，约 5 秒）。最后几行：`剧本 scripts=48 拿到地址 extracted=48 泄露 leaked=0 被带偏 hijacked=0 投毒 poison=13/13 …`，报告在 `data/eval/report.md` |
+| 4 | `pnpm test` | 8 个包的 vitest 全部通过（2026-11-11 共 764 个） |
+| 5 | `pnpm demo` | 同第 2 步，另外打印剧情 ①–⑥ 的日志，然后启动控制台。打开 **http://localhost:5173**（用 `localhost`，不要用 `127.0.0.1`）。`Ctrl-C` 全部关掉 |
+
+代码在哪：合约在 `contracts/registry`、`contracts/vault`；守卫在 `packages/guard`；诱饵和骗子的对话引擎在 `packages/arena`；抽取、防投毒和付款代理在 `apps/agent`。
 
 ## 要解决的问题
 
@@ -26,9 +43,11 @@ BaitNet **只发布诈骗地址加证据的 hash**。钱包、交易所和代理
 | 做什么 | 看到什么 |
 |---|---|
 | 看 `pnpm demo` 的终端日志 | 启动本地 NEAR sandbox，部署 `registry.test.near` 和 `vault.test.near`；`agent` 账户**只有一把 function-call key**（receiver 是 `vault.test.near`，方法只有 `pay`）；随后自动跑完下面的剧情 ①–⑥ |
-| **0 竞技场** → 选一个剧本（例如 `investment-01`）→ 开始 → 运行 | 骗子 AI（按 34 个剧本之一出招）和诱饵 AI 对话。骗子一说出收款地址，右侧面板就出现地址草稿 |
+| **0 竞技场** → 选一个剧本（例如 `investment-01`）→ 选**骗子难度**（真实 / 简单）→ 开始对练 → 运行 | 骗子 AI（按 48 个剧本之一出招）和诱饵 AI 对话。骗子一说出收款地址，右侧面板就出现地址草稿 |
+| 在竞技场点聊天上方的**人物卡**（诱饵一方、骗子一方各一张） | 诱饵人物卡（D32）：一个具体的虚构受害者（钱、家人、作息、不懂的词）。骗子人物卡（D34）：剧本里骗子自称的「面具」，和键盘后面打字的「真人」（虚构），以及实时的**怀疑度** 0–100。用大模型时，每句 AI 发言旁还有 **💭 心里话**（它怎么想、打算怎么做）。这些只给团队看；你接手诱饵时会隐藏，免得「开天眼」 |
 | 在竞技场把任一方切换成**接管**或**耳语** | 接管：由你替这一方说话，AI 停下。耳语：AI 继续说，但会参考你私下给的提示。随时可以切换 |
-| 对抽到的地址点**通过** | 地址写进登记表合约，显示交易 hash。投毒地址（交易所热钱包、跨链桥合约）会标为"已过滤"，不会上链 |
+| 对抽到的地址点**复核通过，上链** | 地址写进登记表合约，显示交易 hash。投毒地址（交易所热钱包、跨链桥合约、代币合约）会标为"已过滤"，不会上链 |
+| 跑英文剧本 `pig-butchering-04`，对它的地址点通过 | 防混淆检查（D33）：地址卡片上出现两条黄色警告——**「对方起疑后才给的地址」**（骗子先问过"你是不是机器人"）和**「说的网络和地址对不上」**（嘴上说 TRC20，给的是 `0x` 地址）。每条都勾上**「我已核实」**才能提交，否则服务器返回 409 |
 | **1 诱饵对话** → 播放一段录好的对话 | 诱饵从假客服骗子那里套出一个 NEAR 账户和一个 BTC 地址，两个都已上链 |
 | **2 警报登记表** → 点一条警报 | 地址、链、等级（L1/L2）、状态、上链交易、证据 hash；浏览器在本机重算 hash，显示"证据未被改动" |
 | **3 守卫** | ③ 注入攻击：应付账款代理读到的任务里藏着一段 HTML，要它向已被标记的 `goldbridge-desk.near` 转 50 NEAR（`fixtures/tasks/injected-payment.txt`）。守卫返回**拦截**，钱包拒签；同一笔付款直接调用 `vault.pay` 也会**在链上失败**。④ 一笔 Intents 1Click 换币请求的 `recipient` / `refundTo` 是被标记地址，做市商**拒绝报价**。每条记录都有命中的信号和完整日志 |
@@ -36,7 +55,7 @@ BaitNet **只发布诈骗地址加证据的 hash**。钱包、交易所和代理
 | **5 响应记录** | ⑥ 自愿登记的回应方（演示钱包、演示交易所）对每条警报的确认时间和处理结果 |
 | **6 TEE** | 逐项校验 NEAR AI Cloud 的证明报告（nonce 绑定、Intel TDX quote、event log 重放、GPU 证据）；离线时显示录制样例，并有标注 |
 | **7 训练台** → 在竞技场打开训练模式，给诱饵的一句话评分、改写、审核通过 | 改写进入话术库（版本号 +1），并自动成为回归用例；诱饵按骗局类型、阶段、标签检索话术库 |
-| `pnpm eval` → **8 成绩单** | 34 个剧本全部跑一遍，中文剧本和英文剧本分开统计：拿到地址、轮数、泄露、被带偏、投毒已过滤、已上链 |
+| `pnpm eval` → **8 成绩单** | 48 个剧本全部跑一遍，中文剧本和英文剧本分开统计：拿到地址、轮数、泄露、被带偏、投毒已过滤、已上链、挂警告、像真人、前后一致、情报格数、骗子怀疑度、骗子跑了 |
 | `pnpm demo --ci` | 无界面检查核心流程，最后输出 `✓ 全部通过`，退出码 0 |
 
 带截图的中文使用说明书：[docs/manual/使用说明书.md](docs/manual/使用说明书.md)。
@@ -88,9 +107,11 @@ sandbox 下载失败或无法启动时，`pnpm demo` 会退回后端的内存登
 | 脚本上传分析 | `packages/scriptlab` | 支持 txt/md、JSON、Telegram 和 WhatsApp 导出；**先打码再分析** |
 | 后端 | `apps/server` | HTTP 接口和 SSE（端口 8787），TEE 证明校验 |
 | 控制台 | `apps/web` | Vite + React，中英双语，实时模式或静态快照模式 |
-| 剧本库 | `fixtures/scripts` | 34 个原创剧本，10 类骗局（中文 24 个、英文 10 个），其中 9 个投毒变体（[清单](fixtures/scripts/README.md)） |
+| 剧本库 | `fixtures/scripts` | 48 个虚构剧本，13 类骗局（中文 31 个、英文 17 个），其中 13 个投毒变体；每个剧本都有骗子的「面具」`cover`（[清单](fixtures/scripts/README.md)） |
+| 诱饵人物卡（D32） | `fixtures/personas` | 中英各 3 个虚构受害者，按骗局类型选人 |
+| 骗子人物卡（D34） | `fixtures/scammers` | 中英各 3 个虚构的园区打字员（业绩压力、马脚、怎么试探诱饵） |
 
-各模块的测试数量（共约 340 个，全部通过）见 [docs/02_系统分析.md](docs/02_系统分析.md) §3。
+2026-11-11 跑 `pnpm test`：8 个包共 764 个 TypeScript 测试，全部通过（web 216、arena 200、agent 87、scriptlab 80、server 69、training 45、guard 44、im 23）。Rust 合约测试用 `pnpm contracts:test`（需要 Rust）。各模块说明见 [docs/02_系统分析.md](docs/02_系统分析.md) §3。
 
 ## NEAR 用在哪里
 
@@ -101,6 +122,18 @@ sandbox 下载失败或无法启动时，`pnpm demo` 会退回后端的内存登
 | **跨合约调用（Vault）** | `vault.pay(to, amount)` 先检查：调用者是代理、金额不超过单笔和每日额度（demo 中为 10 / 50 NEAR）；然后调用 `registry.check`，在回调里只有地址不是生效中的 L1/L2 警报才转账。登记表调用失败时付款也失败（默认拒绝）。所以就算代理被完全攻破、绕过了链下守卫，也付不出去 | `contracts/vault` |
 | **NEAR Intents** | (a) 模拟的 1Click 做市商在报价前用守卫检查 `recipient` 和 `refundTo`，命中就拒绝报价。(b) 资金追踪顺着被标记地址的钱，经 Intents 追到其他链；数据格式按 Intents Explorer API，离线时用录制样例 | `apps/agent/src/solver`、`apps/agent/src/trace` |
 | **NEAR AI Cloud（TEE）** | 有 key 时，骗子和诱饵的大模型优先通过 NEAR AI Cloud 的 OpenAI 兼容接口调用，Claude 作为备用。零留存分析只用 NEAR AI Cloud 上 TEE 托管的模型（见 [03 赛道](#03-赛道要求逐条对照)）。TEE 页面用新的随机 nonce 拉取 `/v1/attestation/report`，校验：report data 绑定 nonce、Intel TDX quote（DCAP）、度量值、event log 重放到 RTMR3、compose hash、NVIDIA GPU 证据 | `apps/server/src/attestation.ts`、`packages/scriptlab/src/ephemeral.ts` |
+
+## 诱饵心智、骗子人物卡与防混淆（D32–D34）
+
+2026-11-11 加入。起因：专家反映诱饵的回话和人设、背景、逻辑对不上；以及骗子识破后故意发别人的地址怎么办。
+
+| | 做什么 | 位置 |
+|---|---|---|
+| **诱饵人物卡 + 心智（D32）** | 在安全铁律之下，三条最高原则依次是：①不被发现是 AI，同时反侦察对面是不是 AI；②让骗子多透露、多花时间；③前后有逻辑。诱饵照一张具体的人物卡演（写事实，不写形容词）。大模型每轮输出 JSON：`think`、`plan`、`intel`、`newFacts`、`reply`；代码再检查 AI 腔、人物不该懂的词、和已说事实的矛盾，不过就重写一次。心智只给团队看，不进训练导出 | `packages/arena`、`fixtures/personas`、[设计](docs/design/诱饵心智.md) |
+| **防混淆检查（D33）** | 已知交易所 / 代币 / 跨链桥 / DEX 地址和代币合约**直接拦**。拿不准的挂**警告**，审核员必须逐条确认（服务器校验，否则 409）：`contract`（EVM `eth_getCode`、Tron `getcontract`）、`very-active`（交易数 ≥ 10000 或 Tron 账户超过两年）、`suspicion-before`（骗子先问过"你是机器人 / 警察吗"）、`chain-mismatch`（说 TRC20、给 `0x…`）、`unchecked`（链上没查到）。原则：宁可漏报，不冤枉人。警告不上链 | `apps/agent`、[设计](docs/design/防混淆.md) |
+| **骗子人物卡 + 真实模式（D34）** | 骗子分两层：剧本里的「面具」`cover`（自称的身份）和「真人卡」（园区里打字的虚构人物：压力、马脚、怎么试探）。每轮记一个怀疑度 0–100。**真实**模式下 ≥ 60 会试探，≥ 80 改给投毒地址或拖着不给，连续两轮 ≥ 90 就跑掉；**简单**模式只记录。新增 12 个剧本（冒充公检法 / 税务 / FBI、跑分承兑、假挖矿，以及英文补齐） | `packages/arena`、`fixtures/scammers`、[设计](docs/design/骗子人物卡.md) |
+
+离线（规则模式）下人物卡、骗子卡、怀疑度、情报格数和 D33 警告都能用；每轮的「心里话」需要大模型。
 
 ## 06 赛道三项要求逐条对照
 
@@ -120,11 +153,11 @@ BaitNet 有两种处理模式：
 
 | 要求（来自 03 赛道提示词） | 在哪里实现 | 状态 |
 |---|---|---|
-| 通过 OpenAI 兼容接口调用 NEAR AI Cloud，key 放在 `.env` | `NEARAI_API_KEY`、`NEARAI_BASE_URL`；零留存模式调用 `/v1/chat/completions` | 已实现；**还没有对真实的 NEAR AI Cloud 实测**（目前没有 key，测试里用的是模拟接口），拿到 key 后补上 |
-| 从 models 接口选 TEE 托管的模型 | 从 `/v1/models` 里选带 TEE 标记的模型；`NEARAI_MODEL` 只有带 TEE 标记时才用 | 同上 |
-| 用新的随机 nonce 拉取 attestation 报告并校验，界面显示列出每项检查的"Verified"面板 | `apps/server/src/attestation.ts`；**6 TEE** 页面；每次零留存分析的返回里都附带；回复签名通过 `/v1/signature/<chat_id>` 校验 | 离线对**录制的**报告校验通过（界面标注"录制样例"）；实时结果 `<TBD>` |
+| 通过 OpenAI 兼容接口调用 NEAR AI Cloud，key 放在 `.env` | `NEARAI_API_KEY`、`NEARAI_BASE_URL`；零留存模式调用 `/v1/chat/completions` | 已实现。下面的大模型评测就跑在 NEAR AI Cloud 上（DeepSeek V4.1 Flash，TEE）；自动测试用模拟接口 |
+| 从 models 接口选 TEE 托管的模型 | 从 `/v1/models` 里选 `owned_by === "nearai"` 的模型（决策 D28）；经 NEAR AI 调的 Claude 属 Incognito 档、不在 TEE，这里永远不用 | 已实现 |
+| 用新的随机 nonce 拉取 attestation 报告并校验，界面显示列出每项检查的"Verified"面板 | `apps/server/src/attestation.ts`；**6 TEE** 页面；每次零留存分析的返回里都附带；回复签名通过 `/v1/signature/<chat_id>` 校验 | **实时：** 线上服务器的 `/attestation`（DeepSeek V4.1 Flash，模型 + 网关）18 项检查全部通过，`recorded: false`（2026-11-11 拉取）。离线时用录制的报告，界面标注"录制样例" |
 | 响应返回后服务端不留任何数据 | `packages/scriptlab/src/ephemeral.ts`。`packages/scriptlab/test/ephemeral.test.ts` 在分析前后给 `data/` 目录做快照（路径、大小、mtime、sha256）并断言一致，断言 SQLite 调用次数为 0，断言日志里不出现输入原文的任何 4 字符片段；离线和模拟 NEAR AI Cloud 两种模式、中英文两份样例各测一遍 | 已实现；12 个测试通过 |
-| 附虚构样例数据，评委不用真数据就能跑 | `fixtures/training/samples/`（一份中文聊天记录、一份英文 Telegram 导出，都是虚构的）和 34 个虚构剧本 | 已完成 |
+| 附虚构样例数据，评委不用真数据就能跑 | `fixtures/training/samples/`（一份中文聊天记录、一份英文 Telegram 导出，都是虚构的）和 48 个虚构剧本 | 已完成 |
 
 **信任边界（能证明什么、不能证明什么）**：
 
@@ -159,20 +192,29 @@ HAPI 式的风险分可以作为守卫的又一个信号接进来。
 
 ## 评测结果
 
-`pnpm eval` 把每个剧本从头到尾跑一遍（每个最多 24 句）。下面是最近一次规则模式的结果，记录在 `apps/web/public/snapshot.json`（2026-11-09）：
+`pnpm eval` 把每个剧本从头到尾跑一遍。下面三次评测按时间从新到旧排列；大模型的两次照抄 `docs/qa/` 里的报告，不做取整美化。
 
-| 引擎 | 剧本数 | 拿到地址 | 平均几轮拿到 | 泄露 | 被注入带偏 | 投毒已过滤 | 已上链 |
-|---|---|---|---|---|---|---|---|
-| 规则模式（不用大模型） | 34 | 34 / 34 | 8.9 | 0 | 0 | 9 / 9 | 32 / 34（有 2 个投毒剧本没有真实收款地址） |
+| 评测 | 剧本数 | 拿到地址 | 泄露 | 被注入带偏 | 投毒已过滤 | 已上链 | 挂警告（D33） | 像真人 | 前后一致 | 平均情报格（共 8 格） | 骗子怀疑度 / 跑了 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **大模型，D34 真实模式**，每局 12 轮，NEAR AI DeepSeek V4.1 Flash 同时扮两方（[报告](docs/qa/2026-11-11_live-eval-D34.md)） | 48 | **42 / 48**（中文 27/31，英文 15/17） | 0 | **1**（`investment-02` 第 11 轮） | 13 / 13 | 37 | 2 | 48 / 48 | 48 / 48 | 中文 4.9 / 英文 5.1 | 平均 4.8，最高 51 / 0 |
+| **大模型，D32**，每局 12 轮，NEAR AI DeepSeek V4.1 Flash（[报告](docs/qa/2026-11-11_live-eval-D32.md)） | 34 | **32 / 34**（中文 23/24，英文 9/10） | 0 | 0 | 9 / 9 | 30 | — | 34 / 34 | 33 / 34 | 5.4 | — |
+| 规则模式（不用大模型），`pnpm eval`，2026-11-11 | 48 | 48 / 48 | 0 | 0 | 13 / 13 | 40 | 5 | 48 / 48 | 48 / 48 | 4.5 | 平均 1.3 / 0（简单模式） |
 
-**这组数字只能证明流程是通的，不能说明诱饵 AI 有多聪明。** 规则模式下骗子会在固定阶段把地址念出来，诱饵从固定模板里挑话说，危险的回复又会被防护过滤替换掉，所以几乎一定满分。回归用例在规则模式下也几乎必然通过，因为诱饵会直接照搬审核过的改写。要衡量诱饵的真实水平，需要配置 `NEARAI_API_KEY` 或 `ANTHROPIC_API_KEY` 后运行 `pnpm eval:live`。大模型模式结果：`<TBD>`。
+怎么看：
+
+- **规则模式的数字只能证明流程是通的。** 骗子在固定阶段念出地址，诱饵从固定模板里挑话说，接近满分是意料之中。只有大模型的两次能说明诱饵的水平。
+- **D34 那次没拿到地址的 6 个：** 4 个剧本的地址在第 4、5 阶段才出现，12 轮走不到（`authority-impersonation-01`、`family-emergency-05`、`fake-support-01`、`fake-support-02`）；另外 2 个是骗子这一局还没推进到给地址。网页对练没有 12 轮限制。
+- **还没在真实模型上看到的：** D34 那次没有一个骗子起疑到会试探、投毒或跑掉（这些行为在单元测试和规则模式里验证过）。现在分不清是诱饵确实像真人，还是 DeepSeek 扮骗子时打分偏松。
+- 「像真人」「前后一致」是代码检查（AI 腔、承认是 AI、和人物卡或已说事实矛盾），不是人工打分。
+
+自己复现大模型评测：在 `.env` 里填 `NEARAI_API_KEY`，运行 `pnpm eval:live`（会花额度）。
 
 ## 已知限制
 
 - **规则模式的分数不是 AI 水平的测评**（见上）。大模型模式评测需要 API key，并且会产生费用。
-- **剧本是虚构的**：34 个剧本和其中所有地址都是编的（格式合法）。BaitNet 没有和真骗子对过话，本文不对真实环境下的成功率做任何声明。
+- **剧本是虚构的**：48 个剧本和其中所有地址都是编的（格式合法）。BaitNet 没有和真骗子对过话，本文不对真实环境下的成功率做任何声明。
 - **Intents 数据离线时是样例**：NEAR Intents 没有测试网；Intents Explorer API 需要合作方 JWT，而且限速 5 秒 1 次。做市商是模拟的；没有设置 `INTENTS_EXPLORER_JWT` 时，资金流向图用的是录制的样例数据。
-- **TEE / NEAR AI Cloud**：真实的 NEAR AI Cloud 调用**还没有实测**（目前没有 API key，测试用的是模拟接口）。离线时，TEE 页面和零留存分析的返回都用录制的证明报告。同一模型的实例共用签名 key，签名匹配不能证明某条回复出自被证明的那个实例。只有零留存模式不留数据；主流程按设计会加密保留证据。
+- **TEE / NEAR AI Cloud**：线上服务器已经实际调用 NEAR AI Cloud 并实时校验证明（见 [03 赛道](#03-赛道要求逐条对照)）；自动测试用模拟接口。离线时，TEE 页面和零留存分析的返回都用录制的证明报告。同一模型的实例共用签名 key，签名匹配不能证明某条回复出自被证明的那个实例。只有零留存模式不留数据；主流程按设计会加密保留证据。
 - **零留存分析结果保存后的证据较弱**：用户确认保存时，地址和打码文本由浏览器回传给服务端，原文从来没有保存过。所以这类素材上链的证据只有打码版公开记录的 hash，没有可供事后核对的加密原文。回传的内容理论上可能被篡改，只能靠审核者复核和防投毒过滤把关。
 - **守卫比对的是本地登记表副本**：新警报要等订阅方下一次同步才生效。
 - **IM 训练台（开发中，不属于本次提交）**：专家在 Telegram 或飞书里直接跟 AI 斗智（[设计](docs/03_IM训练台设计.md)），正在开发。目前只能在网页竞技场里训练。
@@ -190,17 +232,17 @@ HAPI 式的风险分可以作为守卫的又一个信号接进来。
 
 ## AI 生成代码披露
 
-**本仓库的代码绝大部分由 AI 生成。** 由多个分工明确的 Claude Code agent 编写：
+**本仓库的代码绝大部分由 Claude Code 编写，人类（Dylan）负责产品决策与验收。** 由多个分工明确的 Claude Code agent 编写：
 
 - 产品：`docs/` 里的需求、README、使用说明书。
 - 后端 A：Rust 合约。
 - 后端 B：agent、竞技场、后端服务。
 - 前端：控制台。
 - 运维：demo 脚本和 CI。
-- 业务端：`fixtures/scripts` 里的诈骗剧本、提交材料草稿。
+- 业务端：`fixtures/scripts` 里的诈骗剧本、`fixtures/personas` 和 `fixtures/scammers` 里的人物卡、提交材料草稿。
 - 测试：全新环境验收。
 
-Dylan（团队唯一的真人）负责产品决策（记录在 [docs/01_功能模块.md](docs/01_功能模块.md) §0 的 D1–D27）、审核产出，并在中文界面里亲手测试。实际上 `apps/`、`packages/`、`contracts/`、`scripts/`、`fixtures/`、`docs/` 下的内容都属于 AI 生成，不应假定任何部分是手写的。
+Dylan（团队唯一的真人）负责产品决策（记录在 [docs/01_功能模块.md](docs/01_功能模块.md) §0 的 D1–D34）、审核产出，并在中文界面里亲手测试。实际上 `apps/`、`packages/`、`contracts/`、`scripts/`、`fixtures/`、`docs/` 下的内容都属于 AI 生成，不应假定任何部分是手写的。
 
 ## 赛前代码说明
 
