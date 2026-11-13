@@ -9,7 +9,8 @@
 - [ ] 主帖含 **built at NEAR HACKATHON**、**@NEARProtocol**、**#NEARHackathon**（三项都是硬要求）
 - [ ] 主帖附视频（[视频脚本](视频脚本.md) 的 **2:20 版**）；没有视频时至少附 2 张截图：`docs/manual/img/page-guard.jpg`（拦截日志）和 `docs/manual/img/arena-address-extracted.jpg`（抽到地址）
 - [x] GitHub 仓库 `dylantlwu/baitnet` 已设为公开（2026-11-11）
-- [ ] 打开串推 5 的两个链接各试一次（线上版不用登录也能看登记表和 TEE 页）
+- [ ] 把串推 5 的 `<Public Demo 邀请的登录链接>` 换成团队页里新建的 `Public Demo` 专家邀请链接（不要用评审那个，见[提交表单草稿](提交表单草稿.md)「评审和公众怎么进线上版」）
+- [ ] 用无痕窗口打开串推 5 的两个链接各试一次，确认试玩链接能登录并开一局
 - [ ] 可选：在串推 5 末尾加 @NearLegion @NearBuilders（各 12～13 字符，串推 5 还剩 34 字符，够）
 - [ ] 发完把**主帖链接**填进提交表单的 "Demo post link"
 
@@ -52,14 +53,14 @@ A scammer who smells a bait may send someone else's address to frame them. Excha
 On chain: address + evidence hash only.
 ```
 
-## 串推 5/5：试用 + 求反馈（246 / 280）
+## 串推 5/5：试用 + 求反馈（248 / 280）
 
 ```text
 Live run, 48 scripts, suspicious scammers: 42 addresses, 0 leaks, 13/13 poison filtered.
 
 No keys needed: pnpm install && pnpm demo
 Repo: https://github.com/dylantlwu/baitnet
-Live: https://baitnet-production.up.railway.app
+Try it: <Public Demo 邀请的登录链接>
 
 Wallet & agent builders: block/warn, or a risk score?
 ```
@@ -71,5 +72,6 @@ Wallet & agent builders: block/warn, or a risk score?
 - 串推 3 是这两天的新东西：诱饵人物卡和心智（D32）、骗子面具 + 真人卡和怀疑度（D34）。只写能在视频里看到的东西。
 - 串推 4 讲防栽赃（D33）。评委最可能追问"会不会被拿来冤枉人"，这里直接给两个具体例子。
 - 串推 5 的数字来自 [D34 实测报告](../qa/2026-11-11_live-eval-D34.md)（大模型、骗子会起疑）：42/48、泄露 0、投毒过滤 13/13。**没写的那一条**：有 1 局被注入带偏（investment-02）——帖子篇幅放不下解释，README 和报告里都如实写了；如果评论里有人问，直接承认并指向报告。不要写规则模式的 48/48，那只说明流程通。
+- 串推 5 的试玩链接是公开的专家邀请：所有人共用每天 200 次大模型调用，用完当天就停；被刷可以在团队页吊销再换。链接按 23 字符算，所以字数不受链接长短影响。
 - 结尾是一个具体问题（block/warn 还是风险分），方便钱包和代理开发者回复。
 - 中文版不单独发主帖。如果想发给中文社区，可以在串推里另起一条中文，但主帖必须是满足三项要求的这一条。
