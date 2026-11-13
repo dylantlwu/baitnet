@@ -11,10 +11,10 @@
 - [x] GitHub 仓库 `dylantlwu/baitnet` 已设为公开（2026-11-11）
 - [ ] 把串推 5 的 `<Public Demo 邀请的登录链接>` 换成团队页里新建的 `Public Demo` 专家邀请链接（不要用评审那个，见[提交表单草稿](提交表单草稿.md)「评审和公众怎么进线上版」）
 - [ ] 用无痕窗口打开串推 5 的两个链接各试一次，确认试玩链接能登录并开一局
-- [ ] 可选：在串推 5 末尾加 @NearLegion @NearBuilders（各 12～13 字符，串推 5 还剩 34 字符，够）
+- [ ] 可选：在串推 5 末尾加 @NearLegion @NearBuilders（各 12～13 字符，串推 5 换上真实链接后还剩 32 字符，够）
 - [ ] 发完把**主帖链接**填进提交表单的 "Demo post link"
 
-字数按 X 规则统计（链接一律算 23 字符），上限 280。下面的字数是用脚本数的（链接按 23 计）。
+字数按 X 规则统计（链接一律算 23 字符；`•` 这类符号算 2；像 `vault.pay` 这种「词.顶级域名」会被 X 自动当成链接，也算 23，帖子里要避开），上限 280。下面的字数是用脚本数的（链接按 23 计）。
 
 ## 主帖（1/5）（277 / 280）
 
@@ -26,11 +26,11 @@ BaitNet sends AI decoys to talk to scammers first, puts the payment addresses th
 Built at NEAR HACKATHON @NEARProtocol #NEARHackathon
 ```
 
-## 串推 2/5：NEAR 具体带来了什么（277 / 280）
+## 串推 2/5：NEAR 具体带来了什么（275 / 280）
 
 ```text
 What NEAR does here:
-• the agent's only key is a function-call key: it can call vault.pay, nothing else
+• the agent's only key is a function-call key: it can only call pay on the vault
 • the vault checks the registry on chain before paying
 • Intents swaps are checked before a quote
 
