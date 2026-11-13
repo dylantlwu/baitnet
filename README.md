@@ -10,7 +10,7 @@ Built at NEAR HACKATHON 2026 (tracks: 06 AI Security & Defense, 03 Privacy & Pri
 
 - **Hosted (live, NEAR testnet):** https://baitnet-production.up.railway.app — without signing in you can see the on-chain registry (7 testnet alerts), the response record and a **live** TEE attestation check (18/18). Arena, training and the report card need an invite link because they spend LLM credits. **Judges:** the last line of our hackathon submission's project description is a link that signs you in. **Everyone else:** a public trial link is in our X post (its daily LLM quota is shared and may run out; try again the next day or run it locally). Invite links sign you in as an *expert*: you can play the arena, rate and rewrite lines, and upload scripts, but only team reviewers can approve an address onto the chain. The guard and fund-flow pages are empty there; the attack storyline that fills them runs in the local `pnpm demo`. Health check: `/health`.
 - **Testnet contracts:** `registry.baitnet-651f.testnet`, `vault.baitnet-651f.testnet` (see [Testnet deployment](#testnet-deployment))
-- **Demo video:** `<TBD>`
+- **Demo video:** https://youtube.com/shorts/fNZEH5dAVuk?feature=share
 - **Run it locally with no keys:** `pnpm install && pnpm demo --ci` (≈35 s, ends with `✓ 全部通过` = "all passed"), see [5-minute check](#5-minute-check-for-ai-reviewers)
 
 ## 5-minute check (for AI reviewers)
